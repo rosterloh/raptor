@@ -1,6 +1,7 @@
-use crate::entity::software_module;
+use crate::entity::{software_module, target};
 use serde::Serialize;
 use serde_json::json;
+use std::time::Duration;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,4 +31,25 @@ pub fn sm_rest(m: &software_module::Model, type_key: &str, base: &str) -> SmRest
         last_modified_at: m.updated_at,
         links: json!({"self": {"href": format!("{base}/rest/v1/softwaremodules/{}", m.id)}}),
     }
+}
+
+pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> serde_json::Value {
+    let poll_status = t.last_poll_at.map(|last| {
+        let next = last + poll_interval.as_millis() as i64;
+        json!({"lastRequestAt": last, "nextExpectedRequestAt": next, "overdue": crate::util::now_ms() > next})
+    });
+    json!({
+        "controllerId": t.controller_id,
+        "name": t.name,
+        "description": t.description,
+        "updateStatus": t.update_status,
+        "securityToken": t.security_token,
+        "createdAt": t.created_at,
+        "lastModifiedAt": t.updated_at,
+        "address": t.address,
+        "ipAddress": t.address,
+        "lastControllerRequestAt": t.last_poll_at,
+        "pollStatus": poll_status,
+        "_links": {"self": {"href": format!("{base}/rest/v1/targets/{}", t.controller_id)}}
+    })
 }

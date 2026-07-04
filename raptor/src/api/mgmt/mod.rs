@@ -1,6 +1,7 @@
 pub mod artifacts;
 pub mod dto;
 pub mod software_modules;
+pub mod targets;
 pub mod types;
 
 use crate::state::AppState;
@@ -22,5 +23,8 @@ pub fn router(state: AppState) -> Router<AppState> {
             .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size)))
         .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}", get(artifacts::get_one).delete(artifacts::delete))
         .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}/download", get(artifacts::download))
+        .route("/rest/v1/targets", post(targets::create).get(targets::list))
+        .route("/rest/v1/targets/{cid}", get(targets::get_one).put(targets::update).delete(targets::delete))
+        .route("/rest/v1/targets/{cid}/attributes", get(targets::attributes))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::mgmt::mgmt_auth))
 }
