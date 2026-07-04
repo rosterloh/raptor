@@ -41,13 +41,20 @@ pub struct TargetCreate {
 pub async fn create(
     State(st): State<AppState>, headers: HeaderMap, Json(body): Json<Vec<TargetCreate>>,
 ) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+    // Phase 1: Validate all items first
+    for c in &body {
+        match find_by_cid(&st.db, &c.controller_id).await {
+            Ok(_) => return Err(AppError::Conflict(format!("target {} already exists", c.controller_id))),
+            Err(AppError::NotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    // Phase 2: Insert all items
     let base = base_url(&st.cfg, &headers);
     let interval = st.cfg.ddi.polling_duration();
     let mut out = Vec::with_capacity(body.len());
     for c in body {
-        if find_by_cid(&st.db, &c.controller_id).await.is_ok() {
-            return Err(AppError::Conflict(format!("target {} already exists", c.controller_id)));
-        }
         let now = now_ms();
         let t = target::ActiveModel {
             name: Set(c.name.unwrap_or_else(|| c.controller_id.clone())),

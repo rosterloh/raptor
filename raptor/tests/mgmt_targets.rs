@@ -47,3 +47,23 @@ async fn duplicate_controller_id_conflicts() {
     assert_eq!(app.clone().oneshot(common::req("POST", "/rest/v1/targets", Some(t.clone()))).await.unwrap().status(), StatusCode::CREATED);
     assert_eq!(app.clone().oneshot(common::req("POST", "/rest/v1/targets", Some(t))).await.unwrap().status(), StatusCode::CONFLICT);
 }
+
+#[tokio::test]
+async fn partial_write_prevented_on_bulk_conflict() {
+    let (app, _) = common::setup().await;
+
+    // Create "already-there" beforehand
+    app.clone().oneshot(common::req("POST", "/rest/v1/targets",
+        Some(json!([{"controllerId": "already-there"}])))).await.unwrap();
+
+    // POST array with brand-new and already-there (conflict)
+    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/targets",
+        Some(json!([{"controllerId": "brand-new"}, {"controllerId": "already-there"}])))).await.unwrap();
+
+    // Should return 409 because second item conflicts
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Verify brand-new was NOT created (no partial write)
+    let check = app.clone().oneshot(common::req("GET", "/rest/v1/targets/brand-new", None)).await.unwrap();
+    assert_eq!(check.status(), StatusCode::NOT_FOUND);
+}
