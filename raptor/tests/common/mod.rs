@@ -48,9 +48,11 @@ pub async fn setup() -> (Router, AppState) {
         Migrator::up(&db, None).await.unwrap();
     }
     let dir = tempfile::tempdir().unwrap();
-    let cfg = test_config(dir.path());
+    let dir_path = dir.path().to_path_buf();
+    let cfg = test_config(&dir_path);
     std::mem::forget(dir); // keep tempdir alive for the test process
-    let state = AppState::new(db, cfg);
+    let store = raptor::storage::ArtifactStore::new(dir_path).unwrap();
+    let state = AppState::new(db, cfg, store);
     (raptor::app::build_app(state.clone()), state)
 }
 

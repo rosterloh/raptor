@@ -2108,6 +2108,7 @@ dependencies = [
  "argon2",
  "axum",
  "base64",
+ "bytes",
  "chrono",
  "clap",
  "figment",

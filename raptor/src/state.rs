@@ -8,11 +8,12 @@ pub struct AppState(Arc<Inner>);
 pub struct Inner {
     pub db: DatabaseConnection,
     pub cfg: Config,
+    pub store: crate::storage::ArtifactStore,
 }
 
 impl AppState {
-    pub fn new(db: DatabaseConnection, cfg: Config) -> Self {
-        Self(Arc::new(Inner { db, cfg }))
+    pub fn new(db: DatabaseConnection, cfg: Config, store: crate::storage::ArtifactStore) -> Self {
+        Self(Arc::new(Inner { db, cfg, store }))
     }
 }
 

@@ -37,9 +37,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cfg = Config::load(Some(&config))?;
             let db = sea_orm::Database::connect(&cfg.database_url).await?;
             migration::Migrator::up(&db, None).await?;
-            std::fs::create_dir_all(&cfg.artifact_dir)?;
+            let store = raptor::storage::ArtifactStore::new(cfg.artifact_dir.clone())?;
             let bind = cfg.bind;
-            let app = raptor::app::build_app(AppState::new(db, cfg));
+            let app = raptor::app::build_app(AppState::new(db, cfg, store));
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");
             axum::serve(listener, app).await?;
