@@ -18,9 +18,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/rest/v1/softwaremoduletypes/{id}", get(types::sm_type))
         .route("/rest/v1/distributionsettypes", get(types::ds_types))
         .route("/rest/v1/distributionsettypes/{id}", get(types::ds_type))
-        .route("/rest/v1/softwaremodules/{id}/artifacts", post(artifacts::upload).get(artifacts::list))
+        .route("/rest/v1/softwaremodules/{id}/artifacts", post(artifacts::upload).get(artifacts::list)
+            .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size)))
         .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}", get(artifacts::get_one).delete(artifacts::delete))
         .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}/download", get(artifacts::download))
-        .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::mgmt::mgmt_auth))
 }

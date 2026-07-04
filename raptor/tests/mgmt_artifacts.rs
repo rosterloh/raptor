@@ -75,3 +75,33 @@ async fn blob_refcounting_on_delete() {
     app.clone().oneshot(common::req("DELETE", &format!("/rest/v1/softwaremodules/{m2}"), None)).await.unwrap();
     assert!(!state.store.path_for(sha256).exists());
 }
+
+#[tokio::test]
+async fn large_body_rejected_on_json_routes() {
+    let (app, _) = common::setup().await;
+
+    // Create a 3 MiB junk description string to exceed the default limit (typically 2 MiB)
+    let large_description = "x".repeat(3 * 1024 * 1024);
+    let payload = serde_json::json!([{
+        "name": "test_module",
+        "version": "1.0",
+        "type": "os",
+        "description": large_description
+    }]);
+
+    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/softwaremodules", Some(payload))).await.unwrap();
+
+    // The body should be rejected for being too large before the handler runs
+    // Axum may return 413 Payload Too Large or 400 Bad Request depending on extractor
+    let status = resp.status();
+    assert!(
+        status.is_client_error(),
+        "Expected 4xx client error, got {} ({})",
+        status.as_u16(),
+        status.canonical_reason().unwrap_or("unknown")
+    );
+    assert_ne!(status, StatusCode::OK, "Large body should not succeed");
+    assert_ne!(status, StatusCode::CREATED, "Large body should not succeed");
+    assert_ne!(status, StatusCode::CONFLICT, "Large body should not succeed");
+    assert_ne!(status, StatusCode::NOT_FOUND, "Large body should not succeed");
+}
