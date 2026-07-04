@@ -36,17 +36,27 @@ impl ArtifactStore {
     {
         let tmp = self.root.join(".tmp").join(crate::util::random_token());
         let mut file = tokio::fs::File::create(&tmp).await?;
-        let (mut h1, mut h5, mut h256) = (Sha1::new(), Md5::new(), Sha256::new());
-        let mut size: i64 = 0;
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| AppError::BadRequest(format!("upload stream: {e}")))?;
-            h1.update(&chunk);
-            h5.update(&chunk);
-            h256.update(&chunk);
-            size += chunk.len() as i64;
-            file.write_all(&chunk).await?;
-        }
-        file.flush().await?;
+        let write_result = async {
+            let (mut h1, mut h5, mut h256) = (Sha1::new(), Md5::new(), Sha256::new());
+            let mut size: i64 = 0;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.map_err(|e| AppError::BadRequest(format!("upload stream: {e}")))?;
+                h1.update(&chunk);
+                h5.update(&chunk);
+                h256.update(&chunk);
+                size += chunk.len() as i64;
+                file.write_all(&chunk).await?;
+            }
+            file.flush().await?;
+            Ok((h1, h5, h256, size))
+        }.await;
+        let (h1, h5, h256, size) = match write_result {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = tokio::fs::remove_file(&tmp).await;
+                return Err(e);
+            }
+        };
         drop(file);
         let meta = StoredArtifact {
             size,
@@ -105,5 +115,19 @@ mod tests {
         assert!(store.path_for(&a.sha256).exists());
         store.remove(&a.sha256).unwrap();
         assert!(!store.path_for(&a.sha256).exists());
+    }
+
+    #[tokio::test]
+    async fn cleans_up_temp_file_on_stream_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ArtifactStore::new(dir.path().to_path_buf()).unwrap();
+        let stream = futures::stream::iter(vec![
+            Ok(bytes::Bytes::from_static(b"x")),
+            Err(std::io::Error::other("boom")),
+        ]);
+        let result = store.store_bytes_stream(stream).await;
+        assert!(result.is_err());
+        let tmp_count = std::fs::read_dir(dir.path().join(".tmp")).unwrap().count();
+        assert_eq!(tmp_count, 0);
     }
 }
