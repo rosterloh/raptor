@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod dto;
 pub mod software_modules;
 pub mod types;
@@ -8,6 +9,7 @@ use axum::routing::{get, post};
 use axum::Router;
 
 pub fn router(state: AppState) -> Router<AppState> {
+    let max_artifact_size = state.cfg.max_artifact_size as usize;
     Router::new()
         .route("/rest/v1/softwaremodules", post(software_modules::create).get(software_modules::list))
         .route("/rest/v1/softwaremodules/{id}",
@@ -16,5 +18,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/rest/v1/softwaremoduletypes/{id}", get(types::sm_type))
         .route("/rest/v1/distributionsettypes", get(types::ds_types))
         .route("/rest/v1/distributionsettypes/{id}", get(types::ds_type))
+        .route("/rest/v1/softwaremodules/{id}/artifacts", post(artifacts::upload).get(artifacts::list))
+        .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}", get(artifacts::get_one).delete(artifacts::delete))
+        .route("/rest/v1/softwaremodules/{id}/artifacts/{aid}/download", get(artifacts::download))
+        .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::mgmt::mgmt_auth))
 }

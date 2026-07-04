@@ -114,7 +114,7 @@ pub async fn update(
 pub async fn delete(State(st): State<AppState>, Path(id): Path<i64>) -> Result<StatusCode, AppError> {
     let m = software_module::Entity::find_by_id(id).one(&st.db).await?
         .ok_or(AppError::NotFound("software module"))?;
-    // Task 9 extends this to clean up artifact rows + blobs.
+    super::artifacts::delete_module_artifacts(&st, m.id).await?;
     software_module::Entity::delete_by_id(m.id).exec(&st.db).await?;
     Ok(StatusCode::OK)
 }
