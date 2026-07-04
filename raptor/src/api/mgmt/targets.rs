@@ -10,7 +10,7 @@ use axum::Json;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter};
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 pub fn fiql_map(f: &str) -> Option<target::Column> {
     match f {
@@ -42,7 +42,11 @@ pub async fn create(
     State(st): State<AppState>, headers: HeaderMap, Json(body): Json<Vec<TargetCreate>>,
 ) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
     // Phase 1: Validate all items first
+    let mut seen = HashSet::new();
     for c in &body {
+        if !seen.insert(&c.controller_id) {
+            return Err(AppError::Conflict(format!("duplicate controllerId {} in request", c.controller_id)));
+        }
         match find_by_cid(&st.db, &c.controller_id).await {
             Ok(_) => return Err(AppError::Conflict(format!("target {} already exists", c.controller_id))),
             Err(AppError::NotFound(_)) => {}

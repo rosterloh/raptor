@@ -67,3 +67,19 @@ async fn partial_write_prevented_on_bulk_conflict() {
     let check = app.clone().oneshot(common::req("GET", "/rest/v1/targets/brand-new", None)).await.unwrap();
     assert_eq!(check.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn duplicate_within_request_rejected() {
+    let (app, _) = common::setup().await;
+
+    // POST array with two identical brand-new controllerIds (duplicate within same request)
+    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/targets",
+        Some(json!([{"controllerId": "dup-in-req"}, {"controllerId": "dup-in-req"}])))).await.unwrap();
+
+    // Should return 409 Conflict, not 500
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Verify nothing was persisted (404 on GET)
+    let check = app.clone().oneshot(common::req("GET", "/rest/v1/targets/dup-in-req", None)).await.unwrap();
+    assert_eq!(check.status(), StatusCode::NOT_FOUND);
+}
