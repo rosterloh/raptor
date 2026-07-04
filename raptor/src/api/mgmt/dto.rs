@@ -1,4 +1,4 @@
-use crate::entity::{software_module, target};
+use crate::entity::{distribution_set, software_module, target};
 use serde::Serialize;
 use serde_json::json;
 use std::time::Duration;
@@ -51,5 +51,22 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> se
         "lastControllerRequestAt": t.last_poll_at,
         "pollStatus": poll_status,
         "_links": {"self": {"href": format!("{base}/rest/v1/targets/{}", t.controller_id)}}
+    })
+}
+
+pub fn ds_rest(ds: &distribution_set::Model, type_key: &str, modules: Vec<SmRest>, base: &str) -> serde_json::Value {
+    json!({
+        "id": ds.id,
+        "name": ds.name,
+        "version": ds.version,
+        "type": type_key,
+        "description": ds.description,
+        "requiredMigrationStep": ds.required_migration_step,
+        "complete": ds.complete,
+        "deleted": false,
+        "createdAt": ds.created_at,
+        "lastModifiedAt": ds.updated_at,
+        "modules": modules,
+        "_links": {"self": {"href": format!("{base}/rest/v1/distributionsets/{}", ds.id)}}
     })
 }

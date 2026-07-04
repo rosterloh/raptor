@@ -1,4 +1,5 @@
 pub mod artifacts;
+pub mod distribution_sets;
 pub mod dto;
 pub mod software_modules;
 pub mod targets;
@@ -26,5 +27,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/rest/v1/targets", post(targets::create).get(targets::list))
         .route("/rest/v1/targets/{cid}", get(targets::get_one).put(targets::update).delete(targets::delete))
         .route("/rest/v1/targets/{cid}/attributes", get(targets::attributes))
+        .route("/rest/v1/distributionsets", post(distribution_sets::create).get(distribution_sets::list))
+        .route("/rest/v1/distributionsets/{id}", get(distribution_sets::get_one).delete(distribution_sets::delete))
+        .route("/rest/v1/distributionsets/{id}/assignedSM", post(distribution_sets::assign_modules).get(distribution_sets::assigned_modules))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::mgmt::mgmt_auth))
 }
