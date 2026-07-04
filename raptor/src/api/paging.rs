@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryOrder, QuerySelect, Select};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect, Select};
 use serde::{Deserialize, Serialize};
 
 fn default_limit() -> u64 {
@@ -48,20 +48,16 @@ pub fn apply_sort<E: EntityTrait, C: ColumnTrait>(
 }
 
 /// hawkBit list convention: filter (q) applied by caller; this does count + offset/limit.
-pub async fn page<E: EntityTrait>(
+pub async fn page<E: EntityTrait + Send>(
     db: &DatabaseConnection,
     sel: Select<E>,
     p: &ListParams,
-) -> Result<(Vec<E::Model>, u64), AppError> {
-    // Clone the select for counting - we need to count all results before applying offset/limit
+) -> Result<(Vec<E::Model>, u64), AppError>
+where
+    E::Model: Send + Sync,
+{
     let count_sel = sel.clone();
-
-    // The number of total items is obtained by fetching with a very high limit and counting
-    // This is a workaround since Select doesn't directly support count()
-    let all_rows = count_sel.all(db).await?;
-    let total = all_rows.len() as u64;
-
-    // Now fetch with offset/limit
+    let total = count_sel.count(db).await?;
     let rows = sel.offset(p.offset).limit(p.limit).all(db).await?;
     Ok((rows, total))
 }
