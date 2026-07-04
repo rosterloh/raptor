@@ -5,6 +5,7 @@ use axum::Router;
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/health", get(|| async { "ok" }))
+        .merge(crate::api::mgmt::router(state.clone()))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state)
 }
