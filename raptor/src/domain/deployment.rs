@@ -72,6 +72,73 @@ pub async fn assign_ds(
     Ok(AssignResult { action_id: Some(a.id), already_assigned: false })
 }
 
+pub async fn apply_feedback(
+    st: &AppState, t: &target::Model, a: &action::Model,
+    execution: &str, finished: &str, details: &[String],
+) -> Result<(), AppError> {
+    add_action_status(&st.db, a.id, execution, details).await?;
+    match (execution, finished) {
+        ("closed", "failure") => {
+            set_action(st, a, "error", false).await?;
+            set_target_status(st, t, None, "error").await?;
+        }
+        ("closed", _) => {
+            set_action(st, a, "finished", false).await?;
+            set_target_status(st, t, Some(a.ds_id), "in_sync").await?;
+        }
+        ("canceled", _) => {
+            set_action(st, a, "canceled", false).await?;
+            let status = if t.installed_ds_id.is_some() { "in_sync" } else { "registered" };
+            set_target_status(st, t, None, status).await?;
+        }
+        _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
+    }
+    Ok(())
+}
+
+pub async fn apply_cancel_feedback(
+    st: &AppState, t: &target::Model, a: &action::Model, execution: &str, details: &[String],
+) -> Result<(), AppError> {
+    add_action_status(&st.db, a.id, &format!("cancel_{execution}"), details).await?;
+    match execution {
+        "closed" => {
+            set_action(st, a, "canceled", false).await?;
+            let status = if t.installed_ds_id.is_some() { "in_sync" } else { "registered" };
+            // assigned reverts to installed on confirmed cancel
+            let mut tm: target::ActiveModel = t.clone().into();
+            tm.assigned_ds_id = Set(t.installed_ds_id);
+            tm.update_status = Set(status.into());
+            tm.updated_at = Set(now_ms());
+            tm.update(&st.db).await?;
+        }
+        "rejected" => {
+            set_action(st, a, "running", true).await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn set_action(st: &AppState, a: &action::Model, status: &str, active: bool) -> Result<(), AppError> {
+    let mut am: action::ActiveModel = a.clone().into();
+    am.status = Set(status.into());
+    am.active = Set(active);
+    am.updated_at = Set(now_ms());
+    am.update(&st.db).await?;
+    Ok(())
+}
+
+async fn set_target_status(
+    st: &AppState, t: &target::Model, installed: Option<i64>, status: &str,
+) -> Result<(), AppError> {
+    let mut tm: target::ActiveModel = t.clone().into();
+    if let Some(ds) = installed { tm.installed_ds_id = Set(Some(ds)); }
+    tm.update_status = Set(status.into());
+    tm.updated_at = Set(now_ms());
+    tm.update(&st.db).await?;
+    Ok(())
+}
+
 pub fn action_rest(a: &action::Model, base: &str) -> serde_json::Value {
     let is_cancel = matches!(a.status.as_str(), "canceling" | "canceled");
     json!({

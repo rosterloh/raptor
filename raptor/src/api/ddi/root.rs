@@ -46,8 +46,9 @@ pub async fn poll(
     links.insert("configData".into(), json!({"href": format!("{base}/configData")}));
     if let Some(a) = active_action(&st.db, t.id).await? {
         match a.status.as_str() {
+            "running" => { links.insert("deploymentBase".into(), json!({"href": format!("{base}/deploymentBase/{}", a.id)})); }
             "canceling" => { links.insert("cancelAction".into(), json!({"href": format!("{base}/cancelAction/{}", a.id)})); }
-            _ => { links.insert("deploymentBase".into(), json!({"href": format!("{base}/deploymentBase/{}", a.id)})); }
+            _ => {} // unknown active status: no actionable link
         }
     }
     if let Some(installed) = action::Entity::find()
