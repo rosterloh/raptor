@@ -66,8 +66,9 @@ raptor/
   `/ui/*` paths so client-side routes survive refresh.
 - Feature **off** (default): `cargo build` works with no Dioxus toolchain;
   `/ui` returns 404.
-- A `justfile` target chains `dx build --release` →
-  `cargo build --release --features embed-ui`; release CI does the same.
+- Release build is two documented commands (README): `dx build --release`
+  then `cargo build --release --features embed-ui`; release CI runs the same
+  two steps. No task runner.
 - Dev loop: `dx serve` with a proxy for `/rest` to a locally running raptor —
   hot reload without rebuilding the server.
 
