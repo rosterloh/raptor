@@ -40,7 +40,8 @@ impl ArtifactStore {
             let (mut h1, mut h5, mut h256) = (Sha1::new(), Md5::new(), Sha256::new());
             let mut size: i64 = 0;
             while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| AppError::BadRequest(format!("upload stream: {e}")))?;
+                let chunk =
+                    chunk.map_err(|e| AppError::BadRequest(format!("upload stream: {e}")))?;
                 h1.update(&chunk);
                 h5.update(&chunk);
                 h256.update(&chunk);
@@ -49,7 +50,8 @@ impl ArtifactStore {
             }
             file.flush().await?;
             Ok((h1, h5, h256, size))
-        }.await;
+        }
+        .await;
         let (h1, h5, h256, size) = match write_result {
             Ok(v) => v,
             Err(e) => {
@@ -86,7 +88,9 @@ impl ArtifactStore {
 mod tests {
     use super::*;
 
-    fn stream_of(chunks: Vec<&'static [u8]>) -> impl futures::Stream<Item = Result<bytes::Bytes, std::convert::Infallible>> + Unpin {
+    fn stream_of(
+        chunks: Vec<&'static [u8]>,
+    ) -> impl futures::Stream<Item = Result<bytes::Bytes, std::convert::Infallible>> + Unpin {
         futures::stream::iter(chunks.into_iter().map(|c| Ok(bytes::Bytes::from_static(c))))
     }
 
@@ -95,11 +99,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ArtifactStore::new(dir.path().to_path_buf()).unwrap();
         // b"hello world" split across chunks
-        let meta = store.store_bytes_stream(stream_of(vec![b"hello ", b"world"])).await.unwrap();
+        let meta = store
+            .store_bytes_stream(stream_of(vec![b"hello ", b"world"]))
+            .await
+            .unwrap();
         assert_eq!(meta.size, 11);
         assert_eq!(meta.md5, "5eb63bbbe01eeed093cb22bb8f5acdc3");
         assert_eq!(meta.sha1, "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed");
-        assert_eq!(meta.sha256, "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9");
+        assert_eq!(
+            meta.sha256,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
         let path = store.path_for(&meta.sha256);
         assert_eq!(std::fs::read(&path).unwrap(), b"hello world");
         assert!(path.starts_with(dir.path()));
@@ -109,8 +119,14 @@ mod tests {
     async fn dedups_identical_content() {
         let dir = tempfile::tempdir().unwrap();
         let store = ArtifactStore::new(dir.path().to_path_buf()).unwrap();
-        let a = store.store_bytes_stream(stream_of(vec![b"hello world"])).await.unwrap();
-        let b = store.store_bytes_stream(stream_of(vec![b"hello world"])).await.unwrap();
+        let a = store
+            .store_bytes_stream(stream_of(vec![b"hello world"]))
+            .await
+            .unwrap();
+        let b = store
+            .store_bytes_stream(stream_of(vec![b"hello world"]))
+            .await
+            .unwrap();
         assert_eq!(a.sha256, b.sha256);
         assert!(store.path_for(&a.sha256).exists());
         store.remove(&a.sha256).unwrap();

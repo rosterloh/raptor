@@ -14,13 +14,24 @@ fn multipart_upload(uri: &str, filename: &str, content: &[u8]) -> Request<Body> 
     body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
     Request::post(uri)
         .header(header::AUTHORIZATION, common::mgmt_auth_header())
-        .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={BOUNDARY}"))
-        .body(Body::from(body)).unwrap()
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={BOUNDARY}"),
+        )
+        .body(Body::from(body))
+        .unwrap()
 }
 
 async fn create_module(app: &axum::Router, name: &str) -> i64 {
-    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/softwaremodules",
-        Some(json!([{"name": name, "version": "1.0", "type": "os"}])))).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/softwaremodules",
+            Some(json!([{"name": name, "version": "1.0", "type": "os"}])),
+        ))
+        .await
+        .unwrap();
     common::body_json(resp).await[0]["id"].as_i64().unwrap()
 }
 
@@ -29,29 +40,67 @@ async fn upload_hashes_and_lists_artifact() {
     let (app, _) = common::setup().await;
     let id = create_module(&app, "rootfs").await;
 
-    let resp = app.clone().oneshot(multipart_upload(&format!("/rest/v1/softwaremodules/{id}/artifacts"), "fw.bin", b"hello world")).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(multipart_upload(
+            &format!("/rest/v1/softwaremodules/{id}/artifacts"),
+            "fw.bin",
+            b"hello world",
+        ))
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
     let a = common::body_json(resp).await;
     assert_eq!(a["providedFilename"], "fw.bin");
     assert_eq!(a["size"], 11);
     assert_eq!(a["hashes"]["md5"], "5eb63bbbe01eeed093cb22bb8f5acdc3");
-    assert_eq!(a["hashes"]["sha256"], "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9");
+    assert_eq!(
+        a["hashes"]["sha256"],
+        "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    );
 
     // list is a bare array
-    let resp = app.clone().oneshot(common::req("GET", &format!("/rest/v1/softwaremodules/{id}/artifacts"), None)).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            &format!("/rest/v1/softwaremodules/{id}/artifacts"),
+            None,
+        ))
+        .await
+        .unwrap();
     let list = common::body_json(resp).await;
     assert!(list.is_array());
     assert_eq!(list.as_array().unwrap().len(), 1);
 
     // download round-trips content
     let aid = a["id"].as_i64().unwrap();
-    let resp = app.clone().oneshot(common::req("GET", &format!("/rest/v1/softwaremodules/{id}/artifacts/{aid}/download"), None)).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            &format!("/rest/v1/softwaremodules/{id}/artifacts/{aid}/download"),
+            None,
+        ))
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = http_body_util::BodyExt::collect(resp.into_body()).await.unwrap().to_bytes();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
     assert_eq!(&bytes[..], b"hello world");
 
     // duplicate filename conflicts
-    let resp = app.clone().oneshot(multipart_upload(&format!("/rest/v1/softwaremodules/{id}/artifacts"), "fw.bin", b"other")).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(multipart_upload(
+            &format!("/rest/v1/softwaremodules/{id}/artifacts"),
+            "fw.bin",
+            b"other",
+        ))
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 }
 
@@ -62,17 +111,51 @@ async fn blob_refcounting_on_delete() {
     let m2 = create_module(&app, "m2").await;
     let sha256 = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
 
-    let a1 = common::body_json(app.clone().oneshot(multipart_upload(&format!("/rest/v1/softwaremodules/{m1}/artifacts"), "a.bin", b"hello world")).await.unwrap()).await;
-    let _a2 = common::body_json(app.clone().oneshot(multipart_upload(&format!("/rest/v1/softwaremodules/{m2}/artifacts"), "b.bin", b"hello world")).await.unwrap()).await;
+    let a1 = common::body_json(
+        app.clone()
+            .oneshot(multipart_upload(
+                &format!("/rest/v1/softwaremodules/{m1}/artifacts"),
+                "a.bin",
+                b"hello world",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let _a2 = common::body_json(
+        app.clone()
+            .oneshot(multipart_upload(
+                &format!("/rest/v1/softwaremodules/{m2}/artifacts"),
+                "b.bin",
+                b"hello world",
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert!(state.store.path_for(sha256).exists());
 
     // delete first reference: blob stays
     let aid1 = a1["id"].as_i64().unwrap();
-    app.clone().oneshot(common::req("DELETE", &format!("/rest/v1/softwaremodules/{m1}/artifacts/{aid1}"), None)).await.unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/softwaremodules/{m1}/artifacts/{aid1}"),
+            None,
+        ))
+        .await
+        .unwrap();
     assert!(state.store.path_for(sha256).exists());
 
     // delete the module holding the second reference: blob goes
-    app.clone().oneshot(common::req("DELETE", &format!("/rest/v1/softwaremodules/{m2}"), None)).await.unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/softwaremodules/{m2}"),
+            None,
+        ))
+        .await
+        .unwrap();
     assert!(!state.store.path_for(sha256).exists());
 }
 
@@ -89,7 +172,15 @@ async fn large_body_rejected_on_json_routes() {
         "description": large_description
     }]);
 
-    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/softwaremodules", Some(payload))).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/softwaremodules",
+            Some(payload),
+        ))
+        .await
+        .unwrap();
 
     // The body should be rejected for being too large before the handler runs
     // Axum may return 413 Payload Too Large or 400 Bad Request depending on extractor
@@ -102,6 +193,14 @@ async fn large_body_rejected_on_json_routes() {
     );
     assert_ne!(status, StatusCode::OK, "Large body should not succeed");
     assert_ne!(status, StatusCode::CREATED, "Large body should not succeed");
-    assert_ne!(status, StatusCode::CONFLICT, "Large body should not succeed");
-    assert_ne!(status, StatusCode::NOT_FOUND, "Large body should not succeed");
+    assert_ne!(
+        status,
+        StatusCode::CONFLICT,
+        "Large body should not succeed"
+    );
+    assert_ne!(
+        status,
+        StatusCode::NOT_FOUND,
+        "Large body should not succeed"
+    );
 }

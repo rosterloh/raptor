@@ -1,5 +1,8 @@
 use crate::error::AppError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect, Select};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect,
+    Select,
+};
 use serde::{Deserialize, Serialize};
 
 fn default_limit() -> u64 {
@@ -26,7 +29,11 @@ pub struct Paged<T: Serialize> {
 impl<T: Serialize> Paged<T> {
     pub fn new(content: Vec<T>, total: u64) -> Self {
         let size = content.len();
-        Self { content, total, size }
+        Self {
+            content,
+            total,
+            size,
+        }
     }
 }
 
@@ -37,12 +44,16 @@ pub fn apply_sort<E: EntityTrait, C: ColumnTrait>(
 ) -> Result<Select<E>, AppError> {
     let Some(s) = sort else { return Ok(sel) };
     let (field, dir) = s.split_once(':').unwrap_or((s.as_str(), "ASC"));
-    let col = map(field)
-        .ok_or_else(|| AppError::BadRequest(format!("unknown sort field: {field}")))?;
+    let col =
+        map(field).ok_or_else(|| AppError::BadRequest(format!("unknown sort field: {field}")))?;
     let order = match dir.to_ascii_uppercase().as_str() {
         "ASC" => Order::Asc,
         "DESC" => Order::Desc,
-        other => return Err(AppError::BadRequest(format!("invalid sort direction: {other}"))),
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "invalid sort direction: {other}"
+            )))
+        }
     };
     Ok(sel.order_by(col, order))
 }
@@ -76,10 +87,7 @@ mod tests {
     fn sort_parses_direction() {
         let sel = apply_sort(target::Entity::find(), &Some("name:DESC".into()), &map).unwrap();
         let s = sel.build(sea_orm::DatabaseBackend::Sqlite).to_string();
-        assert!(
-            s.contains("ORDER BY \"target\".\"name\" DESC"),
-            "{s}"
-        );
+        assert!(s.contains("ORDER BY \"target\".\"name\" DESC"), "{s}");
     }
 
     #[test]

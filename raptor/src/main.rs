@@ -31,8 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Cmd::Serve { config } => {
             tracing_subscriber::fmt()
-                .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "raptor=info,tower_http=info".into()))
+                .with_env_filter(
+                    tracing_subscriber::EnvFilter::try_from_default_env()
+                        .unwrap_or_else(|_| "raptor=info,tower_http=info".into()),
+                )
                 .init();
             let cfg = Config::load(Some(&config))?;
             let db = sea_orm::Database::connect(&cfg.database_url).await?;

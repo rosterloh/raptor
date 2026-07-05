@@ -2,7 +2,9 @@ use crate::entity::{action, action_status, action_status_message, distribution_s
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+};
 use serde_json::json;
 
 pub struct AssignResult {
@@ -11,39 +13,63 @@ pub struct AssignResult {
 }
 
 pub async fn add_action_status(
-    db: &DatabaseConnection, action_id: i64, status: &str, messages: &[String],
+    db: &DatabaseConnection,
+    action_id: i64,
+    status: &str,
+    messages: &[String],
 ) -> Result<(), AppError> {
     let row = action_status::ActiveModel {
-        action_id: Set(action_id), status: Set(status.to_string()), created_at: Set(now_ms()),
+        action_id: Set(action_id),
+        status: Set(status.to_string()),
+        created_at: Set(now_ms()),
         ..Default::default()
-    }.insert(db).await?;
+    }
+    .insert(db)
+    .await?;
     for m in messages {
         action_status_message::ActiveModel {
-            action_status_id: Set(row.id), message: Set(m.clone()),
+            action_status_id: Set(row.id),
+            message: Set(m.clone()),
             ..Default::default()
-        }.insert(db).await?;
+        }
+        .insert(db)
+        .await?;
     }
     Ok(())
 }
 
-pub async fn active_action(db: &DatabaseConnection, target_id: i64) -> Result<Option<action::Model>, AppError> {
+pub async fn active_action(
+    db: &DatabaseConnection,
+    target_id: i64,
+) -> Result<Option<action::Model>, AppError> {
     Ok(action::Entity::find()
         .filter(action::Column::TargetId.eq(target_id))
         .filter(action::Column::Active.eq(true))
-        .one(db).await?)
+        .one(db)
+        .await?)
 }
 
 pub async fn assign_ds(
-    st: &AppState, target: &target::Model, ds_id: i64, forced: bool,
+    st: &AppState,
+    target: &target::Model,
+    ds_id: i64,
+    forced: bool,
 ) -> Result<AssignResult, AppError> {
-    let ds = distribution_set::Entity::find_by_id(ds_id).one(&st.db).await?
+    let ds = distribution_set::Entity::find_by_id(ds_id)
+        .one(&st.db)
+        .await?
         .ok_or(AppError::NotFound("distribution set"))?;
     if !ds.complete {
-        return Err(AppError::BadRequest("distribution set is incomplete".into()));
+        return Err(AppError::BadRequest(
+            "distribution set is incomplete".into(),
+        ));
     }
     if let Some(current) = active_action(&st.db, target.id).await? {
         if current.ds_id == ds.id {
-            return Ok(AssignResult { action_id: None, already_assigned: true });
+            return Ok(AssignResult {
+                action_id: None,
+                already_assigned: true,
+            });
         }
         // v1: hard-cancel the superseded action (hawkBit soft-cancels; devices tolerate both)
         let cid = current.id;
@@ -52,15 +78,27 @@ pub async fn assign_ds(
         am.active = Set(false);
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
-        add_action_status(&st.db, cid, "canceled", &["superseded by new assignment".into()]).await?;
+        add_action_status(
+            &st.db,
+            cid,
+            "canceled",
+            &["superseded by new assignment".into()],
+        )
+        .await?;
     }
     let now = now_ms();
     let a = action::ActiveModel {
-        target_id: Set(target.id), ds_id: Set(ds.id),
-        status: Set("running".into()), active: Set(true), forced: Set(forced),
-        created_at: Set(now), updated_at: Set(now),
+        target_id: Set(target.id),
+        ds_id: Set(ds.id),
+        status: Set("running".into()),
+        active: Set(true),
+        forced: Set(forced),
+        created_at: Set(now),
+        updated_at: Set(now),
         ..Default::default()
-    }.insert(&st.db).await?;
+    }
+    .insert(&st.db)
+    .await?;
     add_action_status(&st.db, a.id, "running", &[]).await?;
 
     let mut tm: target::ActiveModel = target.clone().into();
@@ -69,12 +107,19 @@ pub async fn assign_ds(
     tm.updated_at = Set(now);
     tm.update(&st.db).await?;
 
-    Ok(AssignResult { action_id: Some(a.id), already_assigned: false })
+    Ok(AssignResult {
+        action_id: Some(a.id),
+        already_assigned: false,
+    })
 }
 
 pub async fn apply_feedback(
-    st: &AppState, t: &target::Model, a: &action::Model,
-    execution: &str, finished: &str, details: &[String],
+    st: &AppState,
+    t: &target::Model,
+    a: &action::Model,
+    execution: &str,
+    finished: &str,
+    details: &[String],
 ) -> Result<(), AppError> {
     add_action_status(&st.db, a.id, execution, details).await?;
     match (execution, finished) {
@@ -88,7 +133,11 @@ pub async fn apply_feedback(
         }
         ("canceled", _) => {
             set_action(st, a, "canceled", false).await?;
-            let status = if t.installed_ds_id.is_some() { "in_sync" } else { "registered" };
+            let status = if t.installed_ds_id.is_some() {
+                "in_sync"
+            } else {
+                "registered"
+            };
             set_target_status(st, t, None, status).await?;
         }
         _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
@@ -97,13 +146,21 @@ pub async fn apply_feedback(
 }
 
 pub async fn apply_cancel_feedback(
-    st: &AppState, t: &target::Model, a: &action::Model, execution: &str, details: &[String],
+    st: &AppState,
+    t: &target::Model,
+    a: &action::Model,
+    execution: &str,
+    details: &[String],
 ) -> Result<(), AppError> {
     add_action_status(&st.db, a.id, &format!("cancel_{execution}"), details).await?;
     match execution {
         "closed" => {
             set_action(st, a, "canceled", false).await?;
-            let status = if t.installed_ds_id.is_some() { "in_sync" } else { "registered" };
+            let status = if t.installed_ds_id.is_some() {
+                "in_sync"
+            } else {
+                "registered"
+            };
             // assigned reverts to installed on confirmed cancel
             let mut tm: target::ActiveModel = t.clone().into();
             tm.assigned_ds_id = Set(t.installed_ds_id);
@@ -119,7 +176,12 @@ pub async fn apply_cancel_feedback(
     Ok(())
 }
 
-async fn set_action(st: &AppState, a: &action::Model, status: &str, active: bool) -> Result<(), AppError> {
+async fn set_action(
+    st: &AppState,
+    a: &action::Model,
+    status: &str,
+    active: bool,
+) -> Result<(), AppError> {
     let mut am: action::ActiveModel = a.clone().into();
     am.status = Set(status.into());
     am.active = Set(active);
@@ -129,10 +191,15 @@ async fn set_action(st: &AppState, a: &action::Model, status: &str, active: bool
 }
 
 async fn set_target_status(
-    st: &AppState, t: &target::Model, installed: Option<i64>, status: &str,
+    st: &AppState,
+    t: &target::Model,
+    installed: Option<i64>,
+    status: &str,
 ) -> Result<(), AppError> {
     let mut tm: target::ActiveModel = t.clone().into();
-    if let Some(ds) = installed { tm.installed_ds_id = Set(Some(ds)); }
+    if let Some(ds) = installed {
+        tm.installed_ds_id = Set(Some(ds));
+    }
     tm.update_status = Set(status.into());
     tm.updated_at = Set(now_ms());
     tm.update(&st.db).await?;

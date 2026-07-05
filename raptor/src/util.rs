@@ -17,7 +17,13 @@ pub fn base_url(cfg: &Config, headers: &HeaderMap) -> String {
     if let Some(u) = &cfg.url {
         return u.trim_end_matches('/').to_string();
     }
-    let proto = headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()).unwrap_or("http");
-    let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost");
+    let proto = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("http");
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost");
     format!("{proto}://{host}")
 }

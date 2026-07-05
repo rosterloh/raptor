@@ -33,14 +33,22 @@ pub struct DdiConfig {
 
 impl Default for DdiConfig {
     fn default() -> Self {
-        Self { anonymous: false, gateway_token: None, polling_interval: default_polling() }
+        Self {
+            anonymous: false,
+            gateway_token: None,
+            polling_interval: default_polling(),
+        }
     }
 }
 
 impl DdiConfig {
     /// Parse "HH:MM:SS"; falls back to 5 minutes on malformed input.
     pub fn polling_duration(&self) -> std::time::Duration {
-        let parts: Vec<u64> = self.polling_interval.split(':').filter_map(|p| p.parse().ok()).collect();
+        let parts: Vec<u64> = self
+            .polling_interval
+            .split(':')
+            .filter_map(|p| p.parse().ok())
+            .collect();
         match parts.as_slice() {
             [h, m, s] => std::time::Duration::from_secs(h * 3600 + m * 60 + s),
             _ => std::time::Duration::from_secs(300),
@@ -54,21 +62,30 @@ pub struct MgmtConfig {
     pub password_hash: String,
 }
 
-fn default_bind() -> SocketAddr { "0.0.0.0:8080".parse().unwrap() }
-fn default_max_artifact_size() -> u64 { 1024 * 1024 * 1024 }
-fn default_polling() -> String { "00:05:00".into() }
+fn default_bind() -> SocketAddr {
+    "0.0.0.0:8080".parse().unwrap()
+}
+fn default_max_artifact_size() -> u64 {
+    1024 * 1024 * 1024
+}
+fn default_polling() -> String {
+    "00:05:00".into()
+}
 
 impl Config {
-    pub fn load(path: Option<&Path>) -> Result<Self, figment::Error> {
+    pub fn load(path: Option<&Path>) -> Result<Self, Box<figment::Error>> {
         let mut fig = Figment::new();
         if let Some(p) = path {
             fig = fig.merge(Toml::file(p));
         }
-        fig.merge(Env::prefixed("RAPTOR_").split("__")).extract()
+        fig.merge(Env::prefixed("RAPTOR_").split("__"))
+            .extract()
+            .map_err(Box::new)
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::result_large_err)] // figment::Jail::expect_with's closure error type is fixed by the crate
 mod tests {
     use super::*;
 
@@ -112,7 +129,13 @@ password_hash = "$argon2id$fake"
 
     #[test]
     fn polling_duration_parses_hhmmss() {
-        let ddi = DdiConfig { polling_interval: "01:30:10".into(), ..Default::default() };
-        assert_eq!(ddi.polling_duration(), std::time::Duration::from_secs(3600 + 30 * 60 + 10));
+        let ddi = DdiConfig {
+            polling_interval: "01:30:10".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            ddi.polling_duration(),
+            std::time::Duration::from_secs(3600 + 30 * 60 + 10)
+        );
     }
 }

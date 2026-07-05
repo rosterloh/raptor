@@ -20,8 +20,15 @@ pub async fn list(
     let base = base_url(&st.cfg, &headers);
     let ddi = super::ddi_base(&base, &cid);
     let https = base.starts_with("https://");
-    let rows = artifact::Entity::find().filter(artifact::Column::ModuleId.eq(module_id)).all(&st.db).await?;
-    Ok(Json(rows.iter().map(|ar| super::deployment::ddi_artifact_json(ar, &ddi, module_id, https)).collect()))
+    let rows = artifact::Entity::find()
+        .filter(artifact::Column::ModuleId.eq(module_id))
+        .all(&st.db)
+        .await?;
+    Ok(Json(
+        rows.iter()
+            .map(|ar| super::deployment::ddi_artifact_json(ar, &ddi, module_id, https))
+            .collect(),
+    ))
 }
 
 /// Parse "bytes=a-b" / "bytes=a-" into (start, inclusive_end).
@@ -29,7 +36,11 @@ fn parse_range(h: &str, total: i64) -> Option<(i64, i64)> {
     let spec = h.strip_prefix("bytes=")?;
     let (start, end) = spec.split_once('-')?;
     let start: i64 = start.parse().ok()?;
-    let end: i64 = if end.is_empty() { total - 1 } else { end.parse().ok()? };
+    let end: i64 = if end.is_empty() {
+        total - 1
+    } else {
+        end.parse().ok()?
+    };
     (start <= end && start < total).then_some((start, end.min(total - 1)))
 }
 
@@ -44,7 +55,8 @@ pub async fn download(
         let a = find(&st, module_id, real).await?;
         return Ok(Response::builder()
             .header(header::CONTENT_TYPE, "text/plain")
-            .body(Body::from(format!("{}  {}\n", a.md5, a.filename))).unwrap());
+            .body(Body::from(format!("{}  {}\n", a.md5, a.filename)))
+            .unwrap());
     }
 
     let a = find(&st, module_id, &filename).await?;
@@ -55,7 +67,8 @@ pub async fn download(
             return Ok(Response::builder()
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
                 .header(header::CONTENT_RANGE, format!("bytes */{}", a.size))
-                .body(Body::empty()).unwrap());
+                .body(Body::empty())
+                .unwrap());
         };
         let mut file = tokio::fs::File::open(&path).await?;
         file.seek(std::io::SeekFrom::Start(start as u64)).await?;
@@ -66,9 +79,16 @@ pub async fn download(
             .header(header::ACCEPT_RANGES, "bytes")
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, len)
-            .header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{}", a.size))
-            .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", a.filename))
-            .body(Body::from_stream(stream)).unwrap());
+            .header(
+                header::CONTENT_RANGE,
+                format!("bytes {start}-{end}/{}", a.size),
+            )
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", a.filename),
+            )
+            .body(Body::from_stream(stream))
+            .unwrap());
     }
 
     let file = tokio::fs::File::open(&path).await?;
@@ -76,14 +96,19 @@ pub async fn download(
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(header::CONTENT_LENGTH, a.size)
-        .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", a.filename))
-        .body(Body::from_stream(tokio_util::io::ReaderStream::new(file))).unwrap())
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", a.filename),
+        )
+        .body(Body::from_stream(tokio_util::io::ReaderStream::new(file)))
+        .unwrap())
 }
 
 async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact::Model, AppError> {
     artifact::Entity::find()
         .filter(artifact::Column::ModuleId.eq(module_id))
         .filter(artifact::Column::Filename.eq(filename))
-        .one(&st.db).await?
+        .one(&st.db)
+        .await?
         .ok_or(AppError::NotFound("artifact"))
 }

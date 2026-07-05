@@ -15,10 +15,14 @@ pub enum AppError {
 }
 
 impl From<sea_orm::DbErr> for AppError {
-    fn from(e: sea_orm::DbErr) -> Self { AppError::Db(e) }
+    fn from(e: sea_orm::DbErr) -> Self {
+        AppError::Db(e)
+    }
 }
 impl From<std::io::Error> for AppError {
-    fn from(e: std::io::Error) -> Self { AppError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        AppError::Io(e)
+    }
 }
 
 impl IntoResponse for AppError {
@@ -44,7 +48,12 @@ impl IntoResponse for AppError {
                     "errorCode": "hawkbit.server.error.unauthorized",
                     "message": "unauthorized",
                 });
-                return (StatusCode::UNAUTHORIZED, [("WWW-Authenticate", "Basic realm=\"raptor\"")], Json(body)).into_response();
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    [("WWW-Authenticate", "Basic realm=\"raptor\"")],
+                    Json(body),
+                )
+                    .into_response();
             }
             AppError::Conflict(m) => (
                 StatusCode::CONFLICT,
@@ -60,13 +69,27 @@ impl IntoResponse for AppError {
             ),
             AppError::Db(e) => {
                 tracing::error!(error = %e, "database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "java.lang.RuntimeException", "hawkbit.server.error.internal", "internal error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "java.lang.RuntimeException",
+                    "hawkbit.server.error.internal",
+                    "internal error".into(),
+                )
             }
             AppError::Io(e) => {
                 tracing::error!(error = %e, "io error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "java.lang.RuntimeException", "hawkbit.server.error.internal", "internal error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "java.lang.RuntimeException",
+                    "hawkbit.server.error.internal",
+                    "internal error".into(),
+                )
             }
         };
-        (status, Json(json!({"exceptionClass": class, "errorCode": code, "message": msg}))).into_response()
+        (
+            status,
+            Json(json!({"exceptionClass": class, "errorCode": code, "message": msg})),
+        )
+            .into_response()
     }
 }

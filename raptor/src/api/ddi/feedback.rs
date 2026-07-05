@@ -27,7 +27,9 @@ pub struct FeedbackResult {
     pub finished: String,
 }
 
-fn none_str() -> String { "none".into() }
+fn none_str() -> String {
+    "none".into()
+}
 
 pub async fn deployment_feedback(
     State(st): State<AppState>,
@@ -39,7 +41,15 @@ pub async fn deployment_feedback(
     if !a.active {
         return Err(AppError::Gone);
     }
-    crate::domain::deployment::apply_feedback(&st, &t, &a, &fb.status.execution, &fb.status.result.finished, &fb.status.details).await?;
+    crate::domain::deployment::apply_feedback(
+        &st,
+        &t,
+        &a,
+        &fb.status.execution,
+        &fb.status.result.finished,
+        &fb.status.details,
+    )
+    .await?;
     Ok(StatusCode::OK)
 }
 
@@ -52,7 +62,9 @@ pub async fn cancel_action(
     if !a.active || a.status != "canceling" {
         return Err(AppError::NotFound("cancel action"));
     }
-    Ok(Json(json!({"id": a.id.to_string(), "cancelAction": {"stopId": a.id.to_string()}})))
+    Ok(Json(
+        json!({"id": a.id.to_string(), "cancelAction": {"stopId": a.id.to_string()}}),
+    ))
 }
 
 pub async fn cancel_feedback(
@@ -65,6 +77,13 @@ pub async fn cancel_feedback(
     if !a.active {
         return Err(AppError::Gone);
     }
-    crate::domain::deployment::apply_cancel_feedback(&st, &t, &a, &fb.status.execution, &fb.status.details).await?;
+    crate::domain::deployment::apply_cancel_feedback(
+        &st,
+        &t,
+        &a,
+        &fb.status.execution,
+        &fb.status.details,
+    )
+    .await?;
     Ok(StatusCode::OK)
 }

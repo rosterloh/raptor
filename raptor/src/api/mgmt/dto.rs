@@ -54,7 +54,12 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> se
     })
 }
 
-pub fn ds_rest(ds: &distribution_set::Model, type_key: &str, modules: Vec<SmRest>, base: &str) -> serde_json::Value {
+pub fn ds_rest(
+    ds: &distribution_set::Model,
+    type_key: &str,
+    modules: Vec<SmRest>,
+    base: &str,
+) -> serde_json::Value {
     json!({
         "id": ds.id,
         "name": ds.name,

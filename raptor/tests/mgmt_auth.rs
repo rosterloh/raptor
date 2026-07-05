@@ -10,14 +10,20 @@ async fn probe_app() -> axum::Router {
     let (_, state) = common::setup().await;
     axum::Router::new()
         .route("/rest/v1/probe", axum::routing::get(|| async { "ok" }))
-        .route_layer(axum::middleware::from_fn_with_state(state.clone(), raptor::auth::mgmt::mgmt_auth))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            raptor::auth::mgmt::mgmt_auth,
+        ))
         .with_state(state)
 }
 
 #[tokio::test]
 async fn missing_credentials_rejected() {
     let app = probe_app().await;
-    let resp = app.oneshot(Request::get("/rest/v1/probe").body(Body::empty()).unwrap()).await.unwrap();
+    let resp = app
+        .oneshot(Request::get("/rest/v1/probe").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     assert!(resp.headers().get("www-authenticate").is_some());
 }
@@ -26,16 +32,33 @@ async fn missing_credentials_rejected() {
 async fn wrong_password_rejected() {
     use base64::Engine;
     let app = probe_app().await;
-    let bad = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode("admin:wrong"));
-    let resp = app.oneshot(Request::get("/rest/v1/probe").header(header::AUTHORIZATION, bad).body(Body::empty()).unwrap()).await.unwrap();
+    let bad = format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode("admin:wrong")
+    );
+    let resp = app
+        .oneshot(
+            Request::get("/rest/v1/probe")
+                .header(header::AUTHORIZATION, bad)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn valid_credentials_accepted() {
     let app = probe_app().await;
-    let resp = app.oneshot(
-        Request::get("/rest/v1/probe").header(header::AUTHORIZATION, common::mgmt_auth_header()).body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .oneshot(
+            Request::get("/rest/v1/probe")
+                .header(header::AUTHORIZATION, common::mgmt_auth_header())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 }

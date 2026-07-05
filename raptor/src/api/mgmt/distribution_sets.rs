@@ -8,7 +8,9 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -60,12 +62,20 @@ pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<S
     Ok(mods
         .iter()
         .map(|m| {
-            super::dto::sm_rest(m, keys.get(&m.type_id).map(String::as_str).unwrap_or("?"), base)
+            super::dto::sm_rest(
+                m,
+                keys.get(&m.type_id).map(String::as_str).unwrap_or("?"),
+                base,
+            )
         })
         .collect())
 }
 
-async fn ds_with_modules(st: &AppState, ds: &distribution_set::Model, base: &str) -> Result<Value, AppError> {
+async fn ds_with_modules(
+    st: &AppState,
+    ds: &distribution_set::Model,
+    base: &str,
+) -> Result<Value, AppError> {
     let ty = distribution_set_type::Entity::find_by_id(ds.type_id)
         .one(&st.db)
         .await?
@@ -193,10 +203,15 @@ pub async fn get_one(
         .one(&st.db)
         .await?
         .ok_or(AppError::NotFound("distribution set"))?;
-    Ok(Json(ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?))
+    Ok(Json(
+        ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?,
+    ))
 }
 
-pub async fn delete(State(st): State<AppState>, Path(id): Path<i64>) -> Result<StatusCode, AppError> {
+pub async fn delete(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, AppError> {
     let ds = distribution_set::Entity::find_by_id(id)
         .one(&st.db)
         .await?

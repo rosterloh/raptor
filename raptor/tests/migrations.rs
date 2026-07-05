@@ -13,7 +13,10 @@ async fn migrations_apply_and_seed_types() {
     let keys: Vec<_> = sm_types.iter().map(|t| t.key.as_str()).collect();
     assert_eq!(keys, ["os", "firmware", "runtime", "application"]);
 
-    let ds_types = distribution_set_type::Entity::find().all(&db).await.unwrap();
+    let ds_types = distribution_set_type::Entity::find()
+        .all(&db)
+        .await
+        .unwrap();
     let keys: Vec<_> = ds_types.iter().map(|t| t.key.as_str()).collect();
     assert_eq!(keys, ["os", "os_app", "app"]);
 }
