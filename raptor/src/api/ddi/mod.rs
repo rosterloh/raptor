@@ -1,4 +1,5 @@
 pub mod config_data;
+pub mod deployment;
 pub mod root;
 
 use crate::state::AppState;
@@ -15,5 +16,6 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/{tenant}/controller/v1/{controllerId}", get(root::poll))
         .route("/{tenant}/controller/v1/{controllerId}/configData", put(config_data::put_config_data))
+        .route("/{tenant}/controller/v1/{controllerId}/deploymentBase/{actionId}", get(deployment::deployment_base))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::ddi::ddi_auth))
 }

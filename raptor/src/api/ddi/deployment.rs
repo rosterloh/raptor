@@ -1,0 +1,107 @@
+use crate::entity::{action, action_status, action_status_message, artifact, ds_module, software_module, target};
+use crate::error::AppError;
+use crate::state::AppState;
+use crate::util::base_url;
+use axum::extract::{Path, State};
+use axum::http::HeaderMap;
+use axum::{Extension, Json};
+use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder};
+use serde_json::{json, Value};
+
+fn part_for(type_key: &str) -> &str {
+    match type_key {
+        "os" | "firmware" => "os",
+        "runtime" => "jvm",
+        "application" => "bApp",
+        other => other,
+    }
+}
+
+pub async fn deployment_json(
+    st: &AppState, cid: &str, a: &action::Model, base: &str,
+) -> Result<Value, AppError> {
+    let ddi = super::ddi_base(base, cid);
+    let https = base.starts_with("https://");
+    let keys = crate::api::mgmt::software_modules::type_keys(&st.db).await?;
+
+    let links = ds_module::Entity::find().filter(ds_module::Column::DsId.eq(a.ds_id)).all(&st.db).await?;
+    let ids: Vec<i64> = links.iter().map(|l| l.module_id).collect();
+    let modules = if ids.is_empty() { vec![] } else {
+        software_module::Entity::find().filter(software_module::Column::Id.is_in(ids)).all(&st.db).await?
+    };
+
+    let mut chunks = Vec::with_capacity(modules.len());
+    for m in &modules {
+        let arts = artifact::Entity::find().filter(artifact::Column::ModuleId.eq(m.id)).all(&st.db).await?;
+        let artifacts: Vec<Value> = arts.iter().map(|ar| {
+            let dl = format!("{ddi}/softwaremodules/{}/artifacts/{}", m.id, ar.filename);
+            let mut l = json!({
+                "download-http": {"href": dl},
+                "md5sum-http": {"href": format!("{dl}.MD5SUM")}
+            });
+            if https {
+                l["download"] = json!({"href": dl});
+                l["md5sum"] = json!({"href": format!("{dl}.MD5SUM")});
+            }
+            json!({
+                "filename": ar.filename,
+                "hashes": {"sha1": ar.sha1, "md5": ar.md5, "sha256": ar.sha256},
+                "size": ar.size,
+                "_links": l
+            })
+        }).collect();
+        let key = keys.get(&m.type_id).map(String::as_str).unwrap_or("os");
+        chunks.push(json!({
+            "part": part_for(key),
+            "version": m.version,
+            "name": m.name,
+            "artifacts": artifacts
+        }));
+    }
+
+    // action history: last few status entries
+    let statuses = action_status::Entity::find()
+        .filter(action_status::Column::ActionId.eq(a.id))
+        .order_by(action_status::Column::Id, Order::Desc)
+        .all(&st.db).await?;
+    let mut messages = Vec::new();
+    for s in statuses.iter().take(10) {
+        for m in action_status_message::Entity::find()
+            .filter(action_status_message::Column::ActionStatusId.eq(s.id)).all(&st.db).await? {
+            messages.push(m.message);
+        }
+    }
+    let history_status = statuses.first().map(|s| s.status.to_uppercase()).unwrap_or_else(|| "RUNNING".into());
+
+    let mode = if a.forced { "forced" } else { "attempt" };
+    Ok(json!({
+        "id": a.id.to_string(),
+        "deployment": {"download": mode, "update": mode, "chunks": chunks},
+        "actionHistory": {"status": history_status, "messages": messages}
+    }))
+}
+
+pub async fn find_target_action(
+    st: &AppState, cid: &str, action_id: i64,
+) -> Result<(target::Model, action::Model), AppError> {
+    let t = target::Entity::find().filter(target::Column::ControllerId.eq(cid)).one(&st.db).await?
+        .ok_or(AppError::NotFound("target"))?;
+    let a = action::Entity::find_by_id(action_id).one(&st.db).await?
+        .filter(|a| a.target_id == t.id)
+        .ok_or(AppError::NotFound("action"))?;
+    Ok((t, a))
+}
+
+pub async fn deployment_base(
+    State(st): State<AppState>,
+    Extension(_auth): Extension<crate::auth::ddi::AuthKind>,
+    headers: HeaderMap,
+    Path((_tenant, cid, action_id)): Path<(String, String, i64)>,
+) -> Result<Json<Value>, AppError> {
+    let (_t, a) = find_target_action(&st, &cid, action_id).await?;
+    if !a.active || a.status != "running" {
+        return Err(AppError::NotFound("action"));
+    }
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(deployment_json(&st, &cid, &a, &base).await?))
+}
