@@ -15,7 +15,10 @@ pub const TEST_PASSWORD: &str = "raptor-test";
 static TEST_HASH: LazyLock<String> = LazyLock::new(|| {
     use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
     let salt = SaltString::generate(&mut OsRng);
-    argon2::Argon2::default().hash_password(TEST_PASSWORD.as_bytes(), &salt).unwrap().to_string()
+    argon2::Argon2::default()
+        .hash_password(TEST_PASSWORD.as_bytes(), &salt)
+        .unwrap()
+        .to_string()
 });
 
 pub fn test_config(artifact_dir: &std::path::Path) -> Config {
@@ -35,7 +38,10 @@ password_hash = "{}"
         *TEST_HASH
     );
     use figment::providers::{Format, Toml};
-    figment::Figment::new().merge(Toml::string(&toml)).extract().unwrap()
+    figment::Figment::new()
+        .merge(Toml::string(&toml))
+        .extract()
+        .unwrap()
 }
 
 pub async fn setup() -> (Router, AppState) {
@@ -65,12 +71,28 @@ pub async fn setup_with_anonymous(anonymous: bool) -> AppState {
     AppState::new(state.db.clone(), cfg, state.store.clone())
 }
 
+/// Like setup() but with cfg.url overridden to the given base, and ddi.anonymous off,
+/// so `_links` carry a real, dialable port and TargetToken auth is enforced.
+pub async fn setup_with_url(url: &str) -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.url = Some(url.into());
+    cfg.ddi.anonymous = false;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
-    format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("admin:{TEST_PASSWORD}")))
+    format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode(format!("admin:{TEST_PASSWORD}"))
+    )
 }
 
 pub fn req(method: &str, uri: &str, body: Option<serde_json::Value>) -> Request<Body> {
-    let b = Request::builder().method(method).uri(uri)
+    let b = Request::builder()
+        .method(method)
+        .uri(uri)
         .header(header::AUTHORIZATION, mgmt_auth_header())
         .header(header::CONTENT_TYPE, "application/json");
     match body {
@@ -80,6 +102,9 @@ pub fn req(method: &str, uri: &str, body: Option<serde_json::Value>) -> Request<
 }
 
 pub async fn body_json(resp: Response<Body>) -> serde_json::Value {
-    let bytes = http_body_util::BodyExt::collect(resp.into_body()).await.unwrap().to_bytes();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
     serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
 }
