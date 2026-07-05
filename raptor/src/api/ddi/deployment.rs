@@ -96,6 +96,20 @@ pub async fn find_target_action(
     Ok((t, a))
 }
 
+pub async fn installed_base(
+    State(st): State<AppState>,
+    Extension(_auth): Extension<crate::auth::ddi::AuthKind>,
+    headers: HeaderMap,
+    Path((_tenant, cid, action_id)): Path<(String, String, i64)>,
+) -> Result<Json<Value>, AppError> {
+    let (_t, a) = find_target_action(&st, &cid, action_id).await?;
+    if a.status != "finished" {
+        return Err(AppError::NotFound("installed action"));
+    }
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(deployment_json(&st, &cid, &a, &base).await?))
+}
+
 pub async fn deployment_base(
     State(st): State<AppState>,
     Extension(_auth): Extension<crate::auth::ddi::AuthKind>,

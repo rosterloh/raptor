@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod config_data;
 pub mod deployment;
 pub mod feedback;
@@ -21,5 +22,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{tenant}/controller/v1/{controllerId}/deploymentBase/{actionId}/feedback", post(feedback::deployment_feedback))
         .route("/{tenant}/controller/v1/{controllerId}/cancelAction/{actionId}", get(feedback::cancel_action))
         .route("/{tenant}/controller/v1/{controllerId}/cancelAction/{actionId}/feedback", post(feedback::cancel_feedback))
+        .route("/{tenant}/controller/v1/{controllerId}/installedBase/{actionId}", get(deployment::installed_base))
+        .route("/{tenant}/controller/v1/{controllerId}/softwaremodules/{moduleId}/artifacts", get(artifacts::list))
+        .route("/{tenant}/controller/v1/{controllerId}/softwaremodules/{moduleId}/artifacts/{filename}", get(artifacts::download))
         .route_layer(middleware::from_fn_with_state(state, crate::auth::ddi::ddi_auth))
 }
