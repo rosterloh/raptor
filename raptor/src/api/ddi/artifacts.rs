@@ -8,7 +8,7 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::{Extension, Json};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use serde_json::{json, Value};
+use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 pub async fn list(
@@ -17,17 +17,11 @@ pub async fn list(
     headers: HeaderMap,
     Path((_tenant, cid, module_id)): Path<(String, String, i64)>,
 ) -> Result<Json<Vec<Value>>, AppError> {
-    let ddi = super::ddi_base(&base_url(&st.cfg, &headers), &cid);
+    let base = base_url(&st.cfg, &headers);
+    let ddi = super::ddi_base(&base, &cid);
+    let https = base.starts_with("https://");
     let rows = artifact::Entity::find().filter(artifact::Column::ModuleId.eq(module_id)).all(&st.db).await?;
-    Ok(Json(rows.iter().map(|ar| {
-        let dl = format!("{ddi}/softwaremodules/{module_id}/artifacts/{}", ar.filename);
-        json!({
-            "filename": ar.filename,
-            "hashes": {"sha1": ar.sha1, "md5": ar.md5, "sha256": ar.sha256},
-            "size": ar.size,
-            "_links": {"download-http": {"href": dl}, "md5sum-http": {"href": format!("{dl}.MD5SUM")}}
-        })
-    }).collect()))
+    Ok(Json(rows.iter().map(|ar| super::deployment::ddi_artifact_json(ar, &ddi, module_id, https)).collect()))
 }
 
 /// Parse "bytes=a-b" / "bytes=a-" into (start, inclusive_end).

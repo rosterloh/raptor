@@ -93,3 +93,27 @@ async fn installed_base_serves_finished_deployment() {
     assert_eq!(body["id"], aid.to_string());
     assert_eq!(body["deployment"]["chunks"][0]["name"], "fw");
 }
+
+#[tokio::test]
+async fn artifact_list_matches_deployment_base_shape() {
+    let (app, _) = common::setup().await;
+    let (sm, aid) = fixture(&app).await;
+
+    // get artifact list
+    let resp = app.clone().oneshot(Request::get(&format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts"))
+        .body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let list_body = common::body_json(resp).await;
+    assert!(list_body.is_array());
+    let list_artifact = &list_body[0];
+
+    // get deploymentBase
+    let resp = app.clone().oneshot(Request::get(&format!("/DEFAULT/controller/v1/d1/deploymentBase/{aid}"))
+        .body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let deployment = common::body_json(resp).await;
+    let deployment_artifact = &deployment["deployment"]["chunks"][0]["artifacts"][0];
+
+    // on http config, both should be identical
+    assert_eq!(list_artifact, deployment_artifact, "artifact JSON shape must be identical on http");
+}
