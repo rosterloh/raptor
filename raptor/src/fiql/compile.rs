@@ -29,9 +29,17 @@ pub fn to_condition<C: ColumnTrait>(
             let like = v.replace('*', "%");
             let e = match op {
                 Op::Eq if has_wild => col.like(like),
-                Op::Eq => col.eq(v),
+                Op::Eq => match v.as_str() {
+                    "true" => col.eq(true),
+                    "false" => col.eq(false),
+                    _ => col.eq(v),
+                },
                 Op::Ne if has_wild => col.not_like(like),
-                Op::Ne => col.ne(v),
+                Op::Ne => match v.as_str() {
+                    "true" => col.ne(true),
+                    "false" => col.ne(false),
+                    _ => col.ne(v),
+                },
                 Op::Lt => col.lt(v),
                 Op::Le => col.lte(v),
                 Op::Gt => col.gt(v),
@@ -102,5 +110,31 @@ mod tests {
             to_condition(&e, &map),
             Err(crate::error::AppError::BadRequest(_))
         ));
+    }
+
+    #[test]
+    fn bool_values_typed() {
+        use crate::entity::action;
+
+        fn action_map(field: &str) -> Option<action::Column> {
+            (field == "active").then_some(action::Column::Active)
+        }
+
+        let e = crate::fiql::parse("active==true").unwrap();
+        let s = action::Entity::find()
+            .filter(to_condition(&e, &action_map).unwrap())
+            .build(sea_orm::DatabaseBackend::Sqlite)
+            .to_string();
+        // must compile to a typed bool comparison, not a string literal
+        assert!(s.contains("\"active\" = TRUE"), "{s}");
+        assert!(!s.contains("'true'"), "{s}");
+
+        let e = crate::fiql::parse("active==false").unwrap();
+        let s = action::Entity::find()
+            .filter(to_condition(&e, &action_map).unwrap())
+            .build(sea_orm::DatabaseBackend::Sqlite)
+            .to_string();
+        assert!(s.contains("\"active\" = FALSE"), "{s}");
+        assert!(!s.contains("'false'"), "{s}");
     }
 }
