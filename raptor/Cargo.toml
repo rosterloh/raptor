@@ -1,0 +1,36 @@
+[package]
+name = "raptor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8", features = ["multipart", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["trace", "limit"] }
+sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+migration = { path = "../migration" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+figment = { version = "0.10", features = ["toml", "env", "test"] }
+winnow = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"
+argon2 = "0.5"
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.8"
+base64 = "0.22"
+tempfile = "3"
+futures = "0.3"
+bytes = "1"
+
+[dev-dependencies]
+http-body-util = "0.1"
+hawkbit = "0.7"
+reqwest = { version = "0.12", features = ["json", "multipart"] }
