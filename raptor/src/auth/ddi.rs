@@ -1,7 +1,7 @@
 use crate::entity::target;
 use crate::error::AppError;
 use crate::state::AppState;
-use axum::extract::{Request, State};
+use axum::extract::{RawPathParams, Request, State};
 use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -16,6 +16,7 @@ pub enum AuthKind {
 
 pub async fn ddi_auth(
     State(state): State<AppState>,
+    params: RawPathParams,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
@@ -33,7 +34,7 @@ pub async fn ddi_auth(
                 return Err(AppError::Unauthorized);
             }
         } else if let Some(token) = auth.strip_prefix("TargetToken ") {
-            let cid = extract_controller_id(req.uri().path())
+            let cid = params.iter().find(|(k, _)| *k == "controllerId").map(|(_, v)| v.to_string())
                 .ok_or(AppError::Unauthorized)?;
             let t = target::Entity::find()
                 .filter(target::Column::ControllerId.eq(cid))
@@ -50,15 +51,4 @@ pub async fn ddi_auth(
     };
     req.extensions_mut().insert(kind);
     Ok(next.run(req).await)
-}
-
-fn extract_controller_id(path: &str) -> Option<String> {
-    // Parse paths like "/{tenant}/controller/v1/{controllerId}/..."
-    let parts: Vec<&str> = path.split('/').collect();
-    // Looking for: ["", tenant, "controller", "v1", controllerId, ...]
-    if parts.len() >= 5 && parts[2] == "controller" && parts[3] == "v1" {
-        Some(parts[4].to_string())
-    } else {
-        None
-    }
 }
