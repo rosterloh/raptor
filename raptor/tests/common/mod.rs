@@ -56,6 +56,15 @@ pub async fn setup() -> (Router, AppState) {
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but returns only state, with ddi.anonymous overridden.
+pub async fn setup_with_anonymous(anonymous: bool) -> AppState {
+    let (_, state) = setup().await;
+    // Config is plain data: rebuild with the flag flipped
+    let mut cfg = state.cfg.clone();
+    cfg.ddi.anonymous = anonymous;
+    AppState::new(state.db.clone(), cfg, state.store.clone())
+}
+
 pub fn mgmt_auth_header() -> String {
     format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("admin:{TEST_PASSWORD}")))
 }
