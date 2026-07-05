@@ -66,3 +66,71 @@ async fn deployment_base_matches_hawkbit_shape() {
         .body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn action_history_messages_ordered_newest_first() {
+    use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+
+    let (app, state) = common::setup().await;
+    let (_, action_id) = deploy_fixture(&app).await;
+
+    // Insert two action_status rows (proceeding, then download in chronological order)
+    // They will have sequential IDs, so second will have higher ID (newer)
+    let status1 = raptor::entity::action_status::ActiveModel {
+        action_id: Set(action_id),
+        status: Set("proceeding".into()),
+        created_at: Set(1000),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    let status2 = raptor::entity::action_status::ActiveModel {
+        action_id: Set(action_id),
+        status: Set("download".into()),
+        created_at: Set(2000),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    // Insert messages for status1: m1, m2 (in that order, so m2 has higher ID)
+    raptor::entity::action_status_message::ActiveModel {
+        action_status_id: Set(status1.id),
+        message: Set("m1".into()),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    raptor::entity::action_status_message::ActiveModel {
+        action_status_id: Set(status1.id),
+        message: Set("m2".into()),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    // Insert messages for status2: m3, m4 (in that order, so m4 has higher ID)
+    raptor::entity::action_status_message::ActiveModel {
+        action_status_id: Set(status2.id),
+        message: Set("m3".into()),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    raptor::entity::action_status_message::ActiveModel {
+        action_status_id: Set(status2.id),
+        message: Set("m4".into()),
+        ..Default::default()
+    }.insert(&state.db).await.unwrap();
+
+    // GET deploymentBase
+    let resp = app.clone().oneshot(Request::get(&format!("/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"))
+        .body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = common::body_json(resp).await;
+
+    // Assert latest status is "DOWNLOAD" (uppercased, from status2 which has higher ID)
+    assert_eq!(body["actionHistory"]["status"], "DOWNLOAD");
+
+    // Assert messages are strictly newest-first: m4, m3, m2, m1
+    // status2 messages (m4, m3) then status1 messages (m2, m1)
+    let messages = &body["actionHistory"]["messages"];
+    assert_eq!(messages.as_array().map(|a| a.len()), Some(4));
+    assert_eq!(messages[0], "m4");
+    assert_eq!(messages[1], "m3");
+    assert_eq!(messages[2], "m2");
+    assert_eq!(messages[3], "m1");
+}

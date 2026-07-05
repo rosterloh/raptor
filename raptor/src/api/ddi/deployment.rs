@@ -8,6 +8,8 @@ use axum::{Extension, Json};
 use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder};
 use serde_json::{json, Value};
 
+const HISTORY_LIMIT: usize = 10;
+
 fn part_for(type_key: &str) -> &str {
     match type_key {
         "os" | "firmware" => "os",
@@ -65,9 +67,11 @@ pub async fn deployment_json(
         .order_by(action_status::Column::Id, Order::Desc)
         .all(&st.db).await?;
     let mut messages = Vec::new();
-    for s in statuses.iter().take(10) {
+    for s in statuses.iter().take(HISTORY_LIMIT) {
         for m in action_status_message::Entity::find()
-            .filter(action_status_message::Column::ActionStatusId.eq(s.id)).all(&st.db).await? {
+            .filter(action_status_message::Column::ActionStatusId.eq(s.id))
+            .order_by(action_status_message::Column::Id, Order::Desc)
+            .all(&st.db).await? {
             messages.push(m.message);
         }
     }
