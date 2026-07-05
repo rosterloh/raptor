@@ -1,4 +1,4 @@
-use super::dto::target_rest;
+use super::dto::{target_rest, TargetRest};
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{target, target_attribute};
 use crate::error::AppError;
@@ -12,7 +12,6 @@ use sea_orm::{
     QueryFilter,
 };
 use serde::Deserialize;
-use serde_json::Value;
 use std::collections::{BTreeMap, HashSet};
 
 pub fn fiql_map(f: &str) -> Option<target::Column> {
@@ -48,7 +47,7 @@ pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<Vec<TargetCreate>>,
-) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+) -> Result<(StatusCode, Json<Vec<TargetRest>>), AppError> {
     // Phase 1: Validate all items first
     let mut seen = HashSet::new();
     for c in &body {
@@ -97,7 +96,7 @@ pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<TargetRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
     let interval = st.cfg.ddi.polling_duration();
     let mut sel = target::Entity::find();
@@ -119,7 +118,7 @@ pub async fn get_one(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path(cid): Path<String>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<TargetRest>, AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
     Ok(Json(target_rest(
         &t,
@@ -141,7 +140,7 @@ pub async fn update(
     headers: HeaderMap,
     Path(cid): Path<String>,
     Json(u): Json<TargetUpdate>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<TargetRest>, AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
     let mut am: target::ActiveModel = t.into();
     if let Some(v) = u.name {

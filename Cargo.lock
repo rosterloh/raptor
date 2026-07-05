@@ -2119,6 +2119,7 @@ dependencies = [
  "md-5",
  "migration",
  "rand 0.8.6",
+ "raptor-api-types",
  "reqwest",
  "sea-orm",
  "serde",

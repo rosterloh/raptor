@@ -3,7 +3,9 @@ use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect,
     Select,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+
+pub use raptor_api_types::PagedList as Paged;
 
 fn default_limit() -> u64 {
     50
@@ -17,24 +19,6 @@ pub struct ListParams {
     pub limit: u64,
     pub sort: Option<String>,
     pub q: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Paged<T: Serialize> {
-    pub content: Vec<T>,
-    pub total: u64,
-    pub size: usize,
-}
-
-impl<T: Serialize> Paged<T> {
-    pub fn new(content: Vec<T>, total: u64) -> Self {
-        let size = content.len();
-        Self {
-            content,
-            total,
-            size,
-        }
-    }
 }
 
 pub fn apply_sort<E: EntityTrait, C: ColumnTrait>(

@@ -5,7 +5,6 @@ use crate::util::now_ms;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
-use serde_json::json;
 
 pub struct AssignResult {
     pub action_id: Option<i64>,
@@ -206,19 +205,24 @@ async fn set_target_status(
     Ok(())
 }
 
-pub fn action_rest(a: &action::Model, base: &str) -> serde_json::Value {
+pub fn action_rest(
+    a: &action::Model,
+    target_cid: Option<&str>,
+    base: &str,
+) -> raptor_api_types::ActionRest {
     let is_cancel = matches!(a.status.as_str(), "canceling" | "canceled");
-    json!({
-        "id": a.id,
-        "type": if is_cancel { "cancel" } else { "update" },
-        "status": if a.active { "pending" } else { "finished" },
-        "detailStatus": a.status,
-        "forceType": if a.forced { "forced" } else { "soft" },
-        "createdAt": a.created_at,
-        "lastModifiedAt": a.updated_at,
-        "_links": {
+    raptor_api_types::ActionRest {
+        id: a.id,
+        action_type: if is_cancel { "cancel" } else { "update" }.to_string(),
+        status: if a.active { "pending" } else { "finished" }.to_string(),
+        detail_status: a.status.clone(),
+        force_type: if a.forced { "forced" } else { "soft" }.to_string(),
+        created_at: a.created_at,
+        last_modified_at: a.updated_at,
+        target: target_cid.map(str::to_string),
+        links: serde_json::json!({
             "self": {"href": format!("{base}/rest/v1/actions/{}", a.id)},
             "distributionset": {"href": format!("{base}/rest/v1/distributionsets/{}", a.ds_id)}
-        }
-    })
+        }),
+    }
 }

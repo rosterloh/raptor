@@ -1,4 +1,4 @@
-use super::dto::{ds_rest, SmRest};
+use super::dto::{ds_rest, DsRest, SmRest};
 use super::software_modules::type_keys;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{action, distribution_set, distribution_set_type, ds_module, software_module};
@@ -12,7 +12,6 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
 use serde::Deserialize;
-use serde_json::Value;
 use std::collections::HashSet;
 
 fn fiql_map(f: &str) -> Option<distribution_set::Column> {
@@ -75,7 +74,7 @@ async fn ds_with_modules(
     st: &AppState,
     ds: &distribution_set::Model,
     base: &str,
-) -> Result<Value, AppError> {
+) -> Result<DsRest, AppError> {
     let ty = distribution_set_type::Entity::find_by_id(ds.type_id)
         .one(&st.db)
         .await?
@@ -89,7 +88,7 @@ pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<Vec<DsCreate>>,
-) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+) -> Result<(StatusCode, Json<Vec<DsRest>>), AppError> {
     // Phase 1: Validate all items first (no writes)
     let mut seen = HashSet::new();
     for c in &body {
@@ -178,7 +177,7 @@ pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<DsRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
     let mut sel = distribution_set::Entity::find();
     if let Some(q) = &p.q {
@@ -198,7 +197,7 @@ pub async fn get_one(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<DsRest>, AppError> {
     let ds = distribution_set::Entity::find_by_id(id)
         .one(&st.db)
         .await?
