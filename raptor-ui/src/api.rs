@@ -297,6 +297,31 @@ pub async fn upload_artifact(
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
+    /// Keeps the XHR and its closures alive together, and aborts the request
+    /// (detaching handlers first) if the upload future is dropped mid-flight
+    /// (e.g. the user navigates away). Without this, a late-firing XHR event
+    /// would invoke an already-dropped Closure and panic/poison the wasm
+    /// instance.
+    struct XhrGuard {
+        xhr: web_sys::XmlHttpRequest,
+        _onprog: Closure<dyn FnMut(web_sys::ProgressEvent)>,
+        _onloadend: Closure<dyn FnMut()>,
+    }
+
+    impl Drop for XhrGuard {
+        fn drop(&mut self) {
+            // Detach handlers BEFORE abort: abort() can synchronously drive
+            // request-error/loadend handling, and it must not reach into a
+            // Rust closure that is about to be freed.
+            self.xhr.set_onloadend(None);
+            if let Ok(upload) = self.xhr.upload() {
+                upload.set_onprogress(None);
+            }
+            // No-op if the request already completed.
+            self.xhr.abort().ok();
+        }
+    }
+
     let xhr =
         web_sys::XmlHttpRequest::new().map_err(|_| ApiError::Network("XHR unavailable".into()))?;
     xhr.open(
@@ -323,22 +348,28 @@ pub async fn upload_artifact(
         .unwrap()
         .set_onprogress(Some(onprog.as_ref().unchecked_ref()));
 
-    let (tx, rx) = futures::channel::oneshot::channel::<(u16, String)>();
-    let xhr2 = xhr.clone();
-    let onloadend = Closure::once(move || {
-        let status = xhr2.status().unwrap_or(0);
-        let body = xhr2.response_text().ok().flatten().unwrap_or_default();
-        let _ = tx.send((status, body));
+    let (tx, rx) = futures::channel::oneshot::channel::<()>();
+    let mut tx = Some(tx);
+    let onloadend = Closure::<dyn FnMut()>::new(move || {
+        if let Some(tx) = tx.take() {
+            let _ = tx.send(());
+        }
     });
     xhr.set_onloadend(Some(onloadend.as_ref().unchecked_ref()));
 
+    let guard = XhrGuard {
+        xhr: xhr.clone(),
+        _onprog: onprog,
+        _onloadend: onloadend,
+    };
+
     xhr.send_with_opt_form_data(Some(&form))
         .map_err(|_| ApiError::Network("XHR send failed".into()))?;
-    let (status, body) = rx
-        .await
+    rx.await
         .map_err(|_| ApiError::Network("upload interrupted".into()))?;
-    drop(onprog);
-    drop(onloadend);
+
+    let status = guard.xhr.status().unwrap_or(0);
+    let body = guard.xhr.response_text().ok().flatten().unwrap_or_default();
 
     match status {
         201 => Ok(()),

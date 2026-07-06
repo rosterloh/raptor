@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq)]
 struct UploadState {
+    id: u64,
     filename: String,
     progress: f64, // 0.0-1.0, 1.0 = server processing
 }
@@ -14,12 +15,16 @@ pub fn ModuleDetail(id: i64) -> Element {
     let mut artifacts = use_resource(move || async move { api::module_artifacts(id).await });
     let mut uploads = use_signal(Vec::<UploadState>::new);
     let mut confirm_delete = use_signal(|| false);
+    let mut next_upload_id = use_signal(|| 0u64);
     let nav = use_navigator();
 
     let on_files = move |e: FormEvent| {
         for file in e.files() {
             let name = file.name();
+            let upload_id = *next_upload_id.read();
+            *next_upload_id.write() += 1;
             uploads.write().push(UploadState {
+                id: upload_id,
                 filename: name.clone(),
                 progress: 0.0,
             });
@@ -31,7 +36,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                             let n = name.clone();
                             api::upload_artifact(id, &n.clone(), bytes.to_vec(), move |p| {
                                 for u in uploads.write().iter_mut() {
-                                    if u.filename == n {
+                                    if u.id == upload_id {
                                         u.progress = p;
                                     }
                                 }
@@ -46,7 +51,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                     }
                     Err(e) => Err(api::ApiError::Network(format!("read failed: {e:?}"))),
                 };
-                uploads.write().retain(|u| u.filename != name);
+                uploads.write().retain(|u| u.id != upload_id);
                 match result {
                     Ok(()) => {
                         toast_ok(format!("uploaded {name}"));
@@ -84,7 +89,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                 }
             }
             for u in uploads() {
-                div { key: "{u.filename}", class: "mb-2 text-sm",
+                div { key: "{u.id}", class: "mb-2 text-sm",
                     span { class: "text-zinc-400", "{u.filename} " }
                     div { class: "mt-1 h-1.5 w-full rounded bg-zinc-800",
                         div {
