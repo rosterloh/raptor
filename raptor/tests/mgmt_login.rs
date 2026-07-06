@@ -49,6 +49,7 @@ async fn bad_password_rejected_without_cookie() {
     let resp = app.oneshot(login_req("admin", "wrong")).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     assert!(resp.headers().get(header::SET_COOKIE).is_none());
+    assert!(resp.headers().get("www-authenticate").is_none());
 }
 
 #[tokio::test]

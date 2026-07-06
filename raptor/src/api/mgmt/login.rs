@@ -13,7 +13,13 @@ pub async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
     if !crate::auth::mgmt::verify_creds(&st.cfg.mgmt, &req.username, &req.password) {
-        return Err(AppError::Unauthorized);
+        let body = raptor_api_types::ErrorBody {
+            exception_class: "org.springframework.security.authentication.BadCredentialsException"
+                .into(),
+            error_code: "hawkbit.server.error.unauthorized".into(),
+            message: "unauthorized".into(),
+        };
+        return Ok((StatusCode::UNAUTHORIZED, Json(body)).into_response());
     }
     let token = st.sessions.create();
     let secure = headers
@@ -31,6 +37,13 @@ pub async fn logout(State(st): State<AppState>, headers: HeaderMap) -> Response 
     if let Some(tok) = session_cookie(&headers) {
         st.sessions.remove(&tok);
     }
-    let clear = format!("{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+    let secure = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        == Some("https");
+    let mut clear = format!("{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+    if secure {
+        clear.push_str("; Secure");
+    }
     (StatusCode::NO_CONTENT, [(header::SET_COOKIE, clear)]).into_response()
 }
