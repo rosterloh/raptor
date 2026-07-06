@@ -9,7 +9,11 @@ struct UiAssets;
 /// Serve /ui/* from the embedded `dx build --release` output. Extensionless
 /// paths fall back to index.html so client-side routes survive refresh.
 pub async fn serve(uri: Uri) -> Response {
-    let path = uri.path().trim_start_matches("/ui").trim_start_matches('/');
+    let path = uri.path();
+    let path = path
+        .strip_prefix("/ui")
+        .unwrap_or(path)
+        .trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
     if let Some(f) = UiAssets::get(path) {
         return (
