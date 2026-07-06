@@ -1,4 +1,3 @@
-use crate::Route;
 use dioxus::prelude::*;
 
 macro_rules! stub_page {
@@ -10,7 +9,6 @@ macro_rules! stub_page {
     };
 }
 
-stub_page!(Login);
 stub_page!(Dashboard);
 stub_page!(Targets);
 stub_page!(Distributions);
@@ -30,13 +28,4 @@ pub fn DsDetail(id: i64) -> Element {
 #[component]
 pub fn ModuleDetail(id: i64) -> Element {
     rsx! { h1 { "module {id}" } }
-}
-
-#[component]
-pub fn Shell() -> Element {
-    rsx! {
-        div { class: "min-h-screen bg-zinc-950 text-zinc-200 p-6",
-            Outlet::<Route> {}
-        }
-    }
 }
