@@ -1,8 +1,4 @@
 //! Pure logic, unit-tested on the host: `cargo test -p raptor-ui`.
-//!
-//! Consumed by pages/components added in later tasks (11-15); until then,
-//! in this bin crate, `-D warnings` would flag every item here as dead code.
-#![allow(dead_code)]
 
 /// FIQL "contains" filter ORed over fields: `name==*term*,controllerId==*term*`.
 /// raptor's FIQL compiler maps `*` wildcards to SQL LIKE.

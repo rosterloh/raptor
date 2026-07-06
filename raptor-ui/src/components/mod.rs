@@ -1,8 +1,3 @@
-//! Shared components consumed by pages added in later tasks (11-15); until
-//! then, in this bin crate, `-D warnings` would flag every item here as dead
-//! code (and the re-exports below as unused imports).
-#![allow(dead_code, unused_imports)]
-
 pub mod badge;
 pub mod confirm;
 pub mod error_pane;
