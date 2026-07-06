@@ -27,14 +27,18 @@ pub async fn mgmt_auth(
     let decoded = String::from_utf8(decoded).map_err(|_| AppError::Unauthorized)?;
     let (user, pass) = decoded.split_once(':').ok_or(AppError::Unauthorized)?;
 
-    let cfg = &state.cfg.mgmt;
-    let parsed = PasswordHash::new(&cfg.password_hash).map_err(|_| AppError::Unauthorized)?;
-    let ok = user == cfg.username
-        && Argon2::default()
-            .verify_password(pass.as_bytes(), &parsed)
-            .is_ok();
-    if !ok {
+    if !verify_creds(&state.cfg.mgmt, user, pass) {
         return Err(AppError::Unauthorized);
     }
     Ok(next.run(req).await)
+}
+
+pub fn verify_creds(cfg: &crate::config::MgmtConfig, user: &str, pass: &str) -> bool {
+    let Ok(parsed) = PasswordHash::new(&cfg.password_hash) else {
+        return false;
+    };
+    user == cfg.username
+        && Argon2::default()
+            .verify_password(pass.as_bytes(), &parsed)
+            .is_ok()
 }

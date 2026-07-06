@@ -2,6 +2,7 @@ pub mod actions;
 pub mod artifacts;
 pub mod distribution_sets;
 pub mod dto;
+pub mod login;
 pub mod software_modules;
 pub mod targets;
 pub mod types;
