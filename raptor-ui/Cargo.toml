@@ -9,7 +9,7 @@ raptor-api-types = { path = "../raptor-api-types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
-chrono = { version = "0.4", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 futures = "0.3"
 gloo-timers = { version = "0.3", features = ["futures"] }
 console_error_panic_hook = "0.1"
