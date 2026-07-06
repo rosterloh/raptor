@@ -10,14 +10,8 @@ macro_rules! stub_page {
 }
 
 stub_page!(Dashboard);
-stub_page!(Distributions);
 stub_page!(Modules);
 stub_page!(Actions);
-
-#[component]
-pub fn DsDetail(id: i64) -> Element {
-    rsx! { h1 { "ds {id}" } }
-}
 
 #[component]
 pub fn ModuleDetail(id: i64) -> Element {
