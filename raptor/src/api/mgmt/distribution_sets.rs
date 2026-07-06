@@ -8,10 +8,10 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::{DsCreate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde::Deserialize;
 use std::collections::HashSet;
 
 fn fiql_map(f: &str) -> Option<distribution_set::Column> {
@@ -23,25 +23,6 @@ fn fiql_map(f: &str) -> Option<distribution_set::Column> {
         "complete" => Some(distribution_set::Column::Complete),
         _ => None,
     }
-}
-
-#[derive(Deserialize)]
-pub struct ModuleRef {
-    pub id: i64,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DsCreate {
-    pub name: String,
-    pub version: String,
-    #[serde(rename = "type")]
-    pub ds_type: String,
-    pub description: Option<String>,
-    #[serde(default)]
-    pub required_migration_step: bool,
-    #[serde(default)]
-    pub modules: Vec<ModuleRef>,
 }
 
 pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<SmRest>, AppError> {

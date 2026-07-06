@@ -7,20 +7,9 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::{SmCreate, SmUpdate};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
-use serde::Deserialize;
 use std::collections::HashMap;
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SmCreate {
-    pub name: String,
-    pub version: String,
-    #[serde(rename = "type")]
-    pub module_type: String,
-    pub vendor: Option<String>,
-    pub description: Option<String>,
-}
 
 fn fiql_map(f: &str) -> Option<software_module::Column> {
     match f {
@@ -130,12 +119,6 @@ pub async fn get_one(
         keys.get(&m.type_id).map(String::as_str).unwrap_or("?"),
         &base_url(&st.cfg, &headers),
     )))
-}
-
-#[derive(Deserialize)]
-pub struct SmUpdate {
-    pub vendor: Option<String>,
-    pub description: Option<String>,
 }
 
 pub async fn update(

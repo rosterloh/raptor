@@ -7,6 +7,7 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::DsAssignment;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
 };
@@ -19,13 +20,6 @@ fn fiql_map(f: &str) -> Option<action::Column> {
         "detailstatus" | "detailStatus" => Some(action::Column::Status),
         _ => None,
     }
-}
-
-#[derive(Deserialize)]
-pub struct DsAssignment {
-    pub id: i64,
-    #[serde(rename = "type")]
-    pub assign_type: Option<String>,
 }
 
 #[derive(Deserialize)]

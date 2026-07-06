@@ -7,11 +7,11 @@ use crate::util::{base_url, now_ms, random_token};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::{TargetCreate, TargetUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
     QueryFilter,
 };
-use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 
 pub fn fiql_map(f: &str) -> Option<target::Column> {
@@ -32,15 +32,6 @@ pub async fn find_by_cid(db: &DatabaseConnection, cid: &str) -> Result<target::M
         .one(db)
         .await?
         .ok_or(AppError::NotFound("target"))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TargetCreate {
-    pub controller_id: String,
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub security_token: Option<String>,
 }
 
 pub async fn create(
@@ -125,14 +116,6 @@ pub async fn get_one(
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),
     )))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TargetUpdate {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub security_token: Option<String>,
 }
 
 pub async fn update(
