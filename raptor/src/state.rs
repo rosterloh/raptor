@@ -9,11 +9,17 @@ pub struct Inner {
     pub db: DatabaseConnection,
     pub cfg: Config,
     pub store: crate::storage::ArtifactStore,
+    pub sessions: crate::auth::session::SessionStore,
 }
 
 impl AppState {
     pub fn new(db: DatabaseConnection, cfg: Config, store: crate::storage::ArtifactStore) -> Self {
-        Self(Arc::new(Inner { db, cfg, store }))
+        Self(Arc::new(Inner {
+            db,
+            cfg,
+            store,
+            sessions: Default::default(),
+        }))
     }
 }
 
