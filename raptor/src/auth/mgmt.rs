@@ -13,6 +13,12 @@ pub async fn mgmt_auth(
     req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    if let Some(tok) = crate::auth::session::session_cookie(req.headers()) {
+        if state.sessions.validate(&tok) {
+            return Ok(next.run(req).await);
+        }
+    }
+
     let header = req
         .headers()
         .get(header::AUTHORIZATION)
