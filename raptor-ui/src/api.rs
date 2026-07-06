@@ -1,10 +1,5 @@
 //! All HTTP access. Same-origin fetch sends the session cookie by default;
 //! any non-login 401 hard-redirects to /ui/login.
-//!
-//! This module's public surface is consumed by pages/components added in
-//! later tasks (11-15); until then, in this bin crate, `-D warnings` would
-//! flag every item here as dead code.
-#![allow(dead_code)]
 
 use raptor_api_types::*;
 use serde::de::DeserializeOwned;
