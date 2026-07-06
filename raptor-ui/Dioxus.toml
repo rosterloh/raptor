@@ -1,0 +1,15 @@
+[application]
+name = "raptor-ui"
+default_platform = "web"
+
+[web.app]
+title = "raptor"
+base_path = "ui"
+
+# dev loop: `dx serve` here + `cargo run -- serve` in raptor/ → API calls proxied
+[[web.proxy]]
+backend = "http://localhost:8080/rest"
+
+[tailwind]
+input = "tailwind.css"
+output = "assets/tailwind.css"
