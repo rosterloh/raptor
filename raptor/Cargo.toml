@@ -3,6 +3,9 @@ name = "raptor"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+
 [dependencies]
 raptor-api-types = { path = "../raptor-api-types" }
 axum = { version = "0.8", features = ["multipart", "macros"] }
@@ -30,6 +33,8 @@ base64 = "0.22"
 tempfile = "3"
 futures = "0.3"
 bytes = "1"
+rust-embed = { version = "8", optional = true, features = ["interpolate-folder-path", "mime-guess"] }
+mime_guess = { version = "2", optional = true }
 
 [dev-dependencies]
 http-body-util = "0.1"
