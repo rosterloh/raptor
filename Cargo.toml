@@ -1,3 +1,4 @@
 [workspace]
-members = ["raptor", "migration"]
+members = ["raptor", "raptor-api-types", "raptor-ui", "migration"]
+default-members = ["raptor", "raptor-api-types", "migration"]
 resolver = "2"

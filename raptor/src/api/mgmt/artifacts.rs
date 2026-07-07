@@ -10,20 +10,30 @@ use axum::Json;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde_json::{json, Value};
 
-pub fn artifact_json(a: &artifact::Model, module_id: i64, base: &str) -> Value {
+pub fn artifact_rest(
+    a: &artifact::Model,
+    module_id: i64,
+    base: &str,
+) -> raptor_api_types::ArtifactRest {
     let self_href = format!(
         "{base}/rest/v1/softwaremodules/{module_id}/artifacts/{}",
         a.id
     );
-    json!({
-        "id": a.id,
-        "providedFilename": a.filename,
-        "size": a.size,
-        "hashes": {"sha1": a.sha1, "md5": a.md5, "sha256": a.sha256},
-        "_links": {"self": {"href": self_href}, "download": {"href": format!("{self_href}/download")}}
-    })
+    raptor_api_types::ArtifactRest {
+        id: a.id,
+        provided_filename: a.filename.clone(),
+        size: a.size,
+        hashes: raptor_api_types::ArtifactHashes {
+            sha1: a.sha1.clone(),
+            md5: a.md5.clone(),
+            sha256: a.sha256.clone(),
+        },
+        links: serde_json::json!({
+            "self": {"href": self_href},
+            "download": {"href": format!("{self_href}/download")}
+        }),
+    }
 }
 
 async fn find_owned(
@@ -67,7 +77,7 @@ pub async fn upload(
     headers: HeaderMap,
     Path(module_id): Path<i64>,
     mut mp: Multipart,
-) -> Result<(StatusCode, Json<Value>), AppError> {
+) -> Result<(StatusCode, Json<raptor_api_types::ArtifactRest>), AppError> {
     crate::entity::software_module::Entity::find_by_id(module_id)
         .one(&st.db)
         .await?
@@ -111,7 +121,7 @@ pub async fn upload(
         .await?;
         return Ok((
             StatusCode::CREATED,
-            Json(artifact_json(&a, module_id, &base_url(&st.cfg, &headers))),
+            Json(artifact_rest(&a, module_id, &base_url(&st.cfg, &headers))),
         ));
     }
     Err(AppError::BadRequest(
@@ -123,7 +133,7 @@ pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path(module_id): Path<i64>,
-) -> Result<Json<Vec<Value>>, AppError> {
+) -> Result<Json<Vec<raptor_api_types::ArtifactRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
     let rows = artifact::Entity::find()
         .filter(artifact::Column::ModuleId.eq(module_id))
@@ -131,7 +141,7 @@ pub async fn list(
         .await?;
     Ok(Json(
         rows.iter()
-            .map(|a| artifact_json(a, module_id, &base))
+            .map(|a| artifact_rest(a, module_id, &base))
             .collect(),
     ))
 }
@@ -140,9 +150,9 @@ pub async fn get_one(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path((module_id, artifact_id)): Path<(i64, i64)>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<raptor_api_types::ArtifactRest>, AppError> {
     let a = find_owned(&st, module_id, artifact_id).await?;
-    Ok(Json(artifact_json(
+    Ok(Json(artifact_rest(
         &a,
         module_id,
         &base_url(&st.cfg, &headers),

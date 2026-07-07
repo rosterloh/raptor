@@ -40,8 +40,43 @@ Deploy an update:
     curl -u admin:pw -X POST localhost:8080/rest/v1/targets/my-device/assignedDS \
       -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 
+## Web UI
+
+raptor ships an optional web console (Dioxus/WASM) embedded in the binary.
+
+One-time setup, then a two-step build:
+
+    rustup target add wasm32-unknown-unknown
+    cargo install dioxus-cli@0.7.2   # or: cargo binstall dioxus-cli@0.7.2
+    # pinned to match the crate's `dioxus = "=0.7.2"` — bump both together
+
+    dx build --release --package raptor-ui    # from the repo root
+    cargo build --release --features embed-ui
+
+Then browse to `http://<server>/ui` and log in with the `[mgmt]` credentials.
+The UI authenticates with an httpOnly session cookie (`POST /rest/v1/login`);
+basic auth for curl/CI keeps working unchanged. CSRF note: the cookie is
+`SameSite=Strict`, which blocks cross-site browser POSTs; there is no separate
+CSRF token. Sessions live in memory — a server restart logs everyone out.
+
+Without `--features embed-ui`, raptor builds and runs exactly as before and
+`/ui` returns 404 — the Dioxus toolchain is only needed when embedding the UI.
+
+Development loop (hot reload):
+
+    cargo run -- serve --config raptor.toml     # terminal 1: API on :8080
+    cd raptor-ui && dx serve                    # terminal 2: UI with /rest proxy
+
+(`dx build --release` may print a non-fatal wasm-opt/DWARF warning — harmless,
+the bundle still builds.)
+
+Release smoke test: login → create module → upload artifact → create
+distribution set → assign module → deploy to a target → watch the action on
+the dashboard → cancel or complete → logout.
+
 ## v1 scope
 
 DDI v1 + core Management API (targets, software modules, distribution sets,
-artifacts, actions, FIQL `q=` filtering). Not yet: rollouts, tags, target
-filters, UI, AMQP/DMF. Design docs in `docs/superpowers/specs/`.
+artifacts, actions, FIQL `q=` filtering) + embedded web console. Not yet:
+rollouts, tags, target filters, AMQP/DMF. Design docs in
+`docs/superpowers/specs/`.

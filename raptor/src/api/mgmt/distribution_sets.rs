@@ -1,4 +1,4 @@
-use super::dto::{ds_rest, SmRest};
+use super::dto::{ds_rest, DsRest, SmRest};
 use super::software_modules::type_keys;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{action, distribution_set, distribution_set_type, ds_module, software_module};
@@ -8,11 +8,10 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::{DsCreate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde::Deserialize;
-use serde_json::Value;
 use std::collections::HashSet;
 
 fn fiql_map(f: &str) -> Option<distribution_set::Column> {
@@ -24,25 +23,6 @@ fn fiql_map(f: &str) -> Option<distribution_set::Column> {
         "complete" => Some(distribution_set::Column::Complete),
         _ => None,
     }
-}
-
-#[derive(Deserialize)]
-pub struct ModuleRef {
-    pub id: i64,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DsCreate {
-    pub name: String,
-    pub version: String,
-    #[serde(rename = "type")]
-    pub ds_type: String,
-    pub description: Option<String>,
-    #[serde(default)]
-    pub required_migration_step: bool,
-    #[serde(default)]
-    pub modules: Vec<ModuleRef>,
 }
 
 pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<SmRest>, AppError> {
@@ -75,7 +55,7 @@ async fn ds_with_modules(
     st: &AppState,
     ds: &distribution_set::Model,
     base: &str,
-) -> Result<Value, AppError> {
+) -> Result<DsRest, AppError> {
     let ty = distribution_set_type::Entity::find_by_id(ds.type_id)
         .one(&st.db)
         .await?
@@ -89,7 +69,7 @@ pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<Vec<DsCreate>>,
-) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+) -> Result<(StatusCode, Json<Vec<DsRest>>), AppError> {
     // Phase 1: Validate all items first (no writes)
     let mut seen = HashSet::new();
     for c in &body {
@@ -178,7 +158,7 @@ pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<DsRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
     let mut sel = distribution_set::Entity::find();
     if let Some(q) = &p.q {
@@ -198,7 +178,7 @@ pub async fn get_one(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<DsRest>, AppError> {
     let ds = distribution_set::Entity::find_by_id(id)
         .one(&st.db)
         .await?

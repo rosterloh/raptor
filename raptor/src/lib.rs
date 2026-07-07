@@ -8,4 +8,6 @@ pub mod error;
 pub mod fiql;
 pub mod state;
 pub mod storage;
+#[cfg(feature = "embed-ui")]
+pub mod ui;
 pub mod util;

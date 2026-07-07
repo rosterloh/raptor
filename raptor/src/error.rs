@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde_json::json;
+use raptor_api_types::ErrorBody;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -43,11 +43,12 @@ impl IntoResponse for AppError {
                 m,
             ),
             AppError::Unauthorized => {
-                let body = json!({
-                    "exceptionClass": "org.springframework.security.authentication.BadCredentialsException",
-                    "errorCode": "hawkbit.server.error.unauthorized",
-                    "message": "unauthorized",
-                });
+                let body = ErrorBody {
+                    exception_class:
+                        "org.springframework.security.authentication.BadCredentialsException".into(),
+                    error_code: "hawkbit.server.error.unauthorized".into(),
+                    message: "unauthorized".into(),
+                };
                 return (
                     StatusCode::UNAUTHORIZED,
                     [("WWW-Authenticate", "Basic realm=\"raptor\"")],
@@ -88,7 +89,11 @@ impl IntoResponse for AppError {
         };
         (
             status,
-            Json(json!({"exceptionClass": class, "errorCode": code, "message": msg})),
+            Json(ErrorBody {
+                exception_class: class.into(),
+                error_code: code.into(),
+                message: msg,
+            }),
         )
             .into_response()
     }

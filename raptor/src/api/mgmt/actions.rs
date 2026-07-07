@@ -7,11 +7,11 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use raptor_api_types::DsAssignment;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
 
 fn fiql_map(f: &str) -> Option<action::Column> {
     match f {
@@ -20,13 +20,6 @@ fn fiql_map(f: &str) -> Option<action::Column> {
         "detailstatus" | "detailStatus" => Some(action::Column::Status),
         _ => None,
     }
-}
-
-#[derive(Deserialize)]
-pub struct DsAssignment {
-    pub id: i64,
-    #[serde(rename = "type")]
-    pub assign_type: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,13 +33,18 @@ pub async fn assign(
     State(st): State<AppState>,
     Path(cid): Path<String>,
     Json(body): Json<OneOrMany>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<raptor_api_types::AssignResult>, AppError> {
     let t = super::targets::find_by_cid(&st.db, &cid).await?;
     let items = match body {
         OneOrMany::One(a) => vec![a],
         OneOrMany::Many(v) => v,
     };
-    let (mut assigned, mut already, mut ids) = (0, 0, Vec::new());
+    let mut result = raptor_api_types::AssignResult {
+        assigned: 0,
+        already_assigned: 0,
+        total: 0,
+        assigned_actions: Vec::new(),
+    };
     for item in items {
         let forced = item.assign_type.as_deref() != Some("soft");
         // refetch target each round: assign_ds mutates it
@@ -54,22 +52,23 @@ pub async fn assign(
         let r = assign_ds(&st, &t, item.id, forced).await?;
         match r.action_id {
             Some(id) => {
-                assigned += 1;
-                ids.push(json!({"id": id}));
+                result.assigned += 1;
+                result
+                    .assigned_actions
+                    .push(raptor_api_types::ActionRef { id });
             }
-            None => already += 1,
+            None => result.already_assigned += 1,
         }
     }
-    Ok(Json(
-        json!({"assigned": assigned, "alreadyAssigned": already, "total": assigned + already, "assignedActions": ids}),
-    ))
+    result.total = result.assigned + result.already_assigned;
+    Ok(Json(result))
 }
 
-async fn ds_json_for(
+async fn ds_rest_for(
     st: &AppState,
     ds_id: Option<i64>,
     headers: &HeaderMap,
-) -> Result<Option<Value>, AppError> {
+) -> Result<Option<raptor_api_types::DsRest>, AppError> {
     let Some(id) = ds_id else { return Ok(None) };
     let Some(ds) = distribution_set::Entity::find_by_id(id).one(&st.db).await? else {
         return Ok(None);
@@ -90,7 +89,7 @@ pub async fn assigned_ds(
     Path(cid): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
     let t = super::targets::find_by_cid(&st.db, &cid).await?;
-    match ds_json_for(&st, t.assigned_ds_id, &headers).await? {
+    match ds_rest_for(&st, t.assigned_ds_id, &headers).await? {
         Some(v) => Ok(axum::response::IntoResponse::into_response(Json(v))),
         None => Ok(axum::response::IntoResponse::into_response(
             StatusCode::NO_CONTENT,
@@ -104,7 +103,7 @@ pub async fn installed_ds(
     Path(cid): Path<String>,
 ) -> Result<axum::response::Response, AppError> {
     let t = super::targets::find_by_cid(&st.db, &cid).await?;
-    match ds_json_for(&st, t.installed_ds_id, &headers).await? {
+    match ds_rest_for(&st, t.installed_ds_id, &headers).await? {
         Some(v) => Ok(axum::response::IntoResponse::into_response(Json(v))),
         None => Ok(axum::response::IntoResponse::into_response(
             StatusCode::NO_CONTENT,
@@ -117,7 +116,7 @@ pub async fn target_actions(
     headers: HeaderMap,
     Path(cid): Path<String>,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<raptor_api_types::ActionRest>>, AppError> {
     let t = super::targets::find_by_cid(&st.db, &cid).await?;
     let base = base_url(&st.cfg, &headers);
     let mut sel = action::Entity::find().filter(action::Column::TargetId.eq(t.id));
@@ -132,7 +131,9 @@ pub async fn target_actions(
     };
     let (rows, total) = page(&st.db, sel, &p).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(|a| action_rest(a, &base)).collect(),
+        rows.iter()
+            .map(|a| action_rest(a, Some(&t.controller_id), &base))
+            .collect(),
         total,
     )))
 }
@@ -141,14 +142,18 @@ pub async fn target_action(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path((cid, aid)): Path<(String, i64)>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<raptor_api_types::ActionRest>, AppError> {
     let t = super::targets::find_by_cid(&st.db, &cid).await?;
     let a = action::Entity::find_by_id(aid)
         .one(&st.db)
         .await?
         .filter(|a| a.target_id == t.id)
         .ok_or(AppError::NotFound("action"))?;
-    Ok(Json(action_rest(&a, &base_url(&st.cfg, &headers))))
+    Ok(Json(action_rest(
+        &a,
+        Some(&t.controller_id),
+        &base_url(&st.cfg, &headers),
+    )))
 }
 
 #[derive(Deserialize)]
@@ -212,7 +217,7 @@ pub async fn all_actions(
     State(st): State<AppState>,
     headers: HeaderMap,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<raptor_api_types::ActionRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
     let mut sel = action::Entity::find();
     if let Some(q) = &p.q {
@@ -225,8 +230,18 @@ pub async fn all_actions(
         sel.order_by(action::Column::Id, Order::Desc)
     };
     let (rows, total) = page(&st.db, sel, &p).await?;
+    let target_ids: Vec<i64> = rows.iter().map(|a| a.target_id).collect();
+    let cids: std::collections::HashMap<i64, String> = target::Entity::find()
+        .filter(target::Column::Id.is_in(target_ids))
+        .all(&st.db)
+        .await?
+        .into_iter()
+        .map(|t| (t.id, t.controller_id))
+        .collect();
     Ok(Json(Paged::new(
-        rows.iter().map(|a| action_rest(a, &base)).collect(),
+        rows.iter()
+            .map(|a| action_rest(a, cids.get(&a.target_id).map(String::as_str), &base))
+            .collect(),
         total,
     )))
 }
