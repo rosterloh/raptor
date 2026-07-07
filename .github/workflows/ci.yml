@@ -21,6 +21,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown, components: clippy }
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      # pinned to match the crate's `dioxus = "=0.7.2"`
+      - run: cargo binstall dioxus-cli@0.7.2 --no-confirm
+      # embed-ui test first: it writes placeholder assets into
+      # target/dx/raptor-ui/release/web/public, which dx build then replaces
+      - run: cargo test -p raptor --features embed-ui --test ui_serving
+      - run: cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo test -p raptor-ui
+      # last: prove the real bundle builds (dx must run from the workspace root)
+      - run: dx build --release --package raptor-ui
+
   test-postgres:
     runs-on: ubuntu-latest
     services:
