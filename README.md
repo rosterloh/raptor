@@ -47,8 +47,8 @@ raptor ships an optional web console (Dioxus/WASM) embedded in the binary.
 One-time setup, then a two-step build:
 
     rustup target add wasm32-unknown-unknown
-    cargo install dioxus-cli@0.7.2   # or: cargo binstall dioxus-cli@0.7.2
-    # pinned to match the crate's `dioxus = "=0.7.2"` — bump both together
+    cargo binstall dioxus-cli@0.7.9  # or: cargo install dioxus-cli@0.7.9
+    # pinned to match the crate's `dioxus = "=0.7.9"` — bump both together
 
     dx build --release --package raptor-ui    # from the repo root
     cargo build --release --features embed-ui
