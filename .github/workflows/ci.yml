@@ -7,7 +7,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "rustfmt, clippy" }
       - run: cargo fmt --all --check
@@ -16,7 +16,7 @@ jobs:
   test-sqlite:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
@@ -24,15 +24,15 @@ jobs:
   ui:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: wasm32-unknown-unknown, components: clippy }
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@main
-      # pinned to match the crate's `dioxus = "=0.7.2"`; --force works around
+      - uses: cargo-bins/cargo-binstall@v1.20.1
+      # pinned to match the crate's `dioxus = "=0.7.9"`; --force works around
       # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
       # which makes binstall skip a reinstall and leaves `dx` missing on PATH
-      - run: cargo binstall dioxus-cli@0.7.2 --no-confirm --force
+      - run: cargo binstall dioxus-cli@0.7.9 --no-confirm --force
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
       - run: cargo test -p raptor --features embed-ui --test ui_serving
@@ -55,7 +55,7 @@ jobs:
           --health-cmd "pg_isready -U raptor" --health-interval 5s
           --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace -- --test-threads=1

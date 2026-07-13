@@ -12,9 +12,9 @@ pub struct SessionStore(Mutex<HashMap<String, i64>>);
 
 impl SessionStore {
     pub fn create(&self) -> String {
-        use rand::RngCore;
+        use rand::Rng;
         let mut b = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut b);
+        rand::rng().fill_bytes(&mut b);
         let token = hex::encode(b);
         let now = crate::util::now_ms();
         let mut m = self.0.lock().unwrap();

@@ -6,9 +6,9 @@ pub fn now_ms() -> i64 {
 }
 
 pub fn random_token() -> String {
-    use rand::RngCore;
+    use rand::Rng;
     let mut b = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut b);
+    rand::rng().fill_bytes(&mut b);
     hex::encode(b)
 }
 
