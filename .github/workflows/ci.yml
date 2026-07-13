@@ -29,8 +29,10 @@ jobs:
         with: { targets: wasm32-unknown-unknown, components: clippy }
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@main
-      # pinned to match the crate's `dioxus = "=0.7.2"`
-      - run: cargo binstall dioxus-cli@0.7.2 --no-confirm
+      # pinned to match the crate's `dioxus = "=0.7.2"`; --force works around
+      # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
+      # which makes binstall skip a reinstall and leaves `dx` missing on PATH
+      - run: cargo binstall dioxus-cli@0.7.2 --no-confirm --force
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
       - run: cargo test -p raptor --features embed-ui --test ui_serving
