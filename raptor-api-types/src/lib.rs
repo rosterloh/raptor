@@ -221,6 +221,56 @@ pub struct DsAssignment {
     pub assign_type: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutCondition {
+    pub condition: String,
+    pub expression: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutCreate {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    pub distribution_set_id: i64,
+    pub target_filter_query: String,
+    pub amount_groups: i64,
+    pub success_condition: RolloutCondition,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error_condition: Option<RolloutCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutRest {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub distribution_set_id: i64,
+    pub target_filter_query: String,
+    pub status: String,
+    pub total_targets: i64,
+    pub created_at: i64,
+    pub last_modified_at: i64,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutGroupRest {
+    pub id: i64,
+    pub name: String,
+    pub status: String,
+    pub total_targets: i64,
+    pub success_condition: RolloutCondition,
+    pub error_condition: RolloutCondition,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +353,26 @@ mod tests {
         };
         let v = serde_json::to_value(&a).unwrap();
         assert!(v.get("target").is_none());
+    }
+
+    #[test]
+    fn rollout_shape() {
+        round_trip::<RolloutRest>(json!({
+            "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
+            "targetFilterQuery": "name==*", "status": "running", "totalTargets": 10,
+            "createdAt": 1, "lastModifiedAt": 2,
+            "_links": {"self": {"href": "http://x/rest/v1/rollouts/1"}}
+        }));
+    }
+
+    #[test]
+    fn rollout_group_shape() {
+        round_trip::<RolloutGroupRest>(json!({
+            "id": 6, "name": "group-1", "status": "running", "totalTargets": 5,
+            "successCondition": {"condition": "THRESHOLD", "expression": "50"},
+            "errorCondition": {"condition": "THRESHOLD", "expression": "50"},
+            "_links": {"self": {"href": "http://x/rest/v1/rollouts/1/deploygroups/6"}}
+        }));
     }
 
     #[test]

@@ -41,7 +41,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             migration::Migrator::up(&db, None).await?;
             let store = raptor::storage::ArtifactStore::new(cfg.artifact_dir.clone())?;
             let bind = cfg.bind;
-            let app = raptor::app::build_app(AppState::new(db, cfg, store));
+            let eval_interval = cfg.rollout_eval_interval_secs.max(1);
+            let state = AppState::new(db, cfg, store);
+            let eval_state = state.clone();
+            tokio::spawn(async move {
+                let mut interval =
+                    tokio::time::interval(std::time::Duration::from_secs(eval_interval));
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = raptor::domain::rollout::evaluate_rollouts(&eval_state).await {
+                        tracing::error!(error = ?e, "rollout evaluation failed");
+                    }
+                }
+            });
+            let app = raptor::app::build_app(state);
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");
             axum::serve(listener, app).await?;

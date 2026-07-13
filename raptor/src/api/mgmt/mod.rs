@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod distribution_sets;
 pub mod dto;
 pub mod login;
+pub mod rollouts;
 pub mod software_modules;
 pub mod targets;
 pub mod types;
@@ -83,6 +84,26 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(actions::target_action).delete(actions::cancel_action),
         )
         .route("/rest/v1/actions", get(actions::all_actions))
+        .route(
+            "/rest/v1/rollouts",
+            post(rollouts::create).get(rollouts::list),
+        )
+        .route(
+            "/rest/v1/rollouts/{id}",
+            get(rollouts::get_one).delete(rollouts::delete),
+        )
+        .route("/rest/v1/rollouts/{id}/start", post(rollouts::start))
+        .route("/rest/v1/rollouts/{id}/pause", post(rollouts::pause))
+        .route("/rest/v1/rollouts/{id}/resume", post(rollouts::resume))
+        .route("/rest/v1/rollouts/{id}/deploygroups", get(rollouts::groups))
+        .route(
+            "/rest/v1/rollouts/{id}/deploygroups/{gid}",
+            get(rollouts::group_one),
+        )
+        .route(
+            "/rest/v1/rollouts/{id}/deploygroups/{gid}/targets",
+            get(rollouts::group_targets),
+        )
         .route_layer(middleware::from_fn_with_state(
             state,
             crate::auth::mgmt::mgmt_auth,

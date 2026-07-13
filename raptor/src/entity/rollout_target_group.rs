@@ -1,19 +1,12 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "action")]
+#[sea_orm(table_name = "rollout_target_group")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    pub rollout_group_id: i64,
     pub target_id: i64,
-    pub ds_id: i64,
-    pub status: String,
-    pub active: bool,
-    pub forced: bool,
-    pub rollout_id: Option<i64>,
-    pub rollout_group_id: Option<i64>,
-    pub created_at: i64,
-    pub updated_at: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

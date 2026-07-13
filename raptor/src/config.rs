@@ -19,6 +19,9 @@ pub struct Config {
     #[serde(default)]
     pub ddi: DdiConfig,
     pub mgmt: MgmtConfig,
+    /// How often the rollout group-threshold evaluator runs, in seconds.
+    #[serde(default = "default_rollout_eval_interval_secs")]
+    pub rollout_eval_interval_secs: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,6 +73,9 @@ fn default_max_artifact_size() -> u64 {
 }
 fn default_polling() -> String {
     "00:05:00".into()
+}
+fn default_rollout_eval_interval_secs() -> u64 {
+    5
 }
 
 impl Config {

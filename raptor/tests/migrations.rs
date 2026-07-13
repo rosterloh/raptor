@@ -20,3 +20,14 @@ async fn migrations_apply_and_seed_types() {
     let keys: Vec<_> = ds_types.iter().map(|t| t.key.as_str()).collect();
     assert_eq!(keys, ["os", "os_app", "app"]);
 }
+
+#[tokio::test]
+async fn rollout_migration_up_and_down() {
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+    Migrator::up(&db, None).await.unwrap();
+    Migrator::down(&db, None).await.unwrap();
+    // back to the initial-only schema
+    Migrator::up(&db, None).await.unwrap();
+    let sm_types = software_module_type::Entity::find().all(&db).await.unwrap();
+    assert_eq!(sm_types.len(), 4);
+}

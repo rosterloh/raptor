@@ -77,6 +77,7 @@ the dashboard → cancel or complete → logout.
 ## v1 scope
 
 DDI v1 + core Management API (targets, software modules, distribution sets,
-artifacts, actions, FIQL `q=` filtering) + embedded web console. Not yet:
-rollouts, tags, target filters, AMQP/DMF. Design docs in
-`docs/superpowers/specs/`.
+artifacts, actions, rollouts, FIQL `q=` filtering) + embedded web console.
+Rollouts cover the core lifecycle (create/start/pause/resume/delete, group
+thresholds); approval workflow and dynamic rollouts are follow-ups. Not yet:
+tags, target filters, AMQP/DMF. Design docs in `docs/superpowers/specs/`.
