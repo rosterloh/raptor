@@ -37,10 +37,7 @@ fn base() -> String {
 }
 
 fn redirect_to_login() {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = web_sys::window().unwrap().location().set_href("/ui/login");
-    }
+    dioxus::prelude::navigator().replace(crate::Route::Login {});
 }
 
 fn net(e: reqwest::Error) -> ApiError {
@@ -64,15 +61,25 @@ async fn check(resp: reqwest::Response) -> ApiResult<reqwest::Response> {
     Ok(resp)
 }
 
+/// Marks requests as SPA-originated so the server skips `WWW-Authenticate`
+/// on 401s — otherwise browsers pop their native Basic-Auth dialog.
+const AJAX_HEADER: (&str, &str) = ("X-Requested-With", "XMLHttpRequest");
+
 async fn get_json<T: DeserializeOwned>(path: &str) -> ApiResult<T> {
-    let resp = reqwest::get(format!("{}{path}", base()))
+    let resp = reqwest::Client::new()
+        .get(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
+        .send()
         .await
         .map_err(net)?;
     check(resp).await?.json().await.map_err(net)
 }
 
 async fn get_opt<T: DeserializeOwned>(path: &str) -> ApiResult<Option<T>> {
-    let resp = reqwest::get(format!("{}{path}", base()))
+    let resp = reqwest::Client::new()
+        .get(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
+        .send()
         .await
         .map_err(net)?;
     if resp.status().as_u16() == 204 {
@@ -87,6 +94,7 @@ async fn post_json<B: Serialize + ?Sized, T: DeserializeOwned>(
 ) -> ApiResult<T> {
     let resp = reqwest::Client::new()
         .post(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
         .json(body)
         .send()
         .await
@@ -97,6 +105,7 @@ async fn post_json<B: Serialize + ?Sized, T: DeserializeOwned>(
 async fn post_no_content<B: Serialize + ?Sized>(path: &str, body: &B) -> ApiResult<()> {
     let resp = reqwest::Client::new()
         .post(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
         .json(body)
         .send()
         .await
@@ -108,6 +117,7 @@ async fn post_no_content<B: Serialize + ?Sized>(path: &str, body: &B) -> ApiResu
 async fn delete(path: &str) -> ApiResult<()> {
     let resp = reqwest::Client::new()
         .delete(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
         .send()
         .await
         .map_err(net)?;
@@ -153,6 +163,7 @@ pub async fn login(username: &str, password: &str) -> ApiResult<()> {
 pub async fn logout() -> ApiResult<()> {
     let resp = reqwest::Client::new()
         .post(format!("{}/rest/v1/logout", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
         .send()
         .await
         .map_err(net)?;
@@ -324,6 +335,8 @@ pub async fn upload_artifact(
         &format!("{}/rest/v1/softwaremodules/{module_id}/artifacts", base()),
     )
     .map_err(|_| ApiError::Network("XHR open failed".into()))?;
+    xhr.set_request_header(AJAX_HEADER.0, AJAX_HEADER.1)
+        .map_err(|_| ApiError::Network("XHR header failed".into()))?;
 
     let form = web_sys::FormData::new().unwrap();
     let arr = js_sys::Uint8Array::from(bytes.as_slice());

@@ -8,6 +8,9 @@ pub enum AppError {
     NotFound(&'static str),
     BadRequest(String),
     Unauthorized,
+    /// Same as `Unauthorized` but omits `WWW-Authenticate`, so browsers don't
+    /// pop their native Basic-Auth dialog for the SPA's own session checks.
+    UnauthorizedQuiet,
     Conflict(String),
     Gone,
     Db(sea_orm::DbErr),
@@ -42,19 +45,23 @@ impl IntoResponse for AppError {
                 "hawkbit.server.error.rest.body.notReadable",
                 m,
             ),
-            AppError::Unauthorized => {
+            AppError::Unauthorized | AppError::UnauthorizedQuiet => {
                 let body = ErrorBody {
                     exception_class:
                         "org.springframework.security.authentication.BadCredentialsException".into(),
                     error_code: "hawkbit.server.error.unauthorized".into(),
                     message: "unauthorized".into(),
                 };
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    [("WWW-Authenticate", "Basic realm=\"raptor\"")],
-                    Json(body),
-                )
-                    .into_response();
+                return if matches!(self, AppError::Unauthorized) {
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        [("WWW-Authenticate", "Basic realm=\"raptor\"")],
+                        Json(body),
+                    )
+                        .into_response()
+                } else {
+                    (StatusCode::UNAUTHORIZED, Json(body)).into_response()
+                };
             }
             AppError::Conflict(m) => (
                 StatusCode::CONFLICT,

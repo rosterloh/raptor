@@ -13,6 +13,17 @@ pub async fn mgmt_auth(
     req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    // The SPA tags its own requests so a failed session check doesn't trigger
+    // the browser's native Basic-Auth dialog (see raptor-ui/src/api.rs).
+    let quiet = req.headers().contains_key("x-requested-with");
+    let unauthorized = || {
+        if quiet {
+            AppError::UnauthorizedQuiet
+        } else {
+            AppError::Unauthorized
+        }
+    };
+
     if let Some(tok) = crate::auth::session::session_cookie(req.headers()) {
         if state.sessions.validate(&tok) {
             return Ok(next.run(req).await);
@@ -23,18 +34,16 @@ pub async fn mgmt_auth(
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
-        .ok_or(AppError::Unauthorized)?;
-    let b64 = header
-        .strip_prefix("Basic ")
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(unauthorized)?;
+    let b64 = header.strip_prefix("Basic ").ok_or_else(unauthorized)?;
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(b64)
-        .map_err(|_| AppError::Unauthorized)?;
-    let decoded = String::from_utf8(decoded).map_err(|_| AppError::Unauthorized)?;
-    let (user, pass) = decoded.split_once(':').ok_or(AppError::Unauthorized)?;
+        .map_err(|_| unauthorized())?;
+    let decoded = String::from_utf8(decoded).map_err(|_| unauthorized())?;
+    let (user, pass) = decoded.split_once(':').ok_or_else(unauthorized)?;
 
     if !verify_creds(&state.cfg.mgmt, user, pass) {
-        return Err(AppError::Unauthorized);
+        return Err(unauthorized());
     }
     Ok(next.run(req).await)
 }
