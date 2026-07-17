@@ -4,6 +4,7 @@ pub mod error_pane;
 pub mod paginator;
 pub mod search;
 pub mod toast;
+pub mod ui;
 
 pub use badge::StatusBadge;
 pub use confirm::ConfirmDialog;

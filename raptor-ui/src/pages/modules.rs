@@ -1,3 +1,4 @@
+use crate::components::ui::Button;
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -18,7 +19,7 @@ pub fn Modules() -> Element {
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-zinc-100", "Modules" }
-            button { class: BTN, onclick: move |_| show_create.set(true), "New module" }
+            Button { onclick: move |_| show_create.set(true), "New module" }
         }
         div { class: "mb-3",
             SearchBox {
