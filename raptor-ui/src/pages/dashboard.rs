@@ -1,3 +1,4 @@
+use crate::components::ui::Card;
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -24,7 +25,7 @@ pub fn Dashboard() -> Element {
                         Tile { label: "Error", value: count("error").to_string(), accent: "text-red-400" }
                         Tile { label: "Running actions", value: running.to_string(), accent: "text-sky-400" }
                     }
-                    div { class: CARD,
+                    Card {
                         h2 { class: "mb-2 font-semibold text-zinc-100", "Recent actions" }
                         if recent.content.is_empty() {
                             p { class: "text-sm text-zinc-500", "No actions yet." }
@@ -55,7 +56,7 @@ pub fn Dashboard() -> Element {
 #[component]
 fn Tile(label: String, value: String, accent: String) -> Element {
     rsx! {
-        div { class: CARD,
+        Card {
             p { class: "text-xs uppercase tracking-wide text-zinc-500", "{label}" }
             p { class: "mt-1 text-2xl font-bold {accent}", "{value}" }
         }

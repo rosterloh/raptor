@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/* shadcn-style theme vars (pilot), mapped onto the existing zinc/emerald dark palette
+   so vendored components (src/components/ui/*) pick up the app's look. */
+@theme {
+  --color-background: var(--color-zinc-950);
+  --color-foreground: var(--color-zinc-100);
+  --color-primary: var(--color-emerald-700);
+  --color-primary-foreground: white;
+  --color-secondary: var(--color-zinc-800);
+  --color-secondary-foreground: var(--color-zinc-100);
+  --color-destructive: var(--color-red-800);
+  --color-accent: var(--color-zinc-800);
+  --color-accent-foreground: var(--color-zinc-100);
+  --color-muted-foreground: var(--color-zinc-500);
+  --color-border: var(--color-zinc-700);
+  --color-input: var(--color-zinc-700);
+  --color-ring: var(--color-emerald-600);
+}

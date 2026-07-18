@@ -1,4 +1,4 @@
-use crate::components::{BTN, INPUT};
+use crate::components::ui::{Button, Input};
 use crate::Route;
 use dioxus::prelude::*;
 
@@ -28,26 +28,26 @@ pub fn Login() -> Element {
                     });
                 },
                 h1 { class: "mb-6 text-center text-xl font-bold text-emerald-400", "raptor" }
-                input {
-                    class: INPUT,
+                Input {
+                    class: "mb-3",
                     placeholder: "Username",
                     value: "{username}",
-                    oninput: move |e| username.set(e.value()),
+                    oninput: move |e: FormEvent| username.set(e.value()),
                 }
-                input {
-                    class: INPUT,
+                Input {
+                    class: "mb-3",
                     r#type: "password",
                     placeholder: "Password",
                     value: "{password}",
-                    oninput: move |e| password.set(e.value()),
+                    oninput: move |e: FormEvent| password.set(e.value()),
                 }
                 if let Some(e) = error() {
                     p { class: "mb-3 text-sm text-red-400", "{e}" }
                 }
-                button {
-                    class: "w-full {BTN} py-2",
-                    r#type: "submit",
+                Button {
+                    class: "w-full py-2",
                     disabled: busy(),
+                    r#type: "submit",
                     "Sign in"
                 }
             }
