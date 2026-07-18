@@ -7,6 +7,7 @@ pub mod card;
 pub mod dialog;
 pub mod input;
 
+#[allow(unused_imports)]
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use card::Card;
 pub use dialog::Dialog;

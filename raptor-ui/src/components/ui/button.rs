@@ -5,6 +5,7 @@
 use dioxus::prelude::*;
 use tw_merge::tw_merge;
 
+#[allow(dead_code)]
 #[derive(Default, Clone, PartialEq)]
 pub enum ButtonVariant {
     #[default]
@@ -29,10 +30,18 @@ pub enum ButtonSize {
 impl ButtonVariant {
     fn as_str(&self) -> &'static str {
         match self {
-            ButtonVariant::Default => "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-            ButtonVariant::Destructive => "bg-destructive text-white shadow-xs hover:bg-destructive/90",
-            ButtonVariant::Outline => "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-            ButtonVariant::Secondary => "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+            ButtonVariant::Default => {
+                "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+            }
+            ButtonVariant::Destructive => {
+                "bg-destructive text-white shadow-xs hover:bg-destructive/90"
+            }
+            ButtonVariant::Outline => {
+                "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground"
+            }
+            ButtonVariant::Secondary => {
+                "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80"
+            }
             ButtonVariant::Ghost => "hover:bg-accent hover:text-accent-foreground",
             ButtonVariant::Link => "text-primary underline-offset-4 hover:underline",
         }
