@@ -55,6 +55,7 @@ pub fn Button(
     #[props(into, optional)] class: Option<String>,
     #[props(default = ButtonVariant::default())] variant: ButtonVariant,
     #[props(default = ButtonSize::default())] size: ButtonSize,
+    #[props(into, optional, default = "button".to_string())] r#type: String,
     #[props(optional)] disabled: bool,
     #[props(optional)] onclick: Option<EventHandler<MouseEvent>>,
     children: Element,
@@ -69,7 +70,7 @@ pub fn Button(
     rsx! {
         button {
             class: "{merged_class}",
-            r#type: "button",
+            r#type,
             disabled,
             onclick: move |e| {
                 if let Some(handler) = &onclick {

@@ -1,3 +1,4 @@
+use crate::components::ui::{Button, ButtonVariant, Card};
 use crate::components::*;
 use crate::{api, Route};
 use dioxus::prelude::*;
@@ -73,9 +74,13 @@ pub fn ModuleDetail(id: i64) -> Element {
             None => rsx! { p { class: "text-zinc-500", "Loading…" } },
         }
         div { class: "mb-4 flex gap-2",
-            button { class: BTN_DANGER, onclick: move |_| confirm_delete.set(true), "Delete module" }
+            Button {
+                variant: ButtonVariant::Destructive,
+                onclick: move |_| confirm_delete.set(true),
+                "Delete module"
+            }
         }
-        div { class: CARD,
+        Card {
             h2 { class: "mb-2 font-semibold text-zinc-100", "Artifacts" }
             // A file input stretched over the dropzone: browsers natively accept
             // drag-and-drop onto <input type=file>, no JS drop handling needed.

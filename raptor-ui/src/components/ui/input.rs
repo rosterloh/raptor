@@ -8,8 +8,10 @@ use tw_merge::tw_merge;
 #[component]
 pub fn Input(
     #[props(into, optional)] class: Option<String>,
+    #[props(into, optional, default = "text".to_string())] r#type: String,
     #[props(into, optional)] placeholder: Option<String>,
     #[props(into, optional)] value: Option<String>,
+    #[props(optional)] required: bool,
     #[props(optional)] disabled: bool,
     #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
 ) -> Element {
@@ -22,10 +24,11 @@ pub fn Input(
 
     rsx! {
         input {
-            r#type: "text",
+            r#type,
             class: "{merged_class}",
             placeholder,
             value,
+            required,
             disabled,
             oninput: move |e| {
                 if let Some(handler) = &oninput {

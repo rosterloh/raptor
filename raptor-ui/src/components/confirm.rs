@@ -1,4 +1,4 @@
-use crate::components::ui::Dialog;
+use crate::components::ui::{Button, ButtonVariant, Dialog};
 use dioxus::prelude::*;
 
 #[component]
@@ -18,8 +18,8 @@ pub fn ConfirmDialog(
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }
-                button {
-                    class: crate::components::BTN_DANGER,
+                Button {
+                    variant: ButtonVariant::Destructive,
                     onclick: move |_| {
                         open.set(false);
                         on_confirm.call(());

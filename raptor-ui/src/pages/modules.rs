@@ -1,4 +1,4 @@
-use crate::components::ui::{Button, Dialog};
+use crate::components::ui::{Button, Dialog, Input};
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -104,10 +104,10 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                     });
                 },
                 h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "New software module" }
-                input { class: INPUT, placeholder: "Name", required: true, value: "{name}",
-                    oninput: move |e| name.set(e.value()) }
-                input { class: INPUT, placeholder: "Version", required: true, value: "{version}",
-                    oninput: move |e| version.set(e.value()) }
+                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
+                    oninput: move |e: FormEvent| name.set(e.value()) }
+                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
+                    oninput: move |e: FormEvent| version.set(e.value()) }
                 select {
                     class: INPUT,
                     value: "{module_type}",
@@ -124,7 +124,7 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                         onclick: move |_| open.set(false),
                         "Cancel"
                     }
-                    button { class: BTN, r#type: "submit", "Create" }
+                    Button { r#type: "submit", "Create" }
                 }
             }
         }

@@ -1,3 +1,4 @@
+use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -26,11 +27,15 @@ pub fn TargetDetail(cid: String) -> Element {
     rsx! {
         h1 { class: HEADING, "Target {cid_s()}" }
         div { class: "mb-4 flex gap-2",
-            button { class: BTN, onclick: move |_| show_assign.set(true), "Assign distribution set" }
-            button { class: BTN_DANGER, onclick: move |_| confirm_delete.set(true), "Delete target" }
+            Button { onclick: move |_| show_assign.set(true), "Assign distribution set" }
+            Button {
+                variant: ButtonVariant::Destructive,
+                onclick: move |_| confirm_delete.set(true),
+                "Delete target"
+            }
         }
         div { class: "grid grid-cols-2 gap-4",
-            div { class: CARD,
+            Card {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Status" }
                 match &*target.read_unchecked() {
                     Some(Ok(t)) => rsx! {
@@ -49,12 +54,12 @@ pub fn TargetDetail(cid: String) -> Element {
                     None => rsx! { p { class: "text-zinc-500", "Loading…" } },
                 }
             }
-            div { class: CARD,
+            Card {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Distribution sets" }
                 DsSummary { label: "Assigned", res: assigned }
                 DsSummary { label: "Installed", res: installed }
             }
-            div { class: CARD,
+            Card {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Attributes" }
                 match &*attributes.read_unchecked() {
                     Some(Ok(attrs)) if attrs.is_empty() => rsx! { p { class: "text-sm text-zinc-500", "none reported" } },
@@ -69,7 +74,7 @@ pub fn TargetDetail(cid: String) -> Element {
                     None => rsx! { p { class: "text-zinc-500", "Loading…" } },
                 }
             }
-            div { class: CARD,
+            Card {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Recent actions" }
                 match &*actions.read_unchecked() {
                     Some(Ok(page)) => rsx! {
@@ -173,72 +178,67 @@ pub fn AssignDsDialog(
     let mut selected = use_signal(|| None::<i64>);
     let mut forced = use_signal(|| true);
     rsx! {
-        if open() {
-            div { class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
-                div { class: "max-h-[80vh] w-[28rem] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900 p-6",
-                    h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign distribution set" }
-                    match &*sets.read_unchecked() {
-                        Some(Ok(page)) if page.content.is_empty() => rsx! {
-                            p { class: "text-sm text-zinc-500", "No distribution sets yet." }
-                        },
-                        Some(Ok(page)) => rsx! {
-                            ul { class: "mb-3 space-y-1",
-                                for ds in page.content.clone() {
-                                    li { key: "{ds.id}",
-                                        label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
-                                            input {
-                                                r#type: "radio",
-                                                name: "ds",
-                                                checked: selected() == Some(ds.id),
-                                                onchange: move |_| selected.set(Some(ds.id)),
-                                            }
-                                            span { "{ds.name} {ds.version}" }
-                                            if !ds.complete {
-                                                span { class: "text-xs text-amber-400", "(incomplete)" }
-                                            }
-                                        }
+        Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
+            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign distribution set" }
+            match &*sets.read_unchecked() {
+                Some(Ok(page)) if page.content.is_empty() => rsx! {
+                    p { class: "text-sm text-zinc-500", "No distribution sets yet." }
+                },
+                Some(Ok(page)) => rsx! {
+                    ul { class: "mb-3 space-y-1",
+                        for ds in page.content.clone() {
+                            li { key: "{ds.id}",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                    input {
+                                        r#type: "radio",
+                                        name: "ds",
+                                        checked: selected() == Some(ds.id),
+                                        onchange: move |_| selected.set(Some(ds.id)),
+                                    }
+                                    span { "{ds.name} {ds.version}" }
+                                    if !ds.complete {
+                                        span { class: "text-xs text-amber-400", "(incomplete)" }
                                     }
                                 }
                             }
-                        },
-                        Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                        None => rsx! { p { class: "text-zinc-500", "Loading…" } },
-                    }
-                    label { class: "mb-4 flex items-center gap-2 text-sm",
-                        input {
-                            r#type: "checkbox",
-                            checked: forced(),
-                            onchange: move |e| forced.set(e.checked()),
-                        }
-                        "Forced (device installs immediately)"
-                    }
-                    div { class: "flex justify-end gap-2",
-                        button {
-                            class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
-                            onclick: move |_| open.set(false),
-                            "Cancel"
-                        }
-                        button {
-                            class: BTN,
-                            disabled: selected().is_none(),
-                            onclick: move |_| {
-                                let (cid, ds_id, is_forced) = (cid(), selected().unwrap(), forced());
-                                spawn(async move {
-                                    match api::assign_ds(&cid, ds_id, is_forced).await {
-                                        Ok(r) if r.assigned > 0 => toast_ok("assignment created"),
-                                        Ok(_) => toast_ok("already assigned"),
-                                        Err(e) => {
-                                            toast_error(e.to_string());
-                                            return;
-                                        }
-                                    }
-                                    open.set(false);
-                                    on_done.call(());
-                                });
-                            },
-                            "Assign"
                         }
                     }
+                },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
+                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            }
+            label { class: "mb-4 flex items-center gap-2 text-sm",
+                input {
+                    r#type: "checkbox",
+                    checked: forced(),
+                    onchange: move |e| forced.set(e.checked()),
+                }
+                "Forced (device installs immediately)"
+            }
+            div { class: "flex justify-end gap-2",
+                button {
+                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    onclick: move |_| open.set(false),
+                    "Cancel"
+                }
+                Button {
+                    disabled: selected().is_none(),
+                    onclick: move |_| {
+                        let (cid, ds_id, is_forced) = (cid(), selected().unwrap(), forced());
+                        spawn(async move {
+                            match api::assign_ds(&cid, ds_id, is_forced).await {
+                                Ok(r) if r.assigned > 0 => toast_ok("assignment created"),
+                                Ok(_) => toast_ok("already assigned"),
+                                Err(e) => {
+                                    toast_error(e.to_string());
+                                    return;
+                                }
+                            }
+                            open.set(false);
+                            on_done.call(());
+                        });
+                    },
+                    "Assign"
                 }
             }
         }

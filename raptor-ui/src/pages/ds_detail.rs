@@ -1,3 +1,4 @@
+use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -14,11 +15,15 @@ pub fn DsDetail(id: i64) -> Element {
             Some(Ok(d)) => rsx! {
                 h1 { class: HEADING, "{d.name} {d.version}" }
                 div { class: "mb-4 flex gap-2",
-                    button { class: BTN, onclick: move |_| show_deploy.set(true), "Deploy…" }
-                    button { class: BTN, onclick: move |_| show_modules.set(true), "Assign modules" }
-                    button { class: BTN_DANGER, onclick: move |_| confirm_delete.set(true), "Delete" }
+                    Button { onclick: move |_| show_deploy.set(true), "Deploy…" }
+                    Button { onclick: move |_| show_modules.set(true), "Assign modules" }
+                    Button {
+                        variant: ButtonVariant::Destructive,
+                        onclick: move |_| confirm_delete.set(true),
+                        "Delete"
+                    }
                 }
-                div { class: CARD,
+                Card {
                     p { class: "mb-2 text-sm text-zinc-400",
                         "type {d.ds_type} · "
                         if d.complete { "complete" } else { "incomplete" }
@@ -75,59 +80,54 @@ fn AssignModulesDialog(open: Signal<bool>, ds_id: i64, on_done: EventHandler<()>
     });
     let mut selected = use_signal(Vec::<i64>::new);
     rsx! {
-        if open() {
-            div { class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
-                div { class: "max-h-[80vh] w-[28rem] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900 p-6",
-                    h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign software modules" }
-                    match &*modules.read_unchecked() {
-                        Some(Ok(page)) => rsx! {
-                            ul { class: "mb-4 space-y-1",
-                                for m in page.content.clone() {
-                                    li { key: "{m.id}",
-                                        label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
-                                            input {
-                                                r#type: "checkbox",
-                                                checked: selected().contains(&m.id),
-                                                onchange: move |e| {
-                                                    let mut s = selected();
-                                                    if e.checked() { s.push(m.id) } else { s.retain(|&x| x != m.id) }
-                                                    selected.set(s);
-                                                },
-                                            }
-                                            span { "{m.name} {m.version} ({m.module_type})" }
-                                        }
+        Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
+            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign software modules" }
+            match &*modules.read_unchecked() {
+                Some(Ok(page)) => rsx! {
+                    ul { class: "mb-4 space-y-1",
+                        for m in page.content.clone() {
+                            li { key: "{m.id}",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: selected().contains(&m.id),
+                                        onchange: move |e| {
+                                            let mut s = selected();
+                                            if e.checked() { s.push(m.id) } else { s.retain(|&x| x != m.id) }
+                                            selected.set(s);
+                                        },
                                     }
+                                    span { "{m.name} {m.version} ({m.module_type})" }
                                 }
                             }
-                        },
-                        Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                        None => rsx! { p { class: "text-zinc-500", "Loading…" } },
-                    }
-                    div { class: "flex justify-end gap-2",
-                        button {
-                            class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
-                            onclick: move |_| open.set(false),
-                            "Cancel"
-                        }
-                        button {
-                            class: BTN,
-                            disabled: selected().is_empty(),
-                            onclick: move |_| {
-                                let ids = selected();
-                                spawn(async move {
-                                    match api::ds_assign_modules(ds_id, &ids).await {
-                                        Ok(()) => {
-                                            toast_ok("modules assigned");
-                                            open.set(false);
-                                            on_done.call(());
-                                        }
-                                        Err(e) => toast_error(e.to_string()),
-                                    }
-                                });
-                            },
-                            "Assign"
                         }
                     }
+                },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
+                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            }
+            div { class: "flex justify-end gap-2",
+                button {
+                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    onclick: move |_| open.set(false),
+                    "Cancel"
+                }
+                Button {
+                    disabled: selected().is_empty(),
+                    onclick: move |_| {
+                        let ids = selected();
+                        spawn(async move {
+                            match api::ds_assign_modules(ds_id, &ids).await {
+                                Ok(()) => {
+                                    toast_ok("modules assigned");
+                                    open.set(false);
+                                    on_done.call(());
+                                }
+                                Err(e) => toast_error(e.to_string()),
+                            }
+                        });
+                    },
+                    "Assign"
                 }
             }
         }
@@ -148,72 +148,67 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
     let mut selected = use_signal(|| None::<String>);
     let mut forced = use_signal(|| true);
     rsx! {
-        if open() {
-            div { class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
-                div { class: "max-h-[80vh] w-[28rem] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900 p-6",
-                    h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Deploy to target" }
-                    div { class: "mb-3",
-                        SearchBox { placeholder: "Search targets…", on_search: move |s| query.set(s) }
-                    }
-                    match &*targets.read_unchecked() {
-                        Some(Ok(page)) => rsx! {
-                            ul { class: "mb-3 space-y-1",
-                                for t in page.content.clone() {
-                                    li { key: "{t.controller_id}",
-                                        label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
-                                            input {
-                                                r#type: "radio",
-                                                name: "deploy-target",
-                                                checked: selected() == Some(t.controller_id.clone()),
-                                                onchange: {
-                                                    let cid = t.controller_id.clone();
-                                                    move |_| selected.set(Some(cid.clone()))
-                                                },
-                                            }
-                                            span { "{t.name} " }
-                                            StatusBadge { status: t.update_status.clone() }
-                                        }
+        Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
+            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Deploy to target" }
+            div { class: "mb-3",
+                SearchBox { placeholder: "Search targets…", on_search: move |s| query.set(s) }
+            }
+            match &*targets.read_unchecked() {
+                Some(Ok(page)) => rsx! {
+                    ul { class: "mb-3 space-y-1",
+                        for t in page.content.clone() {
+                            li { key: "{t.controller_id}",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                    input {
+                                        r#type: "radio",
+                                        name: "deploy-target",
+                                        checked: selected() == Some(t.controller_id.clone()),
+                                        onchange: {
+                                            let cid = t.controller_id.clone();
+                                            move |_| selected.set(Some(cid.clone()))
+                                        },
                                     }
+                                    span { "{t.name} " }
+                                    StatusBadge { status: t.update_status.clone() }
                                 }
                             }
-                        },
-                        Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                        None => rsx! { p { class: "text-zinc-500", "Loading…" } },
-                    }
-                    label { class: "mb-4 flex items-center gap-2 text-sm",
-                        input {
-                            r#type: "checkbox",
-                            checked: forced(),
-                            onchange: move |e| forced.set(e.checked()),
-                        }
-                        "Forced"
-                    }
-                    div { class: "flex justify-end gap-2",
-                        button {
-                            class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
-                            onclick: move |_| open.set(false),
-                            "Cancel"
-                        }
-                        button {
-                            class: BTN,
-                            disabled: selected().is_none(),
-                            onclick: move |_| {
-                                let (cid, is_forced) = (selected().unwrap(), forced());
-                                spawn(async move {
-                                    match api::assign_ds(&cid, ds_id, is_forced).await {
-                                        Ok(r) if r.assigned > 0 => toast_ok(format!("deploying to {cid}")),
-                                        Ok(_) => toast_ok("already assigned"),
-                                        Err(e) => {
-                                            toast_error(e.to_string());
-                                            return;
-                                        }
-                                    }
-                                    open.set(false);
-                                });
-                            },
-                            "Deploy"
                         }
                     }
+                },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
+                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            }
+            label { class: "mb-4 flex items-center gap-2 text-sm",
+                input {
+                    r#type: "checkbox",
+                    checked: forced(),
+                    onchange: move |e| forced.set(e.checked()),
+                }
+                "Forced"
+            }
+            div { class: "flex justify-end gap-2",
+                button {
+                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    onclick: move |_| open.set(false),
+                    "Cancel"
+                }
+                Button {
+                    disabled: selected().is_none(),
+                    onclick: move |_| {
+                        let (cid, is_forced) = (selected().unwrap(), forced());
+                        spawn(async move {
+                            match api::assign_ds(&cid, ds_id, is_forced).await {
+                                Ok(r) if r.assigned > 0 => toast_ok(format!("deploying to {cid}")),
+                                Ok(_) => toast_ok("already assigned"),
+                                Err(e) => {
+                                    toast_error(e.to_string());
+                                    return;
+                                }
+                            }
+                            open.set(false);
+                        });
+                    },
+                    "Deploy"
                 }
             }
         }

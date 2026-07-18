@@ -1,3 +1,4 @@
+use crate::components::ui::{Button, Dialog, Input};
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
@@ -18,7 +19,7 @@ pub fn Distributions() -> Element {
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-zinc-100", "Distributions" }
-            button { class: BTN, onclick: move |_| show_create.set(true), "New distribution set" }
+            Button { onclick: move |_| show_create.set(true), "New distribution set" }
         }
         div { class: "mb-3",
             SearchBox {
@@ -78,55 +79,52 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
     let mut version = use_signal(String::new);
     let mut ds_type = use_signal(|| "os".to_string());
     rsx! {
-        if open() {
-            div { class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
-                form {
-                    class: "w-96 rounded-lg border border-zinc-800 bg-zinc-900 p-6",
-                    onsubmit: move |e: FormEvent| {
-                        e.prevent_default();
-                        let ds = DsCreate {
-                            name: name(),
-                            version: version(),
-                            ds_type: ds_type(),
-                            description: None,
-                            required_migration_step: false,
-                            modules: vec![],
-                        };
-                        spawn(async move {
-                            match api::create_ds(&ds).await {
-                                Ok(_) => {
-                                    toast_ok("distribution set created");
-                                    open.set(false);
-                                    name.set(String::new());
-                                    version.set(String::new());
-                                    on_created.call(());
-                                }
-                                Err(e) => toast_error(e.to_string()),
+        Dialog { open,
+            form {
+                onsubmit: move |e: FormEvent| {
+                    e.prevent_default();
+                    let ds = DsCreate {
+                        name: name(),
+                        version: version(),
+                        ds_type: ds_type(),
+                        description: None,
+                        required_migration_step: false,
+                        modules: vec![],
+                    };
+                    spawn(async move {
+                        match api::create_ds(&ds).await {
+                            Ok(_) => {
+                                toast_ok("distribution set created");
+                                open.set(false);
+                                name.set(String::new());
+                                version.set(String::new());
+                                on_created.call(());
                             }
-                        });
-                    },
-                    h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "New distribution set" }
-                    input { class: INPUT, placeholder: "Name", required: true, value: "{name}",
-                        oninput: move |e| name.set(e.value()) }
-                    input { class: INPUT, placeholder: "Version", required: true, value: "{version}",
-                        oninput: move |e| version.set(e.value()) }
-                    select {
-                        class: INPUT,
-                        value: "{ds_type}",
-                        onchange: move |e| ds_type.set(e.value()),
-                        option { value: "os", "os" }
-                        option { value: "app", "app" }
-                        option { value: "os_app", "os_app" }
-                    }
-                    div { class: "flex justify-end gap-2",
-                        button {
-                            class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
-                            r#type: "button",
-                            onclick: move |_| open.set(false),
-                            "Cancel"
+                            Err(e) => toast_error(e.to_string()),
                         }
-                        button { class: BTN, r#type: "submit", "Create" }
+                    });
+                },
+                h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "New distribution set" }
+                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
+                    oninput: move |e: FormEvent| name.set(e.value()) }
+                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
+                    oninput: move |e: FormEvent| version.set(e.value()) }
+                select {
+                    class: INPUT,
+                    value: "{ds_type}",
+                    onchange: move |e| ds_type.set(e.value()),
+                    option { value: "os", "os" }
+                    option { value: "app", "app" }
+                    option { value: "os_app", "os_app" }
+                }
+                div { class: "flex justify-end gap-2",
+                    button {
+                        class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                        r#type: "button",
+                        onclick: move |_| open.set(false),
+                        "Cancel"
                     }
+                    Button { r#type: "submit", "Create" }
                 }
             }
         }
