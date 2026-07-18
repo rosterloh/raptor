@@ -2,6 +2,8 @@ use crate::components::ui::{Button, Input};
 use crate::Route;
 use dioxus::prelude::*;
 
+const LOGO: Asset = asset!("/assets/logo/logo-login.png");
+
 #[component]
 pub fn Login() -> Element {
     let mut username = use_signal(String::new);
@@ -27,6 +29,7 @@ pub fn Login() -> Element {
                         busy.set(false);
                     });
                 },
+                img { src: LOGO, class: "mx-auto mb-3 h-16 w-16", alt: "" }
                 h1 { class: "mb-6 text-center text-xl font-bold text-emerald-400", "raptor" }
                 Input {
                     class: "mb-3",

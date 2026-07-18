@@ -11,6 +11,7 @@ use pages::{
 };
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
+const FAVICON: Asset = asset!("/assets/favicon.ico");
 
 #[rustfmt::skip]
 #[derive(Clone, Debug, PartialEq, Routable)]
@@ -45,6 +46,7 @@ fn main() {
 fn App() -> Element {
     rsx! {
         document::Stylesheet { href: TAILWIND }
+        document::Link { rel: "icon", href: FAVICON }
         Router::<Route> {}
     }
 }

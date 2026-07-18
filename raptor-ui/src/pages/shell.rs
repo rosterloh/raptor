@@ -2,13 +2,18 @@ use crate::components::ToastStack;
 use crate::Route;
 use dioxus::prelude::*;
 
+const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
+
 #[component]
 pub fn Shell() -> Element {
     let nav = use_navigator();
     rsx! {
         div { class: "flex min-h-screen bg-zinc-950 text-zinc-200",
             aside { class: "flex w-52 flex-col border-r border-zinc-800 bg-zinc-900",
-                div { class: "px-4 py-5 text-lg font-bold tracking-wide text-emerald-400", "raptor" }
+                div { class: "flex items-center gap-2 px-4 py-5",
+                    img { src: LOGO, class: "h-8 w-8", alt: "" }
+                    span { class: "text-lg font-bold tracking-wide text-emerald-400", "raptor" }
+                }
                 nav { class: "flex flex-1 flex-col gap-1 px-2",
                     NavLink { to: Route::Dashboard {}, label: "Dashboard" }
                     NavLink { to: Route::Targets {}, label: "Targets" }

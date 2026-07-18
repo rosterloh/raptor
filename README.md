@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="raptor logo" width="160">
+</p>
+
 # raptor
 
 A [hawkBit](https://eclipse.dev/hawkbit/)-compatible OTA update server in Rust.
