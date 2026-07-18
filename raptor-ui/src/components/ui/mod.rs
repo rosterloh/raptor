@@ -3,7 +3,9 @@
 //! shadcn/ui feasibility investigation for context and open questions.
 
 pub mod button;
+pub mod dialog;
 pub mod input;
 
 pub use button::{Button, ButtonSize, ButtonVariant};
+pub use dialog::Dialog;
 pub use input::Input;
