@@ -8,7 +8,7 @@ base_path = "ui"
 
 # dev loop: `dx serve` here + `cargo run -- serve` in raptor/ → API calls proxied
 [[web.proxy]]
-backend = "http://localhost:8080/rest"
+backend = "http://localhost:8088/rest"
 
 [tailwind]
 input = "tailwind.css"
