@@ -2,9 +2,52 @@
 name = "raptor"
 version = "0.1.0"
 edition = "2021"
+description = "A hawkBit-compatible OTA update server in Rust"
+license = "MIT"
+repository = "https://github.com/rosterloh/raptor"
 
 [features]
 embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+
+# --- Debian packaging (cargo-deb) ---
+# Build with: cargo deb -p raptor  (see .github/workflows/release.yml)
+[package.metadata.deb]
+name = "raptor"
+maintainer = "Richard Osterloh <richard.osterloh@gmail.com>"
+license-file = ["../LICENSE", "0"]
+extended-description = """\
+raptor is a lightweight, hawkBit-compatible over-the-air (OTA) update server. \
+It speaks hawkBit's DDI v1 API (SWUpdate, RAUC hawkbit-updater and other \
+clients work unchanged) and the core Management API, and ships an embedded web \
+console. One binary, one config file."""
+section = "net"
+priority = "optional"
+# Ship the embedded web console in the packaged binary.
+features = ["embed-ui"]
+default-features = false
+assets = [
+    ["target/release/raptor", "usr/bin/", "755"],
+    # 0644: readable by the service's DynamicUser. Plaintext secrets belong in
+    # the root-only /etc/raptor/raptor.env (see the unit's EnvironmentFile).
+    ["../packaging/config.toml", "etc/raptor/config.toml", "644"],
+    ["../README.md", "usr/share/doc/raptor/README.md", "644"],
+]
+conf-files = ["/etc/raptor/config.toml"]
+# Minimal postinst/prerm/postrm carrying the #DEBHELPER# token; cargo-deb injects
+# the systemd enable/start/stop snippets there.
+maintainer-scripts = "../packaging/maintainer"
+
+# systemd unit lives at packaging/raptor.service (workspace root). cargo-deb
+# installs it and injects the enable/disable logic into the maintainer scripts
+# above. The service uses DynamicUser + StateDirectory=raptor, so /var/lib/raptor
+# is created and owned at runtime — no postinst useradd/chown needed.
+[package.metadata.deb.systemd-units]
+unit-scripts = "../packaging"
+enable = true
+# Do not auto-start on install: the shipped config has a placeholder password
+# hash and DDI auth enabled, so an operator must edit /etc/raptor/config.toml
+# and run `systemctl start raptor` first.
+start = false
 
 [dependencies]
 raptor-api-types = { path = "../raptor-api-types" }

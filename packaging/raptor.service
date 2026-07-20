@@ -1,0 +1,51 @@
+[Unit]
+Description=raptor OTA update server
+Documentation=https://github.com/rosterloh/raptor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/raptor serve --config /etc/raptor/config.toml
+Restart=on-failure
+RestartSec=5
+
+# Run as a transient, unprivileged user; /var/lib/raptor is created and owned
+# by it automatically (holds the SQLite DB and artifact blobs).
+DynamicUser=yes
+StateDirectory=raptor
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/raptor
+
+# Optional secrets (e.g. RAPTOR_DDI__GATEWAY_TOKEN=...) — read by systemd as
+# root before dropping privileges, so this file can be root-only 0600. The
+# leading '-' makes it optional.
+EnvironmentFile=-/etc/raptor/raptor.env
+
+# --- Sandboxing / hardening ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# Listens on 8080 by default (>1024), so no capabilities are required.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
