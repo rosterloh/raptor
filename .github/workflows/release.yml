@@ -1,0 +1,36 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create/upload GitHub Releases
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@v1.20.1
+
+      # Build the embedded web console first: `dx build` writes the bundle to
+      # target/dx/raptor-ui/release/web/public, which the `embed-ui` feature
+      # embeds into the raptor binary. --disable-strategies compile forces the
+      # prebuilt dx binary (avoids a slow, occasionally-broken source build).
+      - run: cargo binstall dioxus-cli@0.7.9 --no-confirm --force --disable-strategies compile
+      - run: dx build --release --package raptor-ui
+
+      # cargo-deb builds `raptor` in release with the embed-ui feature (per
+      # [package.metadata.deb] in raptor/Cargo.toml) and packages it.
+      - run: cargo binstall cargo-deb --no-confirm --force
+      - run: cargo deb -p raptor
+      - run: ls -la target/debian/
+
+      - name: Attach .deb to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/debian/*.deb
+          fail_on_unmatched_files: true

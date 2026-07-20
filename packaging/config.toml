@@ -1,0 +1,42 @@
+# raptor configuration — installed at /etc/raptor/config.toml
+#
+# IMPORTANT: before first start, set a real admin password hash and choose a
+# DDI auth mode, then start the service:
+#
+#     raptor hash-password        # type a password, paste the hash below
+#     systemctl start raptor
+#
+# This file is a dpkg conffile: your edits are preserved across package upgrades.
+#
+# It is world-readable (the service runs as an unprivileged DynamicUser). Keep
+# plaintext secrets out of here: put them in the root-only /etc/raptor/raptor.env
+# as environment overrides, e.g.
+#     RAPTOR_DDI__GATEWAY_TOKEN=super-secret
+# which the systemd unit loads before dropping privileges.
+
+bind = "0.0.0.0:8080"
+
+# SQLite by default (created on first start). For Postgres, use e.g.
+# database_url = "postgres://user:pass@localhost/raptor"
+database_url = "sqlite:///var/lib/raptor/raptor.db?mode=rwc"
+
+# Content-addressed artifact blobs. Lives under the service's StateDirectory
+# (/var/lib/raptor), created and owned automatically by systemd on start.
+artifact_dir = "/var/lib/raptor/artifacts"
+
+# External base URL used in _links; derived from the Host header when unset.
+# url = "https://raptor.example.com"
+
+[ddi]
+# Device-facing DDI API auth. Leave anonymous = false in production; devices
+# authenticate with a per-target security token or the shared gateway token.
+anonymous = false
+# gateway_token = "change-me"
+polling_interval = "00:05:00"
+# confirmation_flow = true   # require confirmation before a deployment starts
+
+[mgmt]
+# Management API / web console admin credentials.
+username = "admin"
+# Replace with the output of `raptor hash-password`:
+password_hash = "REPLACE_WITH_ARGON2_HASH"

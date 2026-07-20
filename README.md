@@ -45,6 +45,34 @@ Deploy an update:
     curl -u admin:pw -X POST localhost:8080/rest/v1/targets/my-device/assignedDS \
       -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 
+## Install (Debian/Ubuntu)
+
+Prebuilt `.deb` packages are attached to each [GitHub Release](https://github.com/rosterloh/raptor/releases):
+
+    sudo dpkg -i raptor_*.deb
+
+The package installs:
+
+- `/usr/bin/raptor` — the server (with the web console embedded)
+- `/etc/raptor/config.toml` — default config (a dpkg conffile; your edits
+  survive upgrades)
+- a `raptor.service` systemd unit running as a locked-down `DynamicUser`, with
+  state (SQLite DB + artifacts) under `/var/lib/raptor`
+
+The service is **enabled but not started** on install, because you must set an
+admin password first:
+
+    raptor hash-password        # type a password, paste the hash into config
+    sudoedit /etc/raptor/config.toml   # set password_hash, pick a DDI auth mode
+    sudo systemctl start raptor
+
+Keep plaintext secrets (e.g. a DDI gateway token) out of the world-readable
+config — put them in a root-only `/etc/raptor/raptor.env` as `RAPTOR_*`
+environment overrides, which the unit loads before dropping privileges.
+
+To build a package yourself: `cargo install cargo-deb && dx build --release
+--package raptor-ui && cargo deb -p raptor`.
+
 ## Web UI
 
 raptor ships an optional web console (Dioxus/WASM) embedded in the binary.
