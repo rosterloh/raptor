@@ -75,6 +75,9 @@ pub async fn put_config_data(
             }
         }
     }
+    // Attribute changes can flip a target into a saved filter's match set;
+    // re-evaluate auto-assign filters against it (no-op when none apply).
+    crate::domain::target_filter::auto_assign_for_target(&st, &t).await?;
     Ok(StatusCode::OK)
 }
 

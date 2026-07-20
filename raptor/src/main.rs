@@ -52,6 +52,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Err(e) = raptor::domain::rollout::evaluate_rollouts(&eval_state).await {
                         tracing::error!(error = ?e, "rollout evaluation failed");
                     }
+                    if let Err(e) =
+                        raptor::domain::target_filter::auto_assign_all(&eval_state).await
+                    {
+                        tracing::error!(error = ?e, "auto-assignment sweep failed");
+                    }
                 }
             });
             let app = raptor::app::build_app(state);
