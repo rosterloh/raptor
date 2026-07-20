@@ -32,6 +32,11 @@ pub struct DdiConfig {
     pub gateway_token: Option<String>,
     #[serde(default = "default_polling")]
     pub polling_interval: String,
+    /// When true, a new assignment first requires confirmation (device- or
+    /// operator-driven) before it becomes an active deployment. Mirrors
+    /// hawkBit's `user.confirmation.flow.enabled` tenant flag. Off by default.
+    #[serde(default)]
+    pub confirmation_flow: bool,
 }
 
 impl Default for DdiConfig {
@@ -40,6 +45,7 @@ impl Default for DdiConfig {
             anonymous: false,
             gateway_token: None,
             polling_interval: default_polling(),
+            confirmation_flow: false,
         }
     }
 }

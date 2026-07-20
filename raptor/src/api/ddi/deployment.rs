@@ -48,6 +48,19 @@ pub async fn deployment_json(
     a: &action::Model,
     base: &str,
 ) -> Result<Value, AppError> {
+    deployment_json_keyed(st, cid, a, base, "deployment").await
+}
+
+/// Builds the DDI deployment/confirmation payload. `top_key` is `"deployment"`
+/// for deploymentBase/installedBase and `"confirmation"` for confirmationBase —
+/// the chunk/mode/history shape is identical (hawkBit parity).
+pub async fn deployment_json_keyed(
+    st: &AppState,
+    cid: &str,
+    a: &action::Model,
+    base: &str,
+    top_key: &str,
+) -> Result<Value, AppError> {
     let ddi = super::ddi_base(base, cid);
     let https = base.starts_with("https://");
     let keys = crate::api::mgmt::software_modules::type_keys(&st.db).await?;
@@ -108,11 +121,17 @@ pub async fn deployment_json(
         .unwrap_or_else(|| "RUNNING".into());
 
     let mode = if a.forced { "forced" } else { "attempt" };
-    Ok(json!({
-        "id": a.id.to_string(),
-        "deployment": {"download": mode, "update": mode, "chunks": chunks},
-        "actionHistory": {"status": history_status, "messages": messages}
-    }))
+    let mut out = serde_json::Map::new();
+    out.insert("id".into(), json!(a.id.to_string()));
+    out.insert(
+        top_key.to_string(),
+        json!({"download": mode, "update": mode, "chunks": chunks}),
+    );
+    out.insert(
+        "actionHistory".into(),
+        json!({"status": history_status, "messages": messages}),
+    );
+    Ok(Value::Object(out))
 }
 
 pub async fn find_target_action(

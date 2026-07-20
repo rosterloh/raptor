@@ -24,6 +24,7 @@ Minimal `raptor.toml`:
 
     [ddi]
     gateway_token = "change-me"        # or anonymous = true for dev
+    # confirmation_flow = true         # assignments wait for device/operator confirmation
 
     [mgmt]
     username = "admin"
@@ -86,5 +87,6 @@ web console. Rollouts cover the core lifecycle (create/start/pause/resume/delete
 group thresholds); approval workflow and dynamic rollouts are follow-ups. Saved
 target filters (`/rest/v1/targetfilters`) can carry an auto-assign distribution
 set that is applied to matching targets — on registration, attribute change, and
-via a periodic sweep. Not yet: tags, AMQP/DMF. Design docs in
-`docs/superpowers/specs/`.
+via a periodic sweep. The DDI confirmation flow (`confirmationBase`, opt-in via
+`[ddi] confirmation_flow`, with per-target auto-confirm) is supported. Not yet:
+tags, AMQP/DMF. Design docs in `docs/superpowers/specs/`.
