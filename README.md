@@ -9,6 +9,13 @@ One binary, one config file. Speaks hawkBit's DDI v1 API (SWUpdate, RAUC
 hawkbit-updater and other hawkBit clients work unchanged) and the core
 Management API workflow.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/) as an mdbook — overview, getting
+started, per-feature guides, concepts, and API/config/CLI reference. Build it
+locally with `mdbook build docs` (or `mdbook serve docs`), or read the published
+site once GitHub Pages is enabled.
+
 ## Quick start
 
     cargo build --release
