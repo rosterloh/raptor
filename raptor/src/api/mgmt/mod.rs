@@ -5,6 +5,7 @@ pub mod dto;
 pub mod login;
 pub mod rollouts;
 pub mod software_modules;
+pub mod target_filters;
 pub mod targets;
 pub mod types;
 
@@ -103,6 +104,22 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/rest/v1/rollouts/{id}/deploygroups/{gid}/targets",
             get(rollouts::group_targets),
+        )
+        .route(
+            "/rest/v1/targetfilters",
+            post(target_filters::create).get(target_filters::list),
+        )
+        .route(
+            "/rest/v1/targetfilters/{id}",
+            get(target_filters::get_one)
+                .put(target_filters::update)
+                .delete(target_filters::delete),
+        )
+        .route(
+            "/rest/v1/targetfilters/{id}/autoAssignDS",
+            get(target_filters::get_auto_assign)
+                .post(target_filters::set_auto_assign)
+                .delete(target_filters::delete_auto_assign),
         )
         .route_layer(middleware::from_fn_with_state(
             state,

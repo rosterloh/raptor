@@ -64,7 +64,7 @@ pub async fn assign(
     Ok(Json(result))
 }
 
-async fn ds_rest_for(
+pub async fn ds_rest_for(
     st: &AppState,
     ds_id: Option<i64>,
     headers: &HeaderMap,

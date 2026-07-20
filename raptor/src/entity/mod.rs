@@ -12,3 +12,4 @@ pub mod software_module;
 pub mod software_module_type;
 pub mod target;
 pub mod target_attribute;
+pub mod target_filter;

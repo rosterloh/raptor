@@ -28,7 +28,7 @@ pub async fn get_or_register(
                 return Err(AppError::NotFound("target")); // middleware already guards this
             }
             let now = now_ms();
-            target::ActiveModel {
+            let created = target::ActiveModel {
                 controller_id: Set(cid.to_string()),
                 name: Set(cid.to_string()),
                 security_token: Set(random_token()),
@@ -38,7 +38,15 @@ pub async fn get_or_register(
                 ..Default::default()
             }
             .insert(&st.db)
-            .await?
+            .await?;
+            // A freshly registered target may match a saved filter with an
+            // attached auto-assign DS; assign it now rather than waiting for the
+            // periodic sweep so this very poll can return a deploymentBase link.
+            crate::domain::target_filter::auto_assign_for_target(st, &created).await?;
+            target::Entity::find_by_id(created.id)
+                .one(&st.db)
+                .await?
+                .ok_or(AppError::NotFound("target"))?
         }
     };
     let mut am: target::ActiveModel = t.clone().into();

@@ -271,6 +271,46 @@ pub struct RolloutGroupRest {
     pub links: Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetFilterCreate {
+    pub name: String,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetFilterUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetFilterRest {
+    pub id: i64,
+    pub name: String,
+    pub query: String,
+    pub auto_assign_distribution_set: Option<i64>,
+    pub auto_assign_action_type: Option<String>,
+    pub created_at: i64,
+    pub last_modified_at: i64,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
+
+/// Body of `POST /rest/v1/targetfilters/{id}/autoAssignDS`: the distribution set
+/// id plus an optional action type ("forced" default, or "soft").
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoAssignRequest {
+    pub id: i64,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none", default)]
+    pub action_type: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,6 +413,43 @@ mod tests {
             "errorCondition": {"condition": "THRESHOLD", "expression": "50"},
             "_links": {"self": {"href": "http://x/rest/v1/rollouts/1/deploygroups/6"}}
         }));
+    }
+
+    #[test]
+    fn target_filter_shape() {
+        round_trip::<TargetFilterRest>(json!({
+            "id": 3, "name": "beta", "query": "controllerId==dev-*",
+            "autoAssignDistributionSet": 7, "autoAssignActionType": "forced",
+            "createdAt": 1, "lastModifiedAt": 2,
+            "_links": {"self": {"href": "http://x/rest/v1/targetfilters/3"}}
+        }));
+    }
+
+    #[test]
+    fn target_filter_no_auto_assign() {
+        round_trip::<TargetFilterRest>(json!({
+            "id": 3, "name": "beta", "query": "name==*",
+            "autoAssignDistributionSet": null, "autoAssignActionType": null,
+            "createdAt": 1, "lastModifiedAt": 2, "_links": null
+        }));
+    }
+
+    #[test]
+    fn auto_assign_request_shape() {
+        let a = AutoAssignRequest {
+            id: 7,
+            action_type: Some("soft".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            json!({"id": 7, "type": "soft"})
+        );
+        // type omitted when None
+        let a = AutoAssignRequest {
+            id: 7,
+            action_type: None,
+        };
+        assert_eq!(serde_json::to_value(&a).unwrap(), json!({"id": 7}));
     }
 
     #[test]
