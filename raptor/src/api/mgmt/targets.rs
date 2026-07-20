@@ -157,6 +157,44 @@ pub async fn delete(
     Ok(StatusCode::OK)
 }
 
+pub async fn auto_confirm_status(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+) -> Result<Json<raptor_api_types::AutoConfirmState>, AppError> {
+    let t = find_by_cid(&st.db, &cid).await?;
+    Ok(Json(raptor_api_types::AutoConfirmState {
+        active: t.auto_confirm,
+        activated_at: None,
+    }))
+}
+
+async fn set_auto_confirm(st: &AppState, cid: &str, on: bool) -> Result<StatusCode, AppError> {
+    let t = find_by_cid(&st.db, cid).await?;
+    let target_id = t.id;
+    let mut am: target::ActiveModel = t.into();
+    am.auto_confirm = Set(on);
+    am.updated_at = Set(now_ms());
+    am.update(&st.db).await?;
+    if on {
+        crate::domain::deployment::confirm_waiting_actions(st, target_id).await?;
+    }
+    Ok(StatusCode::OK)
+}
+
+pub async fn activate_auto_confirm(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+) -> Result<StatusCode, AppError> {
+    set_auto_confirm(&st, &cid, true).await
+}
+
+pub async fn deactivate_auto_confirm(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+) -> Result<StatusCode, AppError> {
+    set_auto_confirm(&st, &cid, false).await
+}
+
 pub async fn attributes(
     State(st): State<AppState>,
     Path(cid): Path<String>,

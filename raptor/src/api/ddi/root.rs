@@ -76,6 +76,12 @@ pub async fn poll(
                     json!({"href": format!("{base}/deploymentBase/{}", a.id)}),
                 );
             }
+            "wait_for_confirmation" => {
+                links.insert(
+                    "confirmationBase".into(),
+                    json!({"href": format!("{base}/confirmationBase/{}", a.id)}),
+                );
+            }
             "canceling" => {
                 links.insert(
                     "cancelAction".into(),

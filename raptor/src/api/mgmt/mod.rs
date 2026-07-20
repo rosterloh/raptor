@@ -57,6 +57,18 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(targets::attributes),
         )
         .route(
+            "/rest/v1/targets/{cid}/autoConfirm",
+            get(targets::auto_confirm_status),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/autoConfirm/activate",
+            post(targets::activate_auto_confirm),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/autoConfirm/deactivate",
+            post(targets::deactivate_auto_confirm),
+        )
+        .route(
             "/rest/v1/distributionsets",
             post(distribution_sets::create).get(distribution_sets::list),
         )

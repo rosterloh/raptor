@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod config_data;
+pub mod confirmation;
 pub mod deployment;
 pub mod feedback;
 pub mod root;
@@ -20,6 +21,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{tenant}/controller/v1/{controllerId}/configData", put(config_data::put_config_data))
         .route("/{tenant}/controller/v1/{controllerId}/deploymentBase/{actionId}", get(deployment::deployment_base))
         .route("/{tenant}/controller/v1/{controllerId}/deploymentBase/{actionId}/feedback", post(feedback::deployment_feedback))
+        .route("/{tenant}/controller/v1/{controllerId}/confirmationBase/{actionId}", get(confirmation::confirmation_base))
+        .route("/{tenant}/controller/v1/{controllerId}/confirmationBase/{actionId}/feedback", post(confirmation::confirmation_feedback))
+        .route("/{tenant}/controller/v1/{controllerId}/confirmationBase/activateAutoConfirm", post(confirmation::activate_auto_confirm))
+        .route("/{tenant}/controller/v1/{controllerId}/confirmationBase/deactivateAutoConfirm", post(confirmation::deactivate_auto_confirm))
         .route("/{tenant}/controller/v1/{controllerId}/cancelAction/{actionId}", get(feedback::cancel_action))
         .route("/{tenant}/controller/v1/{controllerId}/cancelAction/{actionId}/feedback", post(feedback::cancel_feedback))
         .route("/{tenant}/controller/v1/{controllerId}/installedBase/{actionId}", get(deployment::installed_base))

@@ -85,11 +85,18 @@ pub async fn assign_ds(
         )
         .await?;
     }
+    // With the confirmation flow enabled, an assignment waits for confirmation
+    // before becoming an active deployment — unless the target has auto-confirm on.
+    let initial = if st.cfg.ddi.confirmation_flow && !target.auto_confirm {
+        "wait_for_confirmation"
+    } else {
+        "running"
+    };
     let now = now_ms();
     let a = action::ActiveModel {
         target_id: Set(target.id),
         ds_id: Set(ds.id),
-        status: Set("running".into()),
+        status: Set(initial.into()),
         active: Set(true),
         forced: Set(forced),
         created_at: Set(now),
@@ -98,7 +105,7 @@ pub async fn assign_ds(
     }
     .insert(&st.db)
     .await?;
-    add_action_status(&st.db, a.id, "running", &[]).await?;
+    add_action_status(&st.db, a.id, initial, &[]).await?;
 
     let mut tm: target::ActiveModel = target.clone().into();
     tm.assigned_ds_id = Set(Some(ds.id));
@@ -171,6 +178,53 @@ pub async fn apply_cancel_feedback(
             set_action(st, a, "running", true).await?;
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// Confirms a waiting action, transitioning it to `running` so the next poll
+/// yields a deploymentBase link.
+pub async fn confirm_action(
+    st: &AppState,
+    a: &action::Model,
+    details: &[String],
+) -> Result<(), AppError> {
+    if a.status != "wait_for_confirmation" {
+        return Err(AppError::BadRequest(
+            "action is not waiting for confirmation".into(),
+        ));
+    }
+    add_action_status(&st.db, a.id, "confirmed", details).await?;
+    set_action(st, a, "running", true).await?;
+    Ok(())
+}
+
+/// Records a denial; the action stays in `wait_for_confirmation` (device may
+/// confirm later, or an operator can cancel it).
+pub async fn deny_action(
+    st: &AppState,
+    a: &action::Model,
+    details: &[String],
+) -> Result<(), AppError> {
+    if a.status != "wait_for_confirmation" {
+        return Err(AppError::BadRequest(
+            "action is not waiting for confirmation".into(),
+        ));
+    }
+    add_action_status(&st.db, a.id, "denied", details).await?;
+    Ok(())
+}
+
+/// Confirms every waiting action for a target — used when auto-confirm is
+/// activated so already-pending assignments proceed immediately.
+pub async fn confirm_waiting_actions(st: &AppState, target_id: i64) -> Result<(), AppError> {
+    let waiting = action::Entity::find()
+        .filter(action::Column::TargetId.eq(target_id))
+        .filter(action::Column::Status.eq("wait_for_confirmation"))
+        .all(&st.db)
+        .await?;
+    for a in &waiting {
+        confirm_action(st, a, &["auto-confirmed".into()]).await?;
     }
     Ok(())
 }

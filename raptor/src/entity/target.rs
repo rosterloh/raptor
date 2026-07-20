@@ -15,6 +15,10 @@ pub struct Model {
     pub address: Option<String>,
     pub assigned_ds_id: Option<i64>,
     pub installed_ds_id: Option<i64>,
+    /// When true, assignments skip the confirmation wait state even if the
+    /// DDI confirmation flow is enabled.
+    #[sea_orm(default_value = false)]
+    pub auto_confirm: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }

@@ -311,6 +311,15 @@ pub struct AutoAssignRequest {
     pub action_type: Option<String>,
 }
 
+/// Auto-confirm state for a target (hawkBit `GET /rest/v1/targets/{cid}/autoConfirm`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoConfirmState {
+    pub active: bool,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub activated_at: Option<i64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,6 +459,17 @@ mod tests {
             action_type: None,
         };
         assert_eq!(serde_json::to_value(&a).unwrap(), json!({"id": 7}));
+    }
+
+    #[test]
+    fn auto_confirm_state_shape() {
+        round_trip::<AutoConfirmState>(json!({"active": true, "activatedAt": 5}));
+        // activatedAt omitted when None
+        let s = AutoConfirmState {
+            active: false,
+            activated_at: None,
+        };
+        assert_eq!(serde_json::to_value(&s).unwrap(), json!({"active": false}));
     }
 
     #[test]
