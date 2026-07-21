@@ -119,3 +119,111 @@ async fn duplicate_within_request_rejected() {
         .unwrap();
     assert_eq!(common::body_json(check).await["total"], 0);
 }
+
+#[tokio::test]
+async fn update_ds_fields() {
+    let (app, _) = common::setup().await;
+    let created = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/distributionsets",
+                Some(json!([{"name": "stable", "version": "1.0", "type": "os"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = created[0]["id"].as_i64().unwrap();
+
+    // PUT changes name/version/description/requiredMigrationStep
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "PUT",
+            &format!("/rest/v1/distributionsets/{id}"),
+            Some(json!({
+                "name": "renamed",
+                "version": "2.0",
+                "description": "now with notes",
+                "requiredMigrationStep": true
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = common::body_json(resp).await;
+    assert_eq!(body["name"], "renamed");
+    assert_eq!(body["version"], "2.0");
+    assert_eq!(body["description"], "now with notes");
+    assert_eq!(body["requiredMigrationStep"], true);
+
+    // omitted fields are left unchanged
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "PUT",
+            &format!("/rest/v1/distributionsets/{id}"),
+            Some(json!({"description": "just the description"})),
+        ))
+        .await
+        .unwrap();
+    let body = common::body_json(resp).await;
+    assert_eq!(body["name"], "renamed");
+    assert_eq!(body["version"], "2.0");
+    assert_eq!(body["description"], "just the description");
+}
+
+#[tokio::test]
+async fn update_ds_conflicting_name_version_409() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/distributionsets",
+            Some(json!([
+                {"name": "a", "version": "1.0", "type": "os"},
+                {"name": "b", "version": "1.0", "type": "os"}
+            ])),
+        ))
+        .await
+        .unwrap();
+    let list = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                "/rest/v1/distributionsets?q=name==b",
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let b_id = list["content"][0]["id"].as_i64().unwrap();
+
+    // renaming b -> a:1.0 collides with the existing a:1.0
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "PUT",
+            &format!("/rest/v1/distributionsets/{b_id}"),
+            Some(json!({"name": "a"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn update_unknown_ds_404() {
+    let (app, _) = common::setup().await;
+    let resp = app
+        .oneshot(common::req(
+            "PUT",
+            "/rest/v1/distributionsets/999",
+            Some(json!({"name": "x"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}

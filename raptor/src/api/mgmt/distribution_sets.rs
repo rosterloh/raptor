@@ -8,7 +8,7 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
-use raptor_api_types::{DsCreate, ModuleRef};
+use raptor_api_types::{DsCreate, DsUpdate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
@@ -183,6 +183,54 @@ pub async fn get_one(
         .one(&st.db)
         .await?
         .ok_or(AppError::NotFound("distribution set"))?;
+    Ok(Json(
+        ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?,
+    ))
+}
+
+pub async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(body): Json<DsUpdate>,
+) -> Result<Json<DsRest>, AppError> {
+    let ds = distribution_set::Entity::find_by_id(id)
+        .one(&st.db)
+        .await?
+        .ok_or(AppError::NotFound("distribution set"))?;
+
+    let new_name = body.name.clone().unwrap_or_else(|| ds.name.clone());
+    let new_version = body.version.clone().unwrap_or_else(|| ds.version.clone());
+    // Keep (name, version) unique if either changed.
+    if new_name != ds.name || new_version != ds.version {
+        let clash = distribution_set::Entity::find()
+            .filter(distribution_set::Column::Name.eq(&new_name))
+            .filter(distribution_set::Column::Version.eq(&new_version))
+            .one(&st.db)
+            .await?
+            .is_some_and(|other| other.id != ds.id);
+        if clash {
+            return Err(AppError::Conflict(format!(
+                "distribution set {new_name}:{new_version} already exists"
+            )));
+        }
+    }
+
+    let mut am: distribution_set::ActiveModel = ds.into();
+    if body.name.is_some() {
+        am.name = Set(new_name);
+    }
+    if body.version.is_some() {
+        am.version = Set(new_version);
+    }
+    if let Some(d) = body.description {
+        am.description = Set(Some(d));
+    }
+    if let Some(r) = body.required_migration_step {
+        am.required_migration_step = Set(r);
+    }
+    am.updated_at = Set(now_ms());
+    let ds = am.update(&st.db).await?;
     Ok(Json(
         ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?,
     ))

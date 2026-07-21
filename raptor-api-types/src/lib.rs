@@ -228,6 +228,21 @@ pub struct DsCreate {
     pub modules: Vec<ModuleRef>,
 }
 
+/// Body of `PUT /rest/v1/distributionsets/{id}`. All fields optional; omitted
+/// fields are left unchanged (hawkBit `MgmtDistributionSetRequestBodyPut`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DsUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub required_migration_step: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DsAssignment {
     pub id: i64,

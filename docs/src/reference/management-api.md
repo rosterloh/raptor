@@ -50,7 +50,7 @@ Base URL examples assume `localhost:8080`.
 | Method | Path | Description |
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/distributionsets` | create / list |
-| `GET` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / delete |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / update / delete |
 | `POST` / `GET` | `/rest/v1/distributionsets/{id}/assignedSM` | add / list modules |
 
 ## Actions (fleet-wide)

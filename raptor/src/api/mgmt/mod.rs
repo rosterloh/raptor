@@ -74,7 +74,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         )
         .route(
             "/rest/v1/distributionsets/{id}",
-            get(distribution_sets::get_one).delete(distribution_sets::delete),
+            get(distribution_sets::get_one)
+                .put(distribution_sets::update)
+                .delete(distribution_sets::delete),
         )
         .route(
             "/rest/v1/distributionsets/{id}/assignedSM",
