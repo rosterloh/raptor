@@ -59,6 +59,9 @@ Base URL examples assume `localhost:8080`.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/rest/v1/actions` | list all actions (paging/sort/FIQL) |
+| `GET` | `/rest/v1/system/configs` | tenant configuration (read-only; file-driven) |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/system/configs/{key}` | one config key (writes → 403) |
+| `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…) |
 
 ## Types (read-only)
 

@@ -5,6 +5,7 @@ pub mod dto;
 pub mod login;
 pub mod rollouts;
 pub mod software_modules;
+pub mod system;
 pub mod target_filters;
 pub mod targets;
 pub mod types;
@@ -143,6 +144,14 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .post(target_filters::set_auto_assign)
                 .delete(target_filters::delete_auto_assign),
         )
+        .route("/rest/v1/system/configs", get(system::get_configs))
+        .route(
+            "/rest/v1/system/configs/{key}",
+            get(system::get_config)
+                .put(system::config_read_only)
+                .delete(system::config_read_only),
+        )
+        .route("/rest/v1/system/statistics", get(system::statistics))
         .route_layer(middleware::from_fn_with_state(
             state,
             crate::auth::mgmt::mgmt_auth,

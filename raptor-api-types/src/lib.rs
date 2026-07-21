@@ -145,6 +145,30 @@ pub struct ActionRef {
     pub id: i64,
 }
 
+/// One tenant-configuration value (hawkBit `MgmtSystemTenantConfigurationValue`).
+/// raptor is config-file driven, so every value is `global` and read-only.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TenantConfigValue {
+    pub value: Value,
+    pub global: bool,
+}
+
+/// Fleet counters for `GET /rest/v1/system/statistics` (raptor operational
+/// aid; feeds the web console dashboard). Not a fixed hawkBit schema.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemStatistics {
+    pub total_targets: u64,
+    pub total_distribution_sets: u64,
+    pub total_software_modules: u64,
+    pub total_actions: u64,
+    pub total_rollouts: u64,
+    /// Targets grouped by `updateStatus` (in_sync / pending / error / registered).
+    pub targets_by_status: std::collections::BTreeMap<String, u64>,
+    /// Currently active (in-flight) actions.
+    pub active_actions: u64,
+}
+
 /// One entry of an action's status history
 /// (`GET /rest/v1/targets/{cid}/actions/{aid}/status`), matching hawkBit's
 /// `MgmtActionStatus` shape: the status `type`, its `messages`, and when it was

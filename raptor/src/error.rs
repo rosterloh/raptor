@@ -12,6 +12,7 @@ pub enum AppError {
     /// pop their native Basic-Auth dialog for the SPA's own session checks.
     UnauthorizedQuiet,
     Conflict(String),
+    Forbidden(String),
     Gone,
     Db(sea_orm::DbErr),
     Io(std::io::Error),
@@ -67,6 +68,12 @@ impl IntoResponse for AppError {
                 StatusCode::CONFLICT,
                 "org.eclipse.hawkbit.repository.exception.EntityAlreadyExistsException",
                 "hawkbit.server.error.repo.entitiyAlreadyExists",
+                m,
+            ),
+            AppError::Forbidden(m) => (
+                StatusCode::FORBIDDEN,
+                "org.eclipse.hawkbit.repository.exception.InsufficientPermissionException",
+                "hawkbit.server.error.insufficientPermission",
                 m,
             ),
             AppError::Gone => (
