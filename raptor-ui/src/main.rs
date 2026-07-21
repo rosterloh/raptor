@@ -6,8 +6,8 @@ mod logic;
 mod pages;
 
 use pages::{
-    Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, Shell, TargetDetail,
-    Targets,
+    Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, RolloutDetail,
+    Rollouts, Shell, TargetDetail, Targets,
 };
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
@@ -33,6 +33,10 @@ pub enum Route {
         Modules {},
         #[route("/modules/:id")]
         ModuleDetail { id: i64 },
+        #[route("/rollouts")]
+        Rollouts {},
+        #[route("/rollouts/:id")]
+        RolloutDetail { id: i64 },
         #[route("/actions")]
         Actions {},
 }

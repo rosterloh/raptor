@@ -19,6 +19,7 @@ pub fn Shell() -> Element {
                     NavLink { to: Route::Targets {}, label: "Targets" }
                     NavLink { to: Route::Distributions {}, label: "Distributions" }
                     NavLink { to: Route::Modules {}, label: "Modules" }
+                    NavLink { to: Route::Rollouts {}, label: "Rollouts" }
                     NavLink { to: Route::Actions {}, label: "Actions" }
                 }
                 button {

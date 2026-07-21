@@ -8,15 +8,22 @@ pub fn Dashboard() -> Element {
     let mut data = use_resource(|| async {
         let targets = api::list_targets(0, 500, None).await?;
         let recent = api::all_actions(0, 15, None).await?;
-        Ok::<_, api::ApiError>((targets, recent))
+        let rollouts = api::list_rollouts(0, 50, None).await?;
+        Ok::<_, api::ApiError>((targets, recent, rollouts))
     });
     use_polling(data);
     rsx! {
         h1 { class: HEADING, "Dashboard" }
         match &*data.read_unchecked() {
-            Some(Ok((targets, recent))) => {
+            Some(Ok((targets, recent, rollouts))) => {
                 let count = |s: &str| targets.content.iter().filter(|t| t.update_status == s).count();
                 let running = recent.content.iter().filter(|a| a.status == "pending").count();
+                let active_rollouts: Vec<_> = rollouts
+                    .content
+                    .iter()
+                    .filter(|r| r.status != "finished")
+                    .cloned()
+                    .collect();
                 rsx! {
                     div { class: "mb-6 grid grid-cols-5 gap-4",
                         Tile { label: "Targets", value: targets.total.to_string(), accent: "text-zinc-100" }
@@ -24,6 +31,26 @@ pub fn Dashboard() -> Element {
                         Tile { label: "Pending", value: count("pending").to_string(), accent: "text-amber-400" }
                         Tile { label: "Error", value: count("error").to_string(), accent: "text-red-400" }
                         Tile { label: "Running actions", value: running.to_string(), accent: "text-sky-400" }
+                    }
+                    if !active_rollouts.is_empty() {
+                        Card { class: "mb-6",
+                            h2 { class: "mb-2 font-semibold text-zinc-100", "Active rollouts" }
+                            ul { class: "space-y-2 text-sm",
+                                for r in active_rollouts.clone() {
+                                    li { key: "{r.id}", class: "flex items-center justify-between",
+                                        Link {
+                                            to: Route::RolloutDetail { id: r.id },
+                                            class: "text-emerald-400 hover:underline",
+                                            "{r.name}"
+                                        }
+                                        span { class: "flex items-center gap-2 text-zinc-500",
+                                            "{r.total_targets} targets"
+                                            StatusBadge { status: r.status.clone() }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     Card {
                         h2 { class: "mb-2 font-semibold text-zinc-100", "Recent actions" }

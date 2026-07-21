@@ -44,6 +44,16 @@ pub fn status_style(update_status: &str) -> (&'static str, &'static str) {
         "pending" => ("pending", "bg-amber-950 text-amber-300 border-amber-800"),
         "error" => ("error", "bg-red-950 text-red-300 border-red-800"),
         "registered" => ("registered", "bg-sky-950 text-sky-300 border-sky-800"),
+        // rollout / rollout-group lifecycle states
+        "ready" => ("ready", "bg-zinc-800 text-zinc-300 border-zinc-700"),
+        "scheduled" => ("scheduled", "bg-sky-950 text-sky-300 border-sky-800"),
+        "running" => ("running", "bg-sky-950 text-sky-300 border-sky-800"),
+        "paused" => ("paused", "bg-amber-950 text-amber-300 border-amber-800"),
+        "finished" => (
+            "finished",
+            "bg-emerald-950 text-emerald-300 border-emerald-800",
+        ),
+        "canceled" => ("canceled", "bg-zinc-800 text-zinc-300 border-zinc-700"),
         _ => ("unknown", "bg-zinc-800 text-zinc-300 border-zinc-700"),
     }
 }
@@ -80,6 +90,12 @@ mod tests {
             "pending",
             "error",
             "registered",
+            "ready",
+            "scheduled",
+            "running",
+            "paused",
+            "finished",
+            "canceled",
             "unknown",
             "???",
         ] {
