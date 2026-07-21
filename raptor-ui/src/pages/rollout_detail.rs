@@ -110,7 +110,7 @@ fn Groups(
                 Some(Ok(page)) => {
                     let total = page.content.len();
                     let finished = page.content.iter().filter(|g| g.status == "finished").count();
-                    let pct = if total == 0 { 0 } else { finished * 100 / total };
+                    let pct = (finished * 100).checked_div(total).unwrap_or(0);
                     rsx! {
                         Card {
                             div { class: "mb-3 flex items-center justify-between",
