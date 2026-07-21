@@ -7,8 +7,12 @@ use base64::Engine;
 use migration::{Migrator, MigratorTrait};
 use raptor::config::Config;
 use raptor::state::AppState;
-use sea_orm::Database;
+use sea_orm::{ConnectOptions, ConnectionTrait, Database};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::LazyLock;
+
+/// Per-process counter making each test's Postgres schema name unique.
+static SCHEMA_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub const TEST_PASSWORD: &str = "raptor-test";
 
@@ -46,13 +50,30 @@ password_hash = "{}"
 
 pub async fn setup() -> (Router, AppState) {
     let url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
-    let db = Database::connect(&url).await.unwrap();
-    if url.starts_with("postgres") {
-        // fresh schema per run; CI uses --test-threads=1
-        Migrator::fresh(&db).await.unwrap();
-    } else {
+    let db = if url.starts_with("postgres") {
+        // Isolate each test in its own schema so the Postgres suite can run in
+        // parallel — there is no shared `public` schema for concurrent tests to
+        // clobber, so no `--test-threads=1` is needed.
+        let schema = format!(
+            "test_{}_{}",
+            std::process::id(),
+            SCHEMA_SEQ.fetch_add(1, Ordering::Relaxed)
+        );
+        let admin = Database::connect(&url).await.unwrap();
+        admin
+            .execute_unprepared(&format!("CREATE SCHEMA \"{schema}\""))
+            .await
+            .unwrap();
+        let mut opt = ConnectOptions::new(url);
+        opt.set_schema_search_path(schema);
+        let db = Database::connect(opt).await.unwrap();
         Migrator::up(&db, None).await.unwrap();
-    }
+        db
+    } else {
+        let db = Database::connect(&url).await.unwrap();
+        Migrator::up(&db, None).await.unwrap();
+        db
+    };
     let dir = tempfile::tempdir().unwrap();
     let dir_path = dir.path().to_path_buf();
     let cfg = test_config(&dir_path);

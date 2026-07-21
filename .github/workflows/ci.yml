@@ -10,6 +10,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "rustfmt, clippy" }
+      - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -19,7 +20,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+      - uses: taiki-e/install-action@nextest
+      - run: cargo nextest run --workspace
 
   ui:
     runs-on: ubuntu-latest
@@ -38,8 +40,9 @@ jobs:
       - run: cargo test -p raptor --features embed-ui --test ui_serving
       - run: cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings
       - run: cargo test -p raptor-ui
-      # last: prove the real bundle builds (dx must run from the workspace root)
-      - run: dx build --release --package raptor-ui
+      # last: smoke-build the bundle (debug: skips release wasm-opt; the tagged
+      # release pipeline still builds --release). dx must run from workspace root.
+      - run: dx build --package raptor-ui
 
   test-postgres:
     runs-on: ubuntu-latest
@@ -58,6 +61,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace -- --test-threads=1
+      - uses: taiki-e/install-action@nextest
+      # Only raptor's tests touch the DB; each gets its own schema (see
+      # tests/common/mod.rs) so they run in parallel without clobbering.
+      - run: cargo nextest run -p raptor
         env:
           TEST_DATABASE_URL: postgres://raptor:raptor@localhost:5432/raptor
