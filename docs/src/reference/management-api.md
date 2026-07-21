@@ -51,6 +51,7 @@ Base URL examples assume `localhost:8080`.
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/distributionsets` | create / list |
 | `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / update / delete |
+| `POST` | `/rest/v1/distributionsets/{id}/invalidate` | invalidate (stops rollouts / auto-assign, cancels actions) |
 | `POST` / `GET` | `/rest/v1/distributionsets/{id}/assignedSM` | add / list modules |
 
 ## Actions (fleet-wide)

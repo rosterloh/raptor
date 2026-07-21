@@ -54,6 +54,7 @@ pub fn status_style(update_status: &str) -> (&'static str, &'static str) {
             "bg-emerald-950 text-emerald-300 border-emerald-800",
         ),
         "canceled" => ("canceled", "bg-zinc-800 text-zinc-300 border-zinc-700"),
+        "stopped" => ("stopped", "bg-red-950 text-red-300 border-red-800"),
         _ => ("unknown", "bg-zinc-800 text-zinc-300 border-zinc-700"),
     }
 }

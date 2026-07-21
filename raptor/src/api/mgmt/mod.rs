@@ -83,6 +83,10 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(distribution_sets::assign_modules).get(distribution_sets::assigned_modules),
         )
         .route(
+            "/rest/v1/distributionsets/{id}/invalidate",
+            post(distribution_sets::invalidate),
+        )
+        .route(
             "/rest/v1/targets/{cid}/assignedDS",
             post(actions::assign).get(actions::assigned_ds),
         )

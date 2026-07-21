@@ -11,6 +11,8 @@ pub struct Model {
     pub description: Option<String>,
     pub required_migration_step: bool,
     pub complete: bool,
+    #[sea_orm(default_value = false)]
+    pub invalid: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }

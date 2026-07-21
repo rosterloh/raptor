@@ -3,6 +3,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+fn default_true() -> bool {
+    true
+}
+
 /// hawkBit paged-list envelope used by every list endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PagedList<T> {
@@ -90,6 +94,9 @@ pub struct DsRest {
     pub required_migration_step: bool,
     pub complete: bool,
     pub deleted: bool,
+    /// False once the set has been invalidated (hawkBit `valid`).
+    #[serde(default = "default_true")]
+    pub valid: bool,
     pub created_at: i64,
     pub last_modified_at: i64,
     pub modules: Vec<SmRest>,
@@ -243,6 +250,20 @@ pub struct DsUpdate {
     pub required_migration_step: Option<bool>,
 }
 
+/// Body of `POST /rest/v1/distributionsets/{id}/invalidate`
+/// (hawkBit `MgmtInvalidateDistributionSetRequestBody`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DsInvalidate {
+    /// How to treat in-flight actions on the set: `force`, `soft`, or `none`
+    /// (default). hawkBit spells this `actionCancelationType`.
+    #[serde(default)]
+    pub action_cancelation_type: Option<String>,
+    /// Also stop rollouts that deploy this set.
+    #[serde(default)]
+    pub cancel_rollouts: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DsAssignment {
     pub id: i64,
@@ -387,7 +408,7 @@ mod tests {
         round_trip::<DsRest>(json!({
             "id": 1, "name": "stable", "version": "1.0", "type": "os",
             "description": null, "requiredMigrationStep": false, "complete": true,
-            "deleted": false, "createdAt": 1, "lastModifiedAt": 2,
+            "deleted": false, "valid": true, "createdAt": 1, "lastModifiedAt": 2,
             "modules": [{
                 "id": 1, "name": "fw", "version": "1.0", "type": "os",
                 "vendor": null, "description": null, "createdAt": 1, "lastModifiedAt": 2,
