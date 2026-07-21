@@ -1,3 +1,6 @@
 /target
 *.db
 raptor.toml
+
+# mdbook build output
+/docs/book/
