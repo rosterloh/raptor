@@ -30,19 +30,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Cmd::Serve { config } => {
-            tracing_subscriber::fmt()
-                .with_env_filter(
-                    tracing_subscriber::EnvFilter::try_from_default_env()
-                        .unwrap_or_else(|_| "raptor=info,tower_http=info".into()),
-                )
-                .init();
+            // Config first: telemetry init needs the [otel] section, and it
+            // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
+            let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
+
             let db = sea_orm::Database::connect(&cfg.database_url).await?;
             migration::Migrator::up(&db, None).await?;
             let store = raptor::storage::ArtifactStore::new(cfg.artifact_dir.clone())?;
             let bind = cfg.bind;
             let eval_interval = cfg.rollout_eval_interval_secs.max(1);
-            let state = AppState::new(db, cfg, store);
+            let state = AppState::with_metrics(db, cfg, store, metrics);
             let eval_state = state.clone();
             tokio::spawn(async move {
                 let mut interval =
@@ -57,13 +55,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     {
                         tracing::error!(error = ?e, "auto-assignment sweep failed");
                     }
+                    // Refresh fleet-state gauges alongside the sweep so metrics
+                    // track a real snapshot without an async observable callback.
+                    if eval_state.metrics.enabled() {
+                        if let Err(e) = observe_fleet(&eval_state).await {
+                            tracing::warn!(error = ?e, "fleet metric observation failed");
+                        }
+                    }
                 }
             });
             let app = raptor::app::build_app(state);
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");
-            axum::serve(listener, app).await?;
+            axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown_signal())
+                .await?;
+            tracing::info!("shutting down; flushing telemetry");
+            telemetry.shutdown();
         }
     }
     Ok(())
+}
+
+/// Snapshot fleet state (targets by `update_status`, active actions) into the
+/// metrics gauges.
+async fn observe_fleet(state: &AppState) -> Result<(), sea_orm::DbErr> {
+    use raptor::entity::{action, target};
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
+
+    let by_status: Vec<(String, i64)> = target::Entity::find()
+        .select_only()
+        .column(target::Column::UpdateStatus)
+        .column_as(target::Column::Id.count(), "count")
+        .group_by(target::Column::UpdateStatus)
+        .into_tuple()
+        .all(&state.db)
+        .await?;
+    let active = action::Entity::find()
+        .filter(action::Column::Active.eq(true))
+        .count(&state.db)
+        .await? as i64;
+    state.metrics.observe_fleet(&by_status, active);
+    Ok(())
+}
+
+/// Resolve on SIGINT (Ctrl-C) or SIGTERM so exporters get a chance to flush.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("install Ctrl-C handler");
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("install SIGTERM handler")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

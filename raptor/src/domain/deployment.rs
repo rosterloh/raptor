@@ -48,6 +48,7 @@ pub async fn active_action(
         .await?)
 }
 
+#[tracing::instrument(skip_all, fields(target_id = target.id, ds_id, forced))]
 pub async fn assign_ds(
     st: &AppState,
     target: &target::Model,
@@ -106,6 +107,7 @@ pub async fn assign_ds(
     .insert(&st.db)
     .await?;
     add_action_status(&st.db, a.id, initial, &[]).await?;
+    st.metrics.action_created();
 
     let mut tm: target::ActiveModel = target.clone().into();
     tm.assigned_ds_id = Set(Some(ds.id));
@@ -119,6 +121,7 @@ pub async fn assign_ds(
     })
 }
 
+#[tracing::instrument(skip_all, fields(action_id = a.id, execution, finished))]
 pub async fn apply_feedback(
     st: &AppState,
     t: &target::Model,
@@ -132,10 +135,12 @@ pub async fn apply_feedback(
         ("closed", "failure") => {
             set_action(st, a, "error", false).await?;
             set_target_status(st, t, None, "error").await?;
+            st.metrics.action_failed();
         }
         ("closed", _) => {
             set_action(st, a, "finished", false).await?;
             set_target_status(st, t, Some(a.ds_id), "in_sync").await?;
+            st.metrics.action_finished();
         }
         ("canceled", _) => {
             set_action(st, a, "canceled", false).await?;
@@ -145,6 +150,7 @@ pub async fn apply_feedback(
                 "registered"
             };
             set_target_status(st, t, None, status).await?;
+            st.metrics.action_canceled();
         }
         _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
     }
@@ -173,6 +179,7 @@ pub async fn apply_cancel_feedback(
             tm.update_status = Set(status.into());
             tm.updated_at = Set(now_ms());
             tm.update(&st.db).await?;
+            st.metrics.action_canceled();
         }
         "rejected" => {
             set_action(st, a, "running", true).await?;

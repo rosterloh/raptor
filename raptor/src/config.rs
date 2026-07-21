@@ -1,6 +1,7 @@
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -22,6 +23,36 @@ pub struct Config {
     /// How often the rollout group-threshold evaluator runs, in seconds.
     #[serde(default = "default_rollout_eval_interval_secs")]
     pub rollout_eval_interval_secs: u64,
+    /// OpenTelemetry (OTLP) export. Absent by default; when present with an
+    /// endpoint, traces/metrics/logs are shipped to the collector. Requires the
+    /// `otel` build feature — without it, this section is parsed but ignored.
+    #[serde(default)]
+    pub otel: Option<OtelConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OtelConfig {
+    /// OTLP collector endpoint, e.g. `http://localhost:4317` (gRPC) or
+    /// `http://localhost:4318` (HTTP). Its presence is what enables export.
+    pub endpoint: String,
+    /// `service.name` reported on every span/metric/log. Defaults to `raptor`.
+    #[serde(default = "default_service_name")]
+    pub service_name: String,
+    /// OTLP wire protocol. Defaults to gRPC (the `endpoint` default port 4317).
+    #[serde(default)]
+    pub protocol: OtelProtocol,
+    /// Extra headers sent to the collector (e.g. auth tokens for Datadog/Grafana
+    /// Cloud). gRPC sends them as request metadata; HTTP as request headers.
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OtelProtocol {
+    #[default]
+    Grpc,
+    Http,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,6 +114,9 @@ fn default_polling() -> String {
 fn default_rollout_eval_interval_secs() -> u64 {
     5
 }
+fn default_service_name() -> String {
+    "raptor".into()
+}
 
 impl Config {
     pub fn load(path: Option<&Path>) -> Result<Self, Box<figment::Error>> {
@@ -120,6 +154,47 @@ password_hash = "$argon2id$fake"
             assert!(!cfg.ddi.anonymous);
             assert_eq!(cfg.ddi.polling_interval, "00:05:00");
             assert_eq!(cfg.mgmt.username, "admin");
+            assert!(cfg.otel.is_none());
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn parses_otel_section_with_defaults() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!("{MINIMAL}\n[otel]\nendpoint = \"http://localhost:4317\"\n"),
+            )?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            let otel = cfg.otel.expect("otel section present");
+            assert_eq!(otel.endpoint, "http://localhost:4317");
+            assert_eq!(otel.service_name, "raptor");
+            assert_eq!(otel.protocol, OtelProtocol::Grpc);
+            assert!(otel.headers.is_empty());
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn parses_otel_protocol_and_headers() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!(
+                    "{MINIMAL}\n[otel]\nendpoint = \"https://collector:4318\"\n\
+                     service_name = \"raptor-edge\"\nprotocol = \"http\"\n\
+                     [otel.headers]\nauthorization = \"Bearer tok\"\n"
+                ),
+            )?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            let otel = cfg.otel.expect("otel section present");
+            assert_eq!(otel.service_name, "raptor-edge");
+            assert_eq!(otel.protocol, OtelProtocol::Http);
+            assert_eq!(
+                otel.headers.get("authorization").map(String::as_str),
+                Some("Bearer tok")
+            );
             Ok(())
         });
     }

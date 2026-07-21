@@ -114,6 +114,56 @@ Release smoke test: login → create module → upload artifact → create
 distribution set → assign module → deploy to a target → watch the action on
 the dashboard → cancel or complete → logout.
 
+## Observability (OpenTelemetry)
+
+By default raptor logs to stdout (`tracing` + `EnvFilter`) and ships no
+telemetry — zero extra dependencies, zero runtime cost. Build with the `otel`
+feature and add an `[otel]` section to export **traces, metrics and logs** to
+any OTLP collector (Grafana Tempo/Mimir/Loki, Jaeger, Datadog, …):
+
+    cargo build --release --features otel
+
+    # raptor.toml
+    [otel]
+    endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export
+    service_name = "raptor"              # default; reported as service.name
+    # protocol = "grpc"                  # "grpc" (default, port 4317) or "http" (port 4318)
+    # [otel.headers]                     # optional, e.g. for authenticated collectors
+    # authorization = "Bearer <token>"
+
+Without the `[otel]` section (or without the `otel` feature) behaviour and log
+output are **identical to before** — the stdout `fmt` layer is always kept, even
+when export is on, so local `docker logs`/`journalctl` never goes dark.
+
+What you get with export enabled:
+
+- **Traces** — each HTTP request is a span (route/method/status via
+  `tower-http`), and the deployment domain (`assign_ds`, feedback state machine)
+  is instrumented, so a DDI poll → `deploymentBase` → feedback cycle shows up as
+  correlated spans.
+- **Metrics** — `raptor.http.requests` / `raptor.http.request.duration`
+  (labelled `api`=ddi|mgmt, route, method, status — DDI poll volume is the
+  capacity signal); action lifecycle counters
+  (`raptor.actions.created|finished|failed|canceled`); artifact bytes
+  (`raptor.artifact.bytes.uploaded|downloaded`); `raptor.auth.failures` by zone;
+  and gauges `raptor.targets` (by `update_status`) and `raptor.actions.active`.
+- **Logs** — `tracing` events are bridged to OTLP logs, so records carry the
+  active trace/span IDs for correlation.
+
+Exporters are flushed on graceful shutdown (SIGINT/SIGTERM).
+
+### Trying it against a local collector
+
+A one-container Jaeger all-in-one accepts OTLP and renders traces:
+
+    docker run --rm -p 16686:16686 -p 4317:4317 \
+      jaegertracing/all-in-one:latest
+
+Point `endpoint = "http://localhost:4317"`, drive a device poll + feedback
+cycle, then open the Jaeger UI at <http://localhost:16686>. For metrics and
+logs, run an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
+with an `otlp` receiver and your backend of choice as the exporter.
+
 ## v1 scope
 
 DDI v1 + core Management API (targets, software modules, distribution sets,

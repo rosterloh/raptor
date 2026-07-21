@@ -119,6 +119,7 @@ pub async fn upload(
         }
         .insert(&st.db)
         .await?;
+        st.metrics.bytes_uploaded(a.size.max(0) as u64);
         return Ok((
             StatusCode::CREATED,
             Json(artifact_rest(&a, module_id, &base_url(&st.cfg, &headers))),
@@ -165,6 +166,7 @@ pub async fn download(
 ) -> Result<Response, AppError> {
     let a = find_owned(&st, module_id, artifact_id).await?;
     let file = tokio::fs::File::open(st.store.path_for(&a.sha256)).await?;
+    st.metrics.bytes_downloaded(a.size.max(0) as u64);
     let stream = tokio_util::io::ReaderStream::new(file);
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/octet-stream")

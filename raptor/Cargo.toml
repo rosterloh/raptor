@@ -8,6 +8,18 @@ repository = "https://github.com/rosterloh/raptor"
 
 [features]
 embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+# OpenTelemetry (OTLP) export of traces, metrics and logs. Opt-in: default
+# builds pull none of the OTel tree and behave exactly as before. See the
+# `[otel]` config section and README "Observability".
+otel = [
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-semantic-conventions",
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry-appender-tracing",
+    "dep:tonic",
+]
 
 # --- Debian packaging (cargo-deb) ---
 # Build with: cargo deb -p raptor  (see .github/workflows/release.yml)
@@ -78,6 +90,15 @@ futures = "0.3"
 bytes = "1"
 rust-embed = { version = "8", optional = true, features = ["interpolate-folder-path", "mime-guess"] }
 mime_guess = { version = "2", optional = true }
+# --- OpenTelemetry (optional, `otel` feature). Versions are pinned together:
+# this ecosystem ships coupled breaking releases, so bump them as a set. ---
+opentelemetry = { version = "0.32", optional = true, features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.32", optional = true, features = ["rt-tokio", "trace", "metrics", "logs"] }
+opentelemetry-otlp = { version = "0.32", optional = true, default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace", "metrics", "logs", "tls-webpki-roots"] }
+opentelemetry-semantic-conventions = { version = "0.32", optional = true }
+tracing-opentelemetry = { version = "0.33", optional = true }
+opentelemetry-appender-tracing = { version = "0.32", optional = true }
+tonic = { version = "0.14", optional = true, default-features = false }
 
 [dev-dependencies]
 http-body-util = "0.1"
