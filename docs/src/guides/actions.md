@@ -56,6 +56,20 @@ curl -u admin:pw 'localhost:8080/rest/v1/actions?q=detailStatus==error'
 The action JSON exposes `status` (`pending` while active, else `finished`) and
 `detailStatus` (the fine-grained state from the table above).
 
+## Status history
+
+Every state change an action goes through — assignment, each piece of device
+feedback, cancellation — is recorded as a status entry. List them with:
+
+```bash
+# chronological (oldest first); pass ?sort=id:DESC for newest first
+curl -u admin:pw localhost:8080/rest/v1/targets/device-42/actions/1/status
+```
+
+Each entry has a `type` (the reported status, e.g. `running`, `finished`,
+`canceled`), any `messages` the device or server attached, and `reportedAt`.
+The list supports the usual `offset`/`limit`/`sort` paging.
+
 ## Cancelling
 
 ```bash

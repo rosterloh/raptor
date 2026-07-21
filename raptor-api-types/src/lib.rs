@@ -138,6 +138,20 @@ pub struct ActionRef {
     pub id: i64,
 }
 
+/// One entry of an action's status history
+/// (`GET /rest/v1/targets/{cid}/actions/{aid}/status`), matching hawkBit's
+/// `MgmtActionStatus` shape: the status `type`, its `messages`, and when it was
+/// reported.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionStatusRest {
+    pub id: i64,
+    #[serde(rename = "type")]
+    pub status_type: String,
+    pub messages: Vec<String>,
+    pub reported_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignResult {
@@ -402,6 +416,15 @@ mod tests {
         };
         let v = serde_json::to_value(&a).unwrap();
         assert!(v.get("target").is_none());
+    }
+
+    #[test]
+    fn action_status_shape() {
+        round_trip::<ActionStatusRest>(json!({
+            "id": 7, "type": "canceled",
+            "messages": ["force canceled by operator"],
+            "reportedAt": 1699999999000i64
+        }));
     }
 
     #[test]

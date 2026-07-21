@@ -96,6 +96,10 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/rest/v1/targets/{cid}/actions/{aid}",
             get(actions::target_action).delete(actions::cancel_action),
         )
+        .route(
+            "/rest/v1/targets/{cid}/actions/{aid}/status",
+            get(actions::action_status_history),
+        )
         .route("/rest/v1/actions", get(actions::all_actions))
         .route(
             "/rest/v1/rollouts",

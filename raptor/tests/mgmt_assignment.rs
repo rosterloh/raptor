@@ -290,3 +290,90 @@ async fn cancel_action_soft_and_forced() {
         StatusCode::GONE
     );
 }
+
+#[tokio::test]
+async fn action_status_history_lists_entries_with_messages() {
+    let (app, _) = common::setup().await;
+    let (cid, ds) = fixture(&app).await;
+
+    // assign -> creates the action and its initial status row
+    let assign = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                &format!("/rest/v1/targets/{cid}/assignedDS"),
+                Some(json!({"id": ds, "type": "forced"})),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let aid = assign["assignedActions"][0]["id"].as_i64().unwrap();
+
+    // one entry so far, hawkBit-shaped
+    let hist = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                &format!("/rest/v1/targets/{cid}/actions/{aid}/status"),
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(hist["total"], 1);
+    assert!(hist["content"][0]["type"].is_string());
+    assert!(hist["content"][0]["reportedAt"].is_i64());
+    assert!(hist["content"][0]["messages"].is_array());
+
+    // force-cancel appends a "canceled" status carrying a message
+    assert_eq!(
+        app.clone()
+            .oneshot(common::req(
+                "DELETE",
+                &format!("/rest/v1/targets/{cid}/actions/{aid}?force=true"),
+                None,
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NO_CONTENT
+    );
+
+    // newest-first via sort: the canceled entry with its message on top
+    let hist2 = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                &format!("/rest/v1/targets/{cid}/actions/{aid}/status?sort=id:DESC"),
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(hist2["total"], 2);
+    assert_eq!(hist2["content"][0]["type"], "canceled");
+    assert_eq!(
+        hist2["content"][0]["messages"][0],
+        "force canceled by operator"
+    );
+}
+
+#[tokio::test]
+async fn action_status_history_unknown_action_404() {
+    let (app, _) = common::setup().await;
+    let (cid, _) = fixture(&app).await;
+    assert_eq!(
+        app.oneshot(common::req(
+            "GET",
+            &format!("/rest/v1/targets/{cid}/actions/999/status"),
+            None,
+        ))
+        .await
+        .unwrap()
+        .status(),
+        StatusCode::NOT_FOUND
+    );
+}

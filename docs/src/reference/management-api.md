@@ -29,6 +29,7 @@ Base URL examples assume `localhost:8080`.
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/actions` | actions for this target |
 | `GET` | `/rest/v1/targets/{cid}/actions/{aid}` | one action |
+| `GET` | `/rest/v1/targets/{cid}/actions/{aid}/status` | action status history (paging/sort) |
 | `DELETE` | `/rest/v1/targets/{cid}/actions/{aid}` | cancel (`?force=true` to force) |
 | `GET` | `/rest/v1/targets/{cid}/autoConfirm` | auto-confirm state |
 | `POST` | `/rest/v1/targets/{cid}/autoConfirm/activate` | enable auto-confirm |
