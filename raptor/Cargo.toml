@@ -34,8 +34,10 @@ clients work unchanged) and the core Management API, and ships an embedded web \
 console. One binary, one config file."""
 section = "net"
 priority = "optional"
-# Ship the embedded web console in the packaged binary.
-features = ["embed-ui"]
+# Ship the embedded web console and OTLP telemetry export in the packaged
+# binary, so operators can enable observability via the `[otel]` config section
+# without rebuilding. Both stay dormant until configured.
+features = ["embed-ui", "otel"]
 default-features = false
 assets = [
     ["target/release/raptor", "usr/bin/", "755"],

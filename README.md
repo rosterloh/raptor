@@ -117,11 +117,13 @@ the dashboard → cancel or complete → logout.
 ## Observability (OpenTelemetry)
 
 By default raptor logs to stdout (`tracing` + `EnvFilter`) and ships no
-telemetry — zero extra dependencies, zero runtime cost. Build with the `otel`
-feature and add an `[otel]` section to export **traces, metrics and logs** to
-any OTLP collector (Grafana Tempo/Mimir/Loki, Jaeger, Datadog, …):
+telemetry — zero runtime cost until you opt in. Add an `[otel]` section to
+export **traces, metrics and logs** to any OTLP collector (Grafana
+Tempo/Mimir/Loki, Jaeger, Datadog, …). The `.deb` packages ship with this
+built in, so no rebuild is needed; a from-source build needs the `otel`
+feature:
 
-    cargo build --release --features otel
+    cargo build --release --features otel   # from source; the .deb already has it
 
     # raptor.toml
     [otel]
@@ -131,9 +133,9 @@ any OTLP collector (Grafana Tempo/Mimir/Loki, Jaeger, Datadog, …):
     # [otel.headers]                     # optional, e.g. for authenticated collectors
     # authorization = "Bearer <token>"
 
-Without the `[otel]` section (or without the `otel` feature) behaviour and log
-output are **identical to before** — the stdout `fmt` layer is always kept, even
-when export is on, so local `docker logs`/`journalctl` never goes dark.
+Without the `[otel]` section behaviour and log output are **identical to
+before** — the stdout `fmt` layer is always kept, even when export is on, so
+local `docker logs`/`journalctl` never goes dark.
 
 What you get with export enabled:
 

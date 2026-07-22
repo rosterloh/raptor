@@ -41,9 +41,9 @@ username = "admin"
 # Replace with the output of `raptor hash-password`:
 password_hash = "REPLACE_WITH_ARGON2_HASH"
 
-# OpenTelemetry (OTLP) export of traces, metrics and logs. Requires a build with
-# the `otel` feature (the stock package omits it); when the section is absent,
-# raptor logs to stdout only, exactly as before. See README "Observability".
+# OpenTelemetry (OTLP) export of traces, metrics and logs. Built into the
+# packaged binary; uncomment to enable. When this section is absent, raptor logs
+# to stdout only, exactly as before. See README "Observability".
 # [otel]
 # endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export
 # service_name = "raptor"
