@@ -13,6 +13,16 @@ pub async fn mgmt_auth(
     req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    match check_auth(&state, &req) {
+        Ok(()) => Ok(next.run(req).await),
+        Err(e) => {
+            state.metrics.auth_failure("mgmt");
+            Err(e)
+        }
+    }
+}
+
+fn check_auth(state: &AppState, req: &Request) -> Result<(), AppError> {
     // The SPA tags its own requests so a failed session check doesn't trigger
     // the browser's native Basic-Auth dialog (see raptor-ui/src/api.rs).
     let quiet = req.headers().contains_key("x-requested-with");
@@ -26,7 +36,7 @@ pub async fn mgmt_auth(
 
     if let Some(tok) = crate::auth::session::session_cookie(req.headers()) {
         if state.sessions.validate(&tok) {
-            return Ok(next.run(req).await);
+            return Ok(());
         }
     }
 
@@ -45,7 +55,7 @@ pub async fn mgmt_auth(
     if !verify_creds(&state.cfg.mgmt, user, pass) {
         return Err(unauthorized());
     }
-    Ok(next.run(req).await)
+    Ok(())
 }
 
 pub fn verify_creds(cfg: &crate::config::MgmtConfig, user: &str, pass: &str) -> bool {

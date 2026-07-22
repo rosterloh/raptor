@@ -6,8 +6,10 @@ pub mod domain;
 pub mod entity;
 pub mod error;
 pub mod fiql;
+pub mod metrics;
 pub mod state;
 pub mod storage;
+pub mod telemetry;
 #[cfg(feature = "embed-ui")]
 pub mod ui;
 pub mod util;

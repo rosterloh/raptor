@@ -73,6 +73,7 @@ pub async fn download(
         let mut file = tokio::fs::File::open(&path).await?;
         file.seek(std::io::SeekFrom::Start(start as u64)).await?;
         let len = end - start + 1;
+        st.metrics.bytes_downloaded(len.max(0) as u64);
         let stream = tokio_util::io::ReaderStream::new(file.take(len as u64));
         return Ok(Response::builder()
             .status(StatusCode::PARTIAL_CONTENT)
@@ -92,6 +93,7 @@ pub async fn download(
     }
 
     let file = tokio::fs::File::open(&path).await?;
+    st.metrics.bytes_downloaded(a.size.max(0) as u64);
     Ok(Response::builder()
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CONTENT_TYPE, "application/octet-stream")

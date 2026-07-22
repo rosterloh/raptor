@@ -40,3 +40,13 @@ polling_interval = "00:05:00"
 username = "admin"
 # Replace with the output of `raptor hash-password`:
 password_hash = "REPLACE_WITH_ARGON2_HASH"
+
+# OpenTelemetry (OTLP) export of traces, metrics and logs. Requires a build with
+# the `otel` feature (the stock package omits it); when the section is absent,
+# raptor logs to stdout only, exactly as before. See README "Observability".
+# [otel]
+# endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export
+# service_name = "raptor"
+# protocol = "grpc"                     # "grpc" (4317) or "http" (4318)
+# [otel.headers]                        # optional, for authenticated collectors
+# authorization = "Bearer change-me"
