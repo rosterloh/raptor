@@ -1,6 +1,8 @@
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::domain::deployment::{action_rest, assign_ds};
-use crate::entity::{action, distribution_set, distribution_set_type, target};
+use crate::entity::{
+    action, action_status, action_status_message, distribution_set, distribution_set_type, target,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
@@ -154,6 +156,65 @@ pub async fn target_action(
         Some(&t.controller_id),
         &base_url(&st.cfg, &headers),
     )))
+}
+
+fn status_sort_map(f: &str) -> Option<action_status::Column> {
+    match f {
+        "id" => Some(action_status::Column::Id),
+        "reportedat" | "reportedAt" => Some(action_status::Column::CreatedAt),
+        _ => None,
+    }
+}
+
+/// `GET /rest/v1/targets/{cid}/actions/{aid}/status` — the ActionStatus history
+/// rows for an action, with their messages. Defaults to chronological (id ASC).
+pub async fn action_status_history(
+    State(st): State<AppState>,
+    Path((cid, aid)): Path<(String, i64)>,
+    Query(p): Query<ListParams>,
+) -> Result<Json<Paged<raptor_api_types::ActionStatusRest>>, AppError> {
+    let t = super::targets::find_by_cid(&st.db, &cid).await?;
+    // 404 unless the action exists and belongs to this target
+    action::Entity::find_by_id(aid)
+        .one(&st.db)
+        .await?
+        .filter(|a| a.target_id == t.id)
+        .ok_or(AppError::NotFound("action"))?;
+
+    let sel = action_status::Entity::find().filter(action_status::Column::ActionId.eq(aid));
+    let sel = if p.sort.is_some() {
+        apply_sort(sel, &p.sort, &status_sort_map)?
+    } else {
+        sel.order_by(action_status::Column::Id, Order::Asc)
+    };
+    let (rows, total) = page(&st.db, sel, &p).await?;
+
+    // Gather messages for the page's status rows in one query, grouped by row.
+    let ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
+    let mut by_status: std::collections::HashMap<i64, Vec<String>> =
+        std::collections::HashMap::new();
+    for m in action_status_message::Entity::find()
+        .filter(action_status_message::Column::ActionStatusId.is_in(ids))
+        .order_by(action_status_message::Column::Id, Order::Asc)
+        .all(&st.db)
+        .await?
+    {
+        by_status
+            .entry(m.action_status_id)
+            .or_default()
+            .push(m.message);
+    }
+
+    let content = rows
+        .into_iter()
+        .map(|r| raptor_api_types::ActionStatusRest {
+            id: r.id,
+            status_type: r.status,
+            messages: by_status.remove(&r.id).unwrap_or_default(),
+            reported_at: r.created_at,
+        })
+        .collect();
+    Ok(Json(Paged::new(content, total)))
 }
 
 #[derive(Deserialize)]

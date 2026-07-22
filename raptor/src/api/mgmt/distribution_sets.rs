@@ -1,14 +1,17 @@
 use super::dto::{ds_rest, DsRest, SmRest};
 use super::software_modules::type_keys;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
-use crate::entity::{action, distribution_set, distribution_set_type, ds_module, software_module};
+use crate::entity::{
+    action, distribution_set, distribution_set_type, ds_module, rollout, software_module, target,
+    target_filter,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
-use raptor_api_types::{DsCreate, ModuleRef};
+use raptor_api_types::{DsCreate, DsInvalidate, DsUpdate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
@@ -186,6 +189,162 @@ pub async fn get_one(
     Ok(Json(
         ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?,
     ))
+}
+
+pub async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(body): Json<DsUpdate>,
+) -> Result<Json<DsRest>, AppError> {
+    let ds = distribution_set::Entity::find_by_id(id)
+        .one(&st.db)
+        .await?
+        .ok_or(AppError::NotFound("distribution set"))?;
+
+    let new_name = body.name.clone().unwrap_or_else(|| ds.name.clone());
+    let new_version = body.version.clone().unwrap_or_else(|| ds.version.clone());
+    // Keep (name, version) unique if either changed.
+    if new_name != ds.name || new_version != ds.version {
+        let clash = distribution_set::Entity::find()
+            .filter(distribution_set::Column::Name.eq(&new_name))
+            .filter(distribution_set::Column::Version.eq(&new_version))
+            .one(&st.db)
+            .await?
+            .is_some_and(|other| other.id != ds.id);
+        if clash {
+            return Err(AppError::Conflict(format!(
+                "distribution set {new_name}:{new_version} already exists"
+            )));
+        }
+    }
+
+    let mut am: distribution_set::ActiveModel = ds.into();
+    if body.name.is_some() {
+        am.name = Set(new_name);
+    }
+    if body.version.is_some() {
+        am.version = Set(new_version);
+    }
+    if let Some(d) = body.description {
+        am.description = Set(Some(d));
+    }
+    if let Some(r) = body.required_migration_step {
+        am.required_migration_step = Set(r);
+    }
+    am.updated_at = Set(now_ms());
+    let ds = am.update(&st.db).await?;
+    Ok(Json(
+        ds_with_modules(&st, &ds, &base_url(&st.cfg, &headers)).await?,
+    ))
+}
+
+/// `POST /rest/v1/distributionsets/{id}/invalidate` — mark a set invalid so it
+/// can no longer be assigned or rolled out, detach any auto-assignments that
+/// reference it, and optionally stop its rollouts and cancel its in-flight
+/// actions (hawkBit `MgmtInvalidateDistributionSetRequestBody`).
+pub async fn invalidate(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<DsInvalidate>,
+) -> Result<StatusCode, AppError> {
+    let ds = distribution_set::Entity::find_by_id(id)
+        .one(&st.db)
+        .await?
+        .ok_or(AppError::NotFound("distribution set"))?;
+    if ds.invalid {
+        return Err(AppError::Conflict(
+            "distribution set already invalidated".into(),
+        ));
+    }
+    let mode = body.action_cancelation_type.as_deref().unwrap_or("none");
+    if !matches!(mode, "none" | "soft" | "force") {
+        return Err(AppError::BadRequest(format!(
+            "invalid actionCancelationType: {mode}"
+        )));
+    }
+
+    // 1. Mark invalid — blocks any further assignment (see domain::assign_ds).
+    let mut am: distribution_set::ActiveModel = ds.into();
+    am.invalid = Set(true);
+    am.updated_at = Set(now_ms());
+    am.update(&st.db).await?;
+
+    // 2. Detach auto-assignments that point at this set.
+    for f in target_filter::Entity::find()
+        .filter(target_filter::Column::AutoAssignDsId.eq(id))
+        .all(&st.db)
+        .await?
+    {
+        let mut fm: target_filter::ActiveModel = f.into();
+        fm.auto_assign_ds_id = Set(None);
+        fm.auto_assign_action_type = Set(None);
+        fm.updated_at = Set(now_ms());
+        fm.update(&st.db).await?;
+    }
+
+    // 3. Optionally stop rollouts deploying this set. "stopped" is terminal —
+    //    the evaluator only advances "running" rollouts.
+    if body.cancel_rollouts {
+        for r in rollout::Entity::find()
+            .filter(rollout::Column::DsId.eq(id))
+            .filter(rollout::Column::Status.is_not_in(["finished", "stopped"]))
+            .all(&st.db)
+            .await?
+        {
+            let mut rm: rollout::ActiveModel = r.into();
+            rm.status = Set("stopped".into());
+            rm.updated_at = Set(now_ms());
+            rm.update(&st.db).await?;
+        }
+    }
+
+    // 4. Cancel in-flight actions referencing this set.
+    if mode != "none" {
+        for a in action::Entity::find()
+            .filter(action::Column::DsId.eq(id))
+            .filter(action::Column::Active.eq(true))
+            .all(&st.db)
+            .await?
+        {
+            let (aid, target_id) = (a.id, a.target_id);
+            let mut aam: action::ActiveModel = a.into();
+            if mode == "force" {
+                aam.status = Set("canceled".into());
+                aam.active = Set(false);
+                aam.updated_at = Set(now_ms());
+                aam.update(&st.db).await?;
+                crate::domain::deployment::add_action_status(
+                    &st.db,
+                    aid,
+                    "canceled",
+                    &["distribution set invalidated".into()],
+                )
+                .await?;
+                // Reset the target so it isn't left "pending" forever.
+                if let Some(t) = target::Entity::find_by_id(target_id).one(&st.db).await? {
+                    let installed = t.installed_ds_id.is_some();
+                    let mut tm: target::ActiveModel = t.into();
+                    tm.update_status = Set(if installed { "in_sync" } else { "registered" }.into());
+                    tm.updated_at = Set(now_ms());
+                    tm.update(&st.db).await?;
+                }
+            } else {
+                aam.status = Set("canceling".into());
+                aam.updated_at = Set(now_ms());
+                aam.update(&st.db).await?;
+                crate::domain::deployment::add_action_status(
+                    &st.db,
+                    aid,
+                    "canceling",
+                    &["distribution set invalidated".into()],
+                )
+                .await?;
+            }
+        }
+    }
+
+    Ok(StatusCode::OK)
 }
 
 pub async fn delete(

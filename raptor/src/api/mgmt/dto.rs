@@ -57,6 +57,7 @@ pub fn ds_rest(
         required_migration_step: ds.required_migration_step,
         complete: ds.complete,
         deleted: false,
+        valid: !ds.invalid,
         created_at: ds.created_at,
         last_modified_at: ds.updated_at,
         modules,

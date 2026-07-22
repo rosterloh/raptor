@@ -3,6 +3,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+fn default_true() -> bool {
+    true
+}
+
 /// hawkBit paged-list envelope used by every list endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PagedList<T> {
@@ -90,6 +94,9 @@ pub struct DsRest {
     pub required_migration_step: bool,
     pub complete: bool,
     pub deleted: bool,
+    /// False once the set has been invalidated (hawkBit `valid`).
+    #[serde(default = "default_true")]
+    pub valid: bool,
     pub created_at: i64,
     pub last_modified_at: i64,
     pub modules: Vec<SmRest>,
@@ -136,6 +143,44 @@ pub struct ActionRest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ActionRef {
     pub id: i64,
+}
+
+/// One tenant-configuration value (hawkBit `MgmtSystemTenantConfigurationValue`).
+/// raptor is config-file driven, so every value is `global` and read-only.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TenantConfigValue {
+    pub value: Value,
+    pub global: bool,
+}
+
+/// Fleet counters for `GET /rest/v1/system/statistics` (raptor operational
+/// aid; feeds the web console dashboard). Not a fixed hawkBit schema.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemStatistics {
+    pub total_targets: u64,
+    pub total_distribution_sets: u64,
+    pub total_software_modules: u64,
+    pub total_actions: u64,
+    pub total_rollouts: u64,
+    /// Targets grouped by `updateStatus` (in_sync / pending / error / registered).
+    pub targets_by_status: std::collections::BTreeMap<String, u64>,
+    /// Currently active (in-flight) actions.
+    pub active_actions: u64,
+}
+
+/// One entry of an action's status history
+/// (`GET /rest/v1/targets/{cid}/actions/{aid}/status`), matching hawkBit's
+/// `MgmtActionStatus` shape: the status `type`, its `messages`, and when it was
+/// reported.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionStatusRest {
+    pub id: i64,
+    #[serde(rename = "type")]
+    pub status_type: String,
+    pub messages: Vec<String>,
+    pub reported_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -212,6 +257,35 @@ pub struct DsCreate {
     pub required_migration_step: bool,
     #[serde(default)]
     pub modules: Vec<ModuleRef>,
+}
+
+/// Body of `PUT /rest/v1/distributionsets/{id}`. All fields optional; omitted
+/// fields are left unchanged (hawkBit `MgmtDistributionSetRequestBodyPut`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DsUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub required_migration_step: Option<bool>,
+}
+
+/// Body of `POST /rest/v1/distributionsets/{id}/invalidate`
+/// (hawkBit `MgmtInvalidateDistributionSetRequestBody`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DsInvalidate {
+    /// How to treat in-flight actions on the set: `force`, `soft`, or `none`
+    /// (default). hawkBit spells this `actionCancelationType`.
+    #[serde(default)]
+    pub action_cancelation_type: Option<String>,
+    /// Also stop rollouts that deploy this set.
+    #[serde(default)]
+    pub cancel_rollouts: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -358,7 +432,7 @@ mod tests {
         round_trip::<DsRest>(json!({
             "id": 1, "name": "stable", "version": "1.0", "type": "os",
             "description": null, "requiredMigrationStep": false, "complete": true,
-            "deleted": false, "createdAt": 1, "lastModifiedAt": 2,
+            "deleted": false, "valid": true, "createdAt": 1, "lastModifiedAt": 2,
             "modules": [{
                 "id": 1, "name": "fw", "version": "1.0", "type": "os",
                 "vendor": null, "description": null, "createdAt": 1, "lastModifiedAt": 2,
@@ -402,6 +476,15 @@ mod tests {
         };
         let v = serde_json::to_value(&a).unwrap();
         assert!(v.get("target").is_none());
+    }
+
+    #[test]
+    fn action_status_shape() {
+        round_trip::<ActionStatusRest>(json!({
+            "id": 7, "type": "canceled",
+            "messages": ["force canceled by operator"],
+            "reportedAt": 1699999999000i64
+        }));
     }
 
     #[test]

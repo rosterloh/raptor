@@ -63,6 +63,11 @@ pub async fn assign_ds(
             "distribution set is incomplete".into(),
         ));
     }
+    if ds.invalid {
+        return Err(AppError::BadRequest(
+            "distribution set has been invalidated".into(),
+        ));
+    }
     if let Some(current) = active_action(&st.db, target.id).await? {
         if current.ds_id == ds.id {
             return Ok(AssignResult {

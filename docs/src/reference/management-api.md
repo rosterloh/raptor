@@ -29,6 +29,7 @@ Base URL examples assume `localhost:8080`.
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/actions` | actions for this target |
 | `GET` | `/rest/v1/targets/{cid}/actions/{aid}` | one action |
+| `GET` | `/rest/v1/targets/{cid}/actions/{aid}/status` | action status history (paging/sort) |
 | `DELETE` | `/rest/v1/targets/{cid}/actions/{aid}` | cancel (`?force=true` to force) |
 | `GET` | `/rest/v1/targets/{cid}/autoConfirm` | auto-confirm state |
 | `POST` | `/rest/v1/targets/{cid}/autoConfirm/activate` | enable auto-confirm |
@@ -49,7 +50,8 @@ Base URL examples assume `localhost:8080`.
 | Method | Path | Description |
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/distributionsets` | create / list |
-| `GET` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / delete |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / update / delete |
+| `POST` | `/rest/v1/distributionsets/{id}/invalidate` | invalidate (stops rollouts / auto-assign, cancels actions) |
 | `POST` / `GET` | `/rest/v1/distributionsets/{id}/assignedSM` | add / list modules |
 
 ## Actions (fleet-wide)
@@ -57,6 +59,9 @@ Base URL examples assume `localhost:8080`.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/rest/v1/actions` | list all actions (paging/sort/FIQL) |
+| `GET` | `/rest/v1/system/configs` | tenant configuration (read-only; file-driven) |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/system/configs/{key}` | one config key (writes → 403) |
+| `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…) |
 
 ## Types (read-only)
 
