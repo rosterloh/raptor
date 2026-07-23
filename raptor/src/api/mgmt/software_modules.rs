@@ -157,6 +157,10 @@ pub async fn delete(
         .await?
         .ok_or(AppError::NotFound("software module"))?;
     super::artifacts::delete_module_artifacts(&st, m.id).await?;
+    crate::entity::sm_metadata::Entity::delete_many()
+        .filter(crate::entity::sm_metadata::Column::ModuleId.eq(m.id))
+        .exec(&st.db)
+        .await?;
     software_module::Entity::delete_by_id(m.id)
         .exec(&st.db)
         .await?;

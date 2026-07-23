@@ -58,7 +58,8 @@ installed. `configData` is always present.
             "hashes": { "sha1": "...", "md5": "...", "sha256": "..." },
             "_links": { "download-http": {"href": "..."},
                         "md5sum-http":  {"href": "..."} } }
-        ] }
+        ],
+        "metadata": [ { "key": "signature", "value": "sig-1" } ] }
     ]
   },
   "actionHistory": { "status": "RUNNING", "messages": [] }
@@ -68,6 +69,10 @@ installed. `configData` is always present.
 `download`/`update` are `forced` for a forced action and `attempt` for a soft
 one. The `confirmationBase` response is identical but keyed `confirmation`
 instead of `deployment`.
+
+A chunk's `metadata` array carries any software-module metadata marked
+`targetVisible` (see the Management API). The key is omitted entirely when a
+module has no visible metadata.
 
 ## Feedback
 
