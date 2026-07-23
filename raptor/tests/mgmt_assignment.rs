@@ -118,7 +118,7 @@ async fn new_assignment_supersedes_active_action() {
             .oneshot(common::req(
                 "POST",
                 "/rest/v1/distributionsets",
-                Some(json!([{"name": "next", "version": "2.0", "type": "os", "modules": []}])),
+                Some(json!([{"name": "next", "version": "2.0", "type": "app", "modules": []}])),
             ))
             .await
             .unwrap(),

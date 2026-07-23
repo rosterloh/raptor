@@ -1,6 +1,6 @@
 use super::dto::{target_rest, TargetRest};
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
-use crate::entity::{target, target_attribute, target_metadata};
+use crate::entity::{target, target_attribute, target_metadata, target_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
@@ -58,6 +58,12 @@ pub async fn create(
             Err(AppError::NotFound(_)) => {}
             Err(e) => return Err(e),
         }
+        if let Some(tt) = c.target_type {
+            target_type::Entity::find_by_id(tt)
+                .one(&st.db)
+                .await?
+                .ok_or(AppError::NotFound("target type"))?;
+        }
     }
 
     // Phase 2: Insert all items
@@ -72,6 +78,7 @@ pub async fn create(
             description: Set(c.description),
             security_token: Set(c.security_token.unwrap_or_else(random_token)),
             update_status: Set("unknown".into()),
+            type_id: Set(c.target_type),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -197,6 +204,38 @@ pub async fn deactivate_auto_confirm(
     Path(cid): Path<String>,
 ) -> Result<StatusCode, AppError> {
     set_auto_confirm(&st, &cid, false).await
+}
+
+/// `POST /rest/v1/targets/{cid}/targettype` — assign (or change) the target's
+/// type. Body is `{ "id": <targetTypeId> }`.
+pub async fn assign_type(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+    Json(r): Json<raptor_api_types::TypeRef>,
+) -> Result<StatusCode, AppError> {
+    let t = find_by_cid(&st.db, &cid).await?;
+    target_type::Entity::find_by_id(r.id)
+        .one(&st.db)
+        .await?
+        .ok_or(AppError::NotFound("target type"))?;
+    let mut am: target::ActiveModel = t.into();
+    am.type_id = Set(Some(r.id));
+    am.updated_at = Set(now_ms());
+    am.update(&st.db).await?;
+    Ok(StatusCode::OK)
+}
+
+/// `DELETE /rest/v1/targets/{cid}/targettype` — unassign the target's type.
+pub async fn unassign_type(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let t = find_by_cid(&st.db, &cid).await?;
+    let mut am: target::ActiveModel = t.into();
+    am.type_id = Set(None);
+    am.updated_at = Set(now_ms());
+    am.update(&st.db).await?;
+    Ok(StatusCode::OK)
 }
 
 pub async fn attributes(

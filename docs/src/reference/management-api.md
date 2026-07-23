@@ -24,6 +24,7 @@ Base URL examples assume `localhost:8080`.
 | `PUT` | `/rest/v1/targets/{cid}` | update name/description/token |
 | `DELETE` | `/rest/v1/targets/{cid}` | delete |
 | `GET` | `/rest/v1/targets/{cid}/attributes` | device-reported attributes |
+| `POST` / `DELETE` | `/rest/v1/targets/{cid}/targettype` | assign / unassign the target type |
 | `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |
 | `GET` / `PUT` / `DELETE` | `/rest/v1/targets/{cid}/metadata/{key}` | get / update / delete one entry |
 | `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action) |
@@ -69,12 +70,28 @@ Base URL examples assume `localhost:8080`.
 | `GET` / `PUT` / `DELETE` | `/rest/v1/system/configs/{key}` | one config key (writes → 403) |
 | `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…) |
 
-## Types (read-only)
+## Types
+
+Software-module, distribution-set and target types support full CRUD. The
+default `os` / `firmware` / `runtime` / `application` module types and `os` /
+`os_app` / `app` DS types are seeded, and a DS type's mandatory module types
+drive whether a distribution set is `complete`. Deleting a type that is still in
+use returns `409`.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/rest/v1/softwaremoduletypes` `[/ {id}]` | seeded module types |
-| `GET` | `/rest/v1/distributionsettypes` `[/ {id}]` | seeded DS types |
+| `POST` / `GET` | `/rest/v1/softwaremoduletypes` | create / list module types |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/softwaremoduletypes/{id}` | get / update (description) / delete |
+| `POST` / `GET` | `/rest/v1/distributionsettypes` | create (with mandatory/optional module types) / list |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsettypes/{id}` | get / update (description) / delete |
+| `GET` / `POST` | `/rest/v1/distributionsettypes/{id}/mandatorymoduletypes` | list / add mandatory module type |
+| `DELETE` | `/rest/v1/distributionsettypes/{id}/mandatorymoduletypes/{mid}` | remove mandatory module type |
+| `GET` / `POST` | `/rest/v1/distributionsettypes/{id}/optionalmoduletypes` | list / add optional module type |
+| `DELETE` | `/rest/v1/distributionsettypes/{id}/optionalmoduletypes/{mid}` | remove optional module type |
+| `POST` / `GET` | `/rest/v1/targettypes` | create (with compatible DS types) / list |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/targettypes/{id}` | get / update / delete |
+| `GET` / `POST` | `/rest/v1/targettypes/{id}/compatibledistributionsettypes` | list / add compatible DS type |
+| `DELETE` | `/rest/v1/targettypes/{id}/compatibledistributionsettypes/{dsid}` | remove compatible DS type |
 
 ## Rollouts
 

@@ -6,6 +6,7 @@ mod m20260720_000001_target_filter;
 mod m20260721_000001_confirmation;
 mod m20260722_000001_ds_invalidate;
 mod m20260723_000001_metadata;
+mod m20260723_000001_types_crud;
 
 pub struct Migrator;
 
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260721_000001_confirmation::Migration),
             Box::new(m20260722_000001_ds_invalidate::Migration),
             Box::new(m20260723_000001_metadata::Migration),
+            Box::new(m20260723_000001_types_crud::Migration),
         ]
     }
 }

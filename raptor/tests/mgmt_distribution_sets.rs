@@ -66,7 +66,7 @@ async fn ds_without_modules_incomplete_until_assigned() {
         .oneshot(common::req(
             "POST",
             "/rest/v1/distributionsets",
-            Some(json!([{"name": "empty", "version": "1", "type": "app"}])),
+            Some(json!([{"name": "empty", "version": "1", "type": "os"}])),
         ))
         .await
         .unwrap();
