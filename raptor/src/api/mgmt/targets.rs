@@ -1,6 +1,6 @@
 use super::dto::{target_rest, TargetRest};
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
-use crate::entity::{target, target_attribute, target_type};
+use crate::entity::{target, target_attribute, target_metadata, target_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
@@ -158,6 +158,10 @@ pub async fn delete(
     let t = find_by_cid(&st.db, &cid).await?;
     target_attribute::Entity::delete_many()
         .filter(target_attribute::Column::TargetId.eq(t.id))
+        .exec(&st.db)
+        .await?;
+    target_metadata::Entity::delete_many()
+        .filter(target_metadata::Column::TargetId.eq(t.id))
         .exec(&st.db)
         .await?;
     t.delete(&st.db).await?;

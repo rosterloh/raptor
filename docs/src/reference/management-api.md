@@ -25,6 +25,8 @@ Base URL examples assume `localhost:8080`.
 | `DELETE` | `/rest/v1/targets/{cid}` | delete |
 | `GET` | `/rest/v1/targets/{cid}/attributes` | device-reported attributes |
 | `POST` / `DELETE` | `/rest/v1/targets/{cid}/targettype` | assign / unassign the target type |
+| `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/targets/{cid}/metadata/{key}` | get / update / delete one entry |
 | `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action) |
 | `GET` | `/rest/v1/targets/{cid}/assignedDS` | currently assigned DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
@@ -45,6 +47,8 @@ Base URL examples assume `localhost:8080`.
 | `POST` / `GET` | `/rest/v1/softwaremodules/{id}/artifacts` | upload (multipart) / list |
 | `GET` / `DELETE` | `/rest/v1/softwaremodules/{id}/artifacts/{aid}` | get / delete |
 | `GET` | `/rest/v1/softwaremodules/{id}/artifacts/{aid}/download` | download |
+| `POST` / `GET` | `/rest/v1/softwaremodules/{id}/metadata` | create (JSON array) / list metadata |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/softwaremodules/{id}/metadata/{key}` | get / update / delete one entry (`targetVisible` surfaces to devices) |
 
 ## Distribution sets
 
@@ -54,6 +58,8 @@ Base URL examples assume `localhost:8080`.
 | `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsets/{id}` | get / update / delete |
 | `POST` | `/rest/v1/distributionsets/{id}/invalidate` | invalidate (stops rollouts / auto-assign, cancels actions) |
 | `POST` / `GET` | `/rest/v1/distributionsets/{id}/assignedSM` | add / list modules |
+| `POST` / `GET` | `/rest/v1/distributionsets/{id}/metadata` | create (JSON array) / list metadata |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsets/{id}/metadata/{key}` | get / update / delete one entry |
 
 ## Actions (fleet-wide)
 

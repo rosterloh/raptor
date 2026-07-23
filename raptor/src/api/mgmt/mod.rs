@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod distribution_sets;
 pub mod dto;
 pub mod login;
+pub mod metadata;
 pub mod rollouts;
 pub mod software_modules;
 pub mod system;
@@ -83,6 +84,16 @@ pub fn router(state: AppState) -> Router<AppState> {
             axum::routing::delete(types::tt_remove_compat),
         )
         .route(
+            "/rest/v1/softwaremodules/{id}/metadata",
+            post(metadata::sm_create).get(metadata::sm_list),
+        )
+        .route(
+            "/rest/v1/softwaremodules/{id}/metadata/{key}",
+            get(metadata::sm_get)
+                .put(metadata::sm_update)
+                .delete(metadata::sm_delete),
+        )
+        .route(
             "/rest/v1/softwaremodules/{id}/artifacts",
             post(artifacts::upload)
                 .get(artifacts::list)
@@ -112,6 +123,16 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(targets::assign_type).delete(targets::unassign_type),
         )
         .route(
+            "/rest/v1/targets/{cid}/metadata",
+            post(metadata::target_create).get(metadata::target_list),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/metadata/{key}",
+            get(metadata::target_get)
+                .put(metadata::target_update)
+                .delete(metadata::target_delete),
+        )
+        .route(
             "/rest/v1/targets/{cid}/autoConfirm",
             get(targets::auto_confirm_status),
         )
@@ -132,6 +153,16 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(distribution_sets::get_one)
                 .put(distribution_sets::update)
                 .delete(distribution_sets::delete),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/metadata",
+            post(metadata::ds_create).get(metadata::ds_list),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/metadata/{key}",
+            get(metadata::ds_get)
+                .put(metadata::ds_update)
+                .delete(metadata::ds_delete),
         )
         .route(
             "/rest/v1/distributionsets/{id}/assignedSM",

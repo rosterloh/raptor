@@ -1,5 +1,6 @@
 use crate::entity::{
-    action, action_status, action_status_message, artifact, ds_module, software_module, target,
+    action, action_status, action_status_message, artifact, ds_module, sm_metadata,
+    software_module, target,
 };
 use crate::error::AppError;
 use crate::state::AppState;
@@ -90,12 +91,29 @@ pub async fn deployment_json_keyed(
             .map(|ar| ddi_artifact_json(ar, &ddi, m.id, https))
             .collect();
         let key = keys.get(&m.type_id).map(String::as_str).unwrap_or("os");
-        chunks.push(json!({
+        let mut chunk = json!({
             "part": part_for(key),
             "version": m.version,
             "name": m.name,
             "artifacts": artifacts
-        }));
+        });
+        // targetVisible metadata surfaces to the device (hawkBit parity);
+        // non-visible entries stay Management-API only.
+        let visible = sm_metadata::Entity::find()
+            .filter(sm_metadata::Column::ModuleId.eq(m.id))
+            .filter(sm_metadata::Column::TargetVisible.eq(true))
+            .order_by(sm_metadata::Column::Key, Order::Asc)
+            .all(&st.db)
+            .await?;
+        if !visible.is_empty() {
+            chunk["metadata"] = Value::Array(
+                visible
+                    .iter()
+                    .map(|md| json!({"key": md.key, "value": md.value}))
+                    .collect(),
+            );
+        }
+        chunks.push(chunk);
     }
 
     // action history: last few status entries

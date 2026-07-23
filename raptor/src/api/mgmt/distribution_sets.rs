@@ -413,6 +413,10 @@ pub async fn delete(
         .filter(ds_module::Column::DsId.eq(ds.id))
         .exec(&st.db)
         .await?;
+    crate::entity::ds_metadata::Entity::delete_many()
+        .filter(crate::entity::ds_metadata::Column::DsId.eq(ds.id))
+        .exec(&st.db)
+        .await?;
     distribution_set::Entity::delete_by_id(ds.id)
         .exec(&st.db)
         .await?;
