@@ -62,6 +62,9 @@ pub struct TargetRest {
     pub ip_address: Option<String>,
     pub last_controller_request_at: Option<i64>,
     pub poll_status: Option<PollStatus>,
+    /// Assigned target type id, if any (hawkBit `targetType`).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub target_type: Option<i64>,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }
@@ -205,6 +208,8 @@ pub struct TargetCreate {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub security_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub target_type: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -242,6 +247,84 @@ pub struct SmUpdate {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModuleRef {
     pub id: i64,
+}
+
+/// Bare `{ "id": N }` reference used by type composition/compatibility bodies.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct TypeRef {
+    pub id: i64,
+}
+
+// ---- type CRUD request bodies ----
+
+/// Body of `POST /rest/v1/softwaremoduletypes` (hawkBit
+/// `MgmtSoftwareModuleTypeRequestBodyPost`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SmTypeCreate {
+    pub key: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    /// Max modules of this type per distribution set (hawkBit default 1).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub max_assignments: Option<i32>,
+}
+
+/// Body of `PUT /rest/v1/softwaremoduletypes/{id}` — only description is mutable
+/// (key/name are immutable in hawkBit).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct SmTypeUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+}
+
+/// Body of `POST /rest/v1/distributionsettypes` (hawkBit
+/// `MgmtDistributionSetTypeRequestBodyPost`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DsTypeCreate {
+    pub key: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub mandatorymodules: Vec<TypeRef>,
+    #[serde(default)]
+    pub optionalmodules: Vec<TypeRef>,
+}
+
+/// Body of `PUT /rest/v1/distributionsettypes/{id}` — only description mutable.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DsTypeUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+}
+
+/// Body of `POST /rest/v1/targettypes` (hawkBit
+/// `MgmtTargetTypeRequestBodyPost`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetTypeCreate {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub colour: Option<String>,
+    #[serde(default)]
+    pub compatibledistributionsettypes: Vec<TypeRef>,
+}
+
+/// Body of `PUT /rest/v1/targettypes/{id}`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetTypeUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub colour: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -553,6 +636,62 @@ mod tests {
             activated_at: None,
         };
         assert_eq!(serde_json::to_value(&s).unwrap(), json!({"active": false}));
+    }
+
+    #[test]
+    fn sm_type_create_shape() {
+        round_trip::<SmTypeCreate>(json!({
+            "key": "container", "name": "Container",
+            "description": "OCI images", "maxAssignments": 3
+        }));
+        // optional fields omitted when None
+        let c = SmTypeCreate {
+            key: "os".into(),
+            name: "OS".into(),
+            description: None,
+            max_assignments: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            json!({"key": "os", "name": "OS"})
+        );
+    }
+
+    #[test]
+    fn ds_type_create_shape() {
+        round_trip::<DsTypeCreate>(json!({
+            "key": "os_app", "name": "OS with apps", "description": "d",
+            "mandatorymodules": [{"id": 1}], "optionalmodules": [{"id": 4}]
+        }));
+    }
+
+    #[test]
+    fn target_type_create_shape() {
+        round_trip::<TargetTypeCreate>(json!({
+            "name": "gateway", "description": "edge", "colour": "#ff0000",
+            "compatibledistributionsettypes": [{"id": 1}, {"id": 2}]
+        }));
+    }
+
+    #[test]
+    fn target_type_field_omitted_when_none() {
+        let t = TargetRest {
+            controller_id: "d1".into(),
+            name: "d1".into(),
+            description: None,
+            update_status: "unknown".into(),
+            security_token: "x".into(),
+            created_at: 1,
+            last_modified_at: 2,
+            address: None,
+            ip_address: None,
+            last_controller_request_at: None,
+            poll_status: None,
+            target_type: None,
+            links: serde_json::Value::Null,
+        };
+        let v = serde_json::to_value(&t).unwrap();
+        assert!(v.get("targetType").is_none());
     }
 
     #[test]

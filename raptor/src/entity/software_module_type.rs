@@ -8,6 +8,9 @@ pub struct Model {
     #[sea_orm(unique)]
     pub key: String,
     pub name: String,
+    pub description: Option<String>,
+    /// How many modules of this type a distribution set may contain.
+    pub max_assignments: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

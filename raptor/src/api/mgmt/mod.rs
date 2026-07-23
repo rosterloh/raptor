@@ -28,10 +28,60 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .put(software_modules::update)
                 .delete(software_modules::delete),
         )
-        .route("/rest/v1/softwaremoduletypes", get(types::sm_types))
-        .route("/rest/v1/softwaremoduletypes/{id}", get(types::sm_type))
-        .route("/rest/v1/distributionsettypes", get(types::ds_types))
-        .route("/rest/v1/distributionsettypes/{id}", get(types::ds_type))
+        .route(
+            "/rest/v1/softwaremoduletypes",
+            get(types::sm_types).post(types::sm_type_create),
+        )
+        .route(
+            "/rest/v1/softwaremoduletypes/{id}",
+            get(types::sm_type)
+                .put(types::sm_type_update)
+                .delete(types::sm_type_delete),
+        )
+        .route(
+            "/rest/v1/distributionsettypes",
+            get(types::ds_types).post(types::ds_type_create),
+        )
+        .route(
+            "/rest/v1/distributionsettypes/{id}",
+            get(types::ds_type)
+                .put(types::ds_type_update)
+                .delete(types::ds_type_delete),
+        )
+        .route(
+            "/rest/v1/distributionsettypes/{id}/mandatorymoduletypes",
+            get(types::ds_type_mandatory).post(types::ds_type_add_mandatory),
+        )
+        .route(
+            "/rest/v1/distributionsettypes/{id}/mandatorymoduletypes/{mid}",
+            axum::routing::delete(types::ds_type_remove_module),
+        )
+        .route(
+            "/rest/v1/distributionsettypes/{id}/optionalmoduletypes",
+            get(types::ds_type_optional).post(types::ds_type_add_optional),
+        )
+        .route(
+            "/rest/v1/distributionsettypes/{id}/optionalmoduletypes/{mid}",
+            axum::routing::delete(types::ds_type_remove_module),
+        )
+        .route(
+            "/rest/v1/targettypes",
+            get(types::tt_list).post(types::tt_create),
+        )
+        .route(
+            "/rest/v1/targettypes/{id}",
+            get(types::tt_one)
+                .put(types::tt_update)
+                .delete(types::tt_delete),
+        )
+        .route(
+            "/rest/v1/targettypes/{id}/compatibledistributionsettypes",
+            get(types::tt_compat_list).post(types::tt_add_compat),
+        )
+        .route(
+            "/rest/v1/targettypes/{id}/compatibledistributionsettypes/{dsid}",
+            axum::routing::delete(types::tt_remove_compat),
+        )
         .route(
             "/rest/v1/softwaremodules/{id}/artifacts",
             post(artifacts::upload)
@@ -56,6 +106,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/rest/v1/targets/{cid}/attributes",
             get(targets::attributes),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/targettype",
+            post(targets::assign_type).delete(targets::unassign_type),
         )
         .route(
             "/rest/v1/targets/{cid}/autoConfirm",

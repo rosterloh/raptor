@@ -2,8 +2,8 @@ use super::dto::{ds_rest, DsRest, SmRest};
 use super::software_modules::type_keys;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{
-    action, distribution_set, distribution_set_type, ds_module, rollout, software_module, target,
-    target_filter,
+    action, distribution_set, distribution_set_type, ds_module, ds_type_module, rollout,
+    software_module, target, target_filter,
 };
 use crate::error::AppError;
 use crate::state::AppState;
@@ -26,6 +26,46 @@ fn fiql_map(f: &str) -> Option<distribution_set::Column> {
         "complete" => Some(distribution_set::Column::Complete),
         _ => None,
     }
+}
+
+/// A distribution set is `complete` when every mandatory software-module type of
+/// its distribution-set type is represented by at least one assigned module.
+/// A type with no mandatory module types is trivially complete (hawkBit).
+pub async fn compute_complete(
+    db: &sea_orm::DatabaseConnection,
+    ds_type_id: i64,
+    ds_id: i64,
+) -> Result<bool, AppError> {
+    let mandatory: Vec<i64> = ds_type_module::Entity::find()
+        .filter(ds_type_module::Column::DsTypeId.eq(ds_type_id))
+        .filter(ds_type_module::Column::Mandatory.eq(true))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|r| r.module_type_id)
+        .collect();
+    if mandatory.is_empty() {
+        return Ok(true);
+    }
+    let module_ids: Vec<i64> = ds_module::Entity::find()
+        .filter(ds_module::Column::DsId.eq(ds_id))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|l| l.module_id)
+        .collect();
+    let present: HashSet<i64> = if module_ids.is_empty() {
+        HashSet::new()
+    } else {
+        software_module::Entity::find()
+            .filter(software_module::Column::Id.is_in(module_ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|m| m.type_id)
+            .collect()
+    };
+    Ok(mandatory.iter().all(|m| present.contains(m)))
 }
 
 pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<SmRest>, AppError> {
@@ -137,7 +177,7 @@ pub async fn create(
             version: Set(c.version),
             description: Set(c.description),
             required_migration_step: Set(c.required_migration_step),
-            complete: Set(!c.modules.is_empty()),
+            complete: Set(false),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -152,6 +192,11 @@ pub async fn create(
             .insert(&st.db)
             .await?;
         }
+        // Completeness derives from the type's mandatory module types.
+        let complete = compute_complete(&st.db, ty.id, ds.id).await?;
+        let mut am: distribution_set::ActiveModel = ds.into();
+        am.complete = Set(complete);
+        let ds = am.update(&st.db).await?;
         out.push(ds_with_modules(&st, &ds, &base).await?);
     }
     Ok((StatusCode::CREATED, Json(out)))
@@ -402,8 +447,9 @@ pub async fn assign_modules(
             .await?;
         }
     }
+    let complete = compute_complete(&st.db, ds.type_id, ds.id).await?;
     let mut am: distribution_set::ActiveModel = ds.into();
-    am.complete = Set(true);
+    am.complete = Set(complete);
     am.updated_at = Set(now_ms());
     am.update(&st.db).await?;
     Ok(StatusCode::OK)

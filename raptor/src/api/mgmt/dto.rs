@@ -38,6 +38,7 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> Ta
         ip_address: t.address.clone(),
         last_controller_request_at: t.last_poll_at,
         poll_status,
+        target_type: t.type_id,
         links: json!({"self": {"href": format!("{base}/rest/v1/targets/{}", t.controller_id)}}),
     }
 }

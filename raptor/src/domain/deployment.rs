@@ -1,4 +1,6 @@
-use crate::entity::{action, action_status, action_status_message, distribution_set, target};
+use crate::entity::{
+    action, action_status, action_status_message, distribution_set, target, target_type_ds_type,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
@@ -68,6 +70,18 @@ pub async fn assign_ds(
         return Err(AppError::BadRequest(
             "distribution set has been invalidated".into(),
         ));
+    }
+    // A typed target only accepts distribution sets whose type is compatible.
+    if let Some(tt_id) = target.type_id {
+        let compatible = target_type_ds_type::Entity::find_by_id((tt_id, ds.type_id))
+            .one(&st.db)
+            .await?
+            .is_some();
+        if !compatible {
+            return Err(AppError::BadRequest(
+                "distribution set type is not compatible with the target type".into(),
+            ));
+        }
     }
     if let Some(current) = active_action(&st.db, target.id).await? {
         if current.ds_id == ds.id {
