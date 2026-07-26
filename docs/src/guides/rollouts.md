@@ -66,6 +66,31 @@ curl -u admin:pw localhost:8080/rest/v1/rollouts/1/deploygroups/5
 curl -u admin:pw localhost:8080/rest/v1/rollouts/1/deploygroups/5/targets
 ```
 
+## Tracking progress
+
+Rollouts and groups both carry `totalTargetsPerStatus`, hawkBit's breakdown of
+their targets by deployment outcome:
+
+```json
+{
+  "id": 1, "name": "fleet-1.1", "status": "running", "totalTargets": 9,
+  "totalTargetsPerStatus": {
+    "notstarted": 0, "scheduled": 3, "running": 3,
+    "error": 1, "finished": 2, "cancelled": 0
+  }
+}
+```
+
+- `notstarted` — the rollout has not been started, so nothing is deployed yet.
+- `scheduled` — the group is waiting its turn; raptor creates actions only when a
+  group is scheduled, so these targets have no action yet.
+- `running` — an action is in flight (including `canceling` and, with the
+  confirmation flow on, `wait_for_confirmation`).
+- `finished` / `error` / `cancelled` — the action's terminal state.
+
+A rollout's counts are the sum of its groups'. The web console renders both as
+progress bars — see the [Web Console guide](web-console.md).
+
 ## Evaluator cadence
 
 The background evaluator runs every `rollout_eval_interval_secs` seconds

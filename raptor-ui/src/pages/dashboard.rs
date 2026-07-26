@@ -37,15 +37,21 @@ pub fn Dashboard() -> Element {
                             h2 { class: "mb-2 font-semibold text-zinc-100", "Active rollouts" }
                             ul { class: "space-y-2 text-sm",
                                 for r in active_rollouts.clone() {
-                                    li { key: "{r.id}", class: "flex items-center justify-between",
-                                        Link {
-                                            to: Route::RolloutDetail { id: r.id },
-                                            class: "text-emerald-400 hover:underline",
-                                            "{r.name}"
+                                    li { key: "{r.id}", class: "space-y-1",
+                                        div { class: "flex items-center justify-between",
+                                            Link {
+                                                to: Route::RolloutDetail { id: r.id },
+                                                class: "text-emerald-400 hover:underline",
+                                                "{r.name}"
+                                            }
+                                            span { class: "flex items-center gap-2 text-zinc-500",
+                                                "{r.total_targets_per_status.finished} / {r.total_targets} targets finished"
+                                                StatusBadge { status: r.status.clone() }
+                                            }
                                         }
-                                        span { class: "flex items-center gap-2 text-zinc-500",
-                                            "{r.total_targets} targets"
-                                            StatusBadge { status: r.status.clone() }
+                                        ProgressBar {
+                                            counts: r.total_targets_per_status,
+                                            total: r.total_targets,
                                         }
                                     }
                                 }

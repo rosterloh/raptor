@@ -36,6 +36,7 @@ pub fn Rollouts() -> Element {
                             th { class: TH, "Name" }
                             th { class: TH, "Status" }
                             th { class: TH, "Targets" }
+                            th { class: TH, "Progress" }
                             th { class: TH, "Created" }
                         }
                     }
@@ -50,6 +51,17 @@ pub fn Rollouts() -> Element {
                                 td { class: TD, "{r.name}" }
                                 td { class: TD, StatusBadge { status: r.status.clone() } }
                                 td { class: TD, "{r.total_targets}" }
+                                td { class: TD,
+                                    div { class: "w-44",
+                                        ProgressBar {
+                                            counts: r.total_targets_per_status,
+                                            total: r.total_targets,
+                                        }
+                                        p { class: "mt-1 text-xs text-zinc-500",
+                                            "{r.total_targets_per_status.finished} of {r.total_targets} finished"
+                                        }
+                                    }
+                                }
                                 td { class: TD, {logic::format_ts(r.created_at)} }
                             }
                         }

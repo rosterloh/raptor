@@ -32,13 +32,26 @@ re-enter credentials on every request.
 
 The console surfaces the core read/observe workflow and common actions:
 
-- a dashboard (polling the actions feed),
+- a dashboard (polling the actions feed and active rollouts),
 - targets and target detail,
 - distribution sets and detail,
 - software modules and detail,
+- rollouts and rollout detail,
 - the actions feed.
 
-> **Note:** The console tracks the API and lags it slightly. Pages for rollouts,
-> target filters, and the confirmation flow are planned (tracked as issues on
-> GitHub). Anything not yet in the UI is always available through the
+### Rollouts
+
+The rollouts list shows each rollout's status and a progress bar of its targets;
+the detail page adds the deploy groups, each with its own bar and a legend of
+targets per status (finished / running / error / cancelled / scheduled / not
+started), refreshed by the same 5s polling as the rest of the console.
+
+Lifecycle buttons — **Start**, **Pause**, **Resume**, **Delete** — appear for the
+transitions the rollout's current status allows, so an operator can drive a
+rollout end to end without touching the API. Creating a rollout is still
+API-only; see the [Rollouts guide](rollouts.md).
+
+> **Note:** The console tracks the API and lags it slightly. Pages for target
+> filters and the confirmation flow are planned (tracked as issues on GitHub).
+> Anything not yet in the UI is always available through the
 > [Management API](../reference/management-api.md).

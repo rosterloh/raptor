@@ -55,6 +55,10 @@ pub fn RolloutDetail(id: i64) -> Element {
                         StatusBadge { status: r.status.clone() }
                         span { class: "text-sm text-zinc-400", "{r.total_targets} targets" }
                     }
+                    div { class: "mb-4 space-y-2",
+                        ProgressBar { counts: r.total_targets_per_status, total: r.total_targets }
+                        ProgressLegend { counts: r.total_targets_per_status }
+                    }
                     dl { class: "space-y-1 text-sm",
                         if let Some(d) = r.description.clone() {
                             Row { k: "Description", v: d }
@@ -110,18 +114,11 @@ fn Groups(
                 Some(Ok(page)) => {
                     let total = page.content.len();
                     let finished = page.content.iter().filter(|g| g.status == "finished").count();
-                    let pct = (finished * 100).checked_div(total).unwrap_or(0);
                     rsx! {
                         Card {
                             div { class: "mb-3 flex items-center justify-between",
                                 h2 { class: "font-semibold text-zinc-100", "Groups" }
-                                span { class: "text-sm text-zinc-400", "{finished} / {total} finished" }
-                            }
-                            div { class: "mb-4 h-2 w-full overflow-hidden rounded bg-zinc-800",
-                                div {
-                                    class: "h-full rounded bg-emerald-500 transition-all",
-                                    style: "width: {pct}%",
-                                }
+                                span { class: "text-sm text-zinc-400", "{finished} / {total} groups finished" }
                             }
                             table { class: TABLE,
                                 thead {
@@ -129,6 +126,7 @@ fn Groups(
                                         th { class: TH, "Group" }
                                         th { class: TH, "Status" }
                                         th { class: TH, "Targets" }
+                                        th { class: TH, "Targets by status" }
                                     }
                                 }
                                 tbody {
@@ -137,6 +135,15 @@ fn Groups(
                                             td { class: TD, "{g.name}" }
                                             td { class: TD, StatusBadge { status: g.status.clone() } }
                                             td { class: TD, "{g.total_targets}" }
+                                            td { class: TD,
+                                                div { class: "w-56 space-y-1",
+                                                    ProgressBar {
+                                                        counts: g.total_targets_per_status,
+                                                        total: g.total_targets,
+                                                    }
+                                                    ProgressLegend { counts: g.total_targets_per_status }
+                                                }
+                                            }
                                         }
                                     }
                                 }

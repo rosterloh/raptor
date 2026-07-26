@@ -26,6 +26,17 @@ async fn find_rollout(st: &AppState, id: i64) -> Result<rollout::Model, AppError
         .ok_or(AppError::NotFound("rollout"))
 }
 
+/// Renders one rollout with its target counts (a fresh count query — lifecycle
+/// endpoints return the rollout right after mutating it).
+async fn one_rest(st: &AppState, r: &rollout::Model, base: &str) -> Result<RolloutRest, AppError> {
+    let counts = crate::domain::rollout::counts_for_rollouts(st, std::slice::from_ref(r)).await?;
+    Ok(rollout_rest(
+        r,
+        counts.get(&r.id).copied().unwrap_or_default(),
+        base,
+    ))
+}
+
 pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
@@ -33,7 +44,7 @@ pub async fn create(
 ) -> Result<(StatusCode, Json<RolloutRest>), AppError> {
     let r = crate::domain::rollout::create_rollout(&st, &body).await?;
     let base = base_url(&st.cfg, &headers);
-    Ok((StatusCode::CREATED, Json(rollout_rest(&r, &base))))
+    Ok((StatusCode::CREATED, Json(one_rest(&st, &r, &base).await?)))
 }
 
 pub async fn list(
@@ -49,8 +60,11 @@ pub async fn list(
     }
     sel = apply_sort(sel, &p.sort, &fiql_map)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
+    let counts = crate::domain::rollout::counts_for_rollouts(&st, &rows).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(|r| rollout_rest(r, &base)).collect(),
+        rows.iter()
+            .map(|r| rollout_rest(r, counts.get(&r.id).copied().unwrap_or_default(), &base))
+            .collect(),
         total,
     )))
 }
@@ -61,7 +75,8 @@ pub async fn get_one(
     Path(id): Path<i64>,
 ) -> Result<Json<RolloutRest>, AppError> {
     let r = find_rollout(&st, id).await?;
-    Ok(Json(rollout_rest(&r, &base_url(&st.cfg, &headers))))
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(one_rest(&st, &r, &base).await?))
 }
 
 pub async fn delete(
@@ -80,7 +95,8 @@ pub async fn start(
 ) -> Result<Json<RolloutRest>, AppError> {
     let r = find_rollout(&st, id).await?;
     let r = crate::domain::rollout::start_rollout(&st, r).await?;
-    Ok(Json(rollout_rest(&r, &base_url(&st.cfg, &headers))))
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(one_rest(&st, &r, &base).await?))
 }
 
 pub async fn pause(
@@ -90,7 +106,8 @@ pub async fn pause(
 ) -> Result<Json<RolloutRest>, AppError> {
     let r = find_rollout(&st, id).await?;
     let r = crate::domain::rollout::pause_rollout(&st, r).await?;
-    Ok(Json(rollout_rest(&r, &base_url(&st.cfg, &headers))))
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(one_rest(&st, &r, &base).await?))
 }
 
 pub async fn resume(
@@ -100,7 +117,8 @@ pub async fn resume(
 ) -> Result<Json<RolloutRest>, AppError> {
     let r = find_rollout(&st, id).await?;
     let r = crate::domain::rollout::resume_rollout(&st, r).await?;
-    Ok(Json(rollout_rest(&r, &base_url(&st.cfg, &headers))))
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(one_rest(&st, &r, &base).await?))
 }
 
 pub async fn groups(
@@ -115,9 +133,17 @@ pub async fn groups(
         .filter(rollout_group::Column::RolloutId.eq(r.id))
         .order_by_asc(rollout_group::Column::OrderIndex);
     let (rows, total) = page(&st.db, sel, &p).await?;
+    let counts = crate::domain::rollout::counts_for_groups(&st, &r, &rows).await?;
     Ok(Json(Paged::new(
         rows.iter()
-            .map(|g| rollout_group_rest(g, r.id, &base))
+            .map(|g| {
+                rollout_group_rest(
+                    g,
+                    r.id,
+                    counts.get(&g.id).copied().unwrap_or_default(),
+                    &base,
+                )
+            })
             .collect(),
         total,
     )))
@@ -134,9 +160,15 @@ pub async fn group_one(
         .await?
         .filter(|g| g.rollout_id == r.id)
         .ok_or(AppError::NotFound("rollout group"))?;
+    let counts = crate::domain::rollout::counts_for_groups(&st, &r, std::slice::from_ref(&g))
+        .await?
+        .get(&g.id)
+        .copied()
+        .unwrap_or_default();
     Ok(Json(rollout_group_rest(
         &g,
         r.id,
+        counts,
         &base_url(&st.cfg, &headers),
     )))
 }
