@@ -106,11 +106,13 @@ already-tagged entity succeeds without creating a duplicate.
 | `POST` / `GET` | `/rest/v1/targettags` | create (array body) / list |
 | `GET` / `PUT` / `DELETE` | `/rest/v1/targettags/{id}` | get / update / delete |
 | `GET` | `/rest/v1/targettags/{id}/assigned` | list tagged targets (paging, `sort=`, `q=`) |
+| `GET` | `/rest/v1/targets/{cid}/tags` | tags carried by one target (raptor extension) |
 | `POST` / `DELETE` | `/rest/v1/targettags/{id}/assigned` | bulk assign / unassign, body `["dev-1","dev-2"]` |
 | `POST` / `DELETE` | `/rest/v1/targettags/{id}/assigned/{cid}` | assign / unassign one target |
 | `POST` / `GET` | `/rest/v1/distributionsettags` | create (array body) / list |
 | `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsettags/{id}` | get / update / delete |
 | `GET` | `/rest/v1/distributionsettags/{id}/assigned` | list tagged distribution sets |
+| `GET` | `/rest/v1/distributionsets/{id}/tags` | tags carried by one set (raptor extension) |
 | `POST` / `DELETE` | `/rest/v1/distributionsettags/{id}/assigned` | bulk assign / unassign, body `[1,2]` |
 | `POST` / `DELETE` | `/rest/v1/distributionsettags/{id}/assigned/{dsid}` | assign / unassign one set |
 

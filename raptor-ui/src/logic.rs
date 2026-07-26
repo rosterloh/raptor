@@ -16,6 +16,36 @@ pub fn fiql_contains(fields: &[&str], term: &str) -> Option<String> {
     )
 }
 
+/// ANDs FIQL terms, parenthesising each so an OR group from
+/// [`fiql_contains`] keeps its meaning — `;` binds tighter than `,`, so
+/// `a==1,b==1;tag==x` would otherwise read as `a==1 OR (b==1 AND tag==x)`.
+pub fn fiql_and(terms: &[Option<String>]) -> Option<String> {
+    let parts: Vec<String> = terms.iter().flatten().map(|t| format!("({t})")).collect();
+    match parts.len() {
+        0 => None,
+        _ => Some(parts.join(";")),
+    }
+}
+
+/// The FIQL term selecting one tag by name. Tag names are user input, so the
+/// value is quoted — a name containing `;`, `,` or a space would otherwise end
+/// the term early.
+pub fn fiql_tag(name: &str) -> Option<String> {
+    let n = name.trim();
+    (!n.is_empty()).then(|| format!("tag=='{}'", n.replace('\'', "")))
+}
+
+/// A tag's colour, validated for use in a `style` attribute. Colours are
+/// free-form user input that would otherwise be interpolated into CSS, so
+/// anything that isn't a plain `#rgb` / `#rrggbb` hex literal is dropped and
+/// the chip falls back to its neutral styling.
+pub fn tag_colour(colour: Option<&str>) -> Option<String> {
+    let c = colour?.trim();
+    let hex = c.strip_prefix('#')?;
+    let valid = matches!(hex.len(), 3 | 6) && hex.bytes().all(|b| b.is_ascii_hexdigit());
+    valid.then(|| format!("#{hex}"))
+}
+
 /// Percent-encode everything outside RFC 3986 unreserved characters.
 pub fn urlencode(s: &str) -> String {
     s.bytes()
@@ -136,6 +166,38 @@ mod tests {
         );
         assert_eq!(fiql_contains(&["name"], "  "), None);
         assert_eq!(fiql_contains(&["name"], ""), None);
+    }
+
+    #[test]
+    fn fiql_and_parenthesises_or_groups() {
+        assert_eq!(
+            fiql_and(&[fiql_contains(&["name"], "dev"), fiql_tag("beta")]),
+            Some("(name==*dev*);(tag=='beta')".to_string())
+        );
+        // a single term still round-trips, and empties drop out
+        assert_eq!(fiql_and(&[fiql_tag("beta")]), Some("(tag=='beta')".into()));
+        assert_eq!(fiql_and(&[None, None]), None);
+        assert_eq!(fiql_and(&[]), None);
+    }
+
+    #[test]
+    fn fiql_tag_quotes_the_name() {
+        assert_eq!(fiql_tag("eu west"), Some("tag=='eu west'".into()));
+        assert_eq!(fiql_tag("  "), None);
+        // a quote in the name can't break out of the quoted value
+        assert_eq!(fiql_tag("a'b"), Some("tag=='ab'".into()));
+    }
+
+    #[test]
+    fn tag_colour_accepts_only_hex() {
+        assert_eq!(tag_colour(Some("#ff0000")), Some("#ff0000".into()));
+        assert_eq!(tag_colour(Some(" #abc ")), Some("#abc".into()));
+        assert_eq!(tag_colour(None), None);
+        assert_eq!(tag_colour(Some("red")), None);
+        assert_eq!(tag_colour(Some("#12345")), None);
+        assert_eq!(tag_colour(Some("#zzzzzz")), None);
+        // no CSS injection through the style attribute
+        assert_eq!(tag_colour(Some("#fff;background:url(x)")), None);
     }
 
     #[test]

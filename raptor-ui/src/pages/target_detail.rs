@@ -1,5 +1,6 @@
 use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
 use crate::components::*;
+use crate::pages::{EntityTags, TagKind};
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
 
@@ -12,6 +13,7 @@ pub fn TargetDetail(cid: String) -> Element {
     let installed = use_resource(move || async move { api::installed_ds(&cid_s()).await });
     let mut actions =
         use_resource(move || async move { api::target_actions(&cid_s(), 0, 10).await });
+    let tags = use_resource(move || async move { api::target_tags(&cid_s()).await });
     use_polling(actions);
 
     let mut show_assign = use_signal(|| false);
@@ -58,6 +60,9 @@ pub fn TargetDetail(cid: String) -> Element {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Distribution sets" }
                 DsSummary { label: "Assigned", res: assigned }
                 DsSummary { label: "Installed", res: installed }
+            }
+            Card {
+                EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
             }
             Card {
                 h2 { class: "mb-2 font-semibold text-zinc-100", "Attributes" }

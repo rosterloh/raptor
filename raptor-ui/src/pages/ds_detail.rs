@@ -1,11 +1,13 @@
 use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
 use crate::components::*;
+use crate::pages::{EntityTags, TagKind};
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
 
 #[component]
 pub fn DsDetail(id: i64) -> Element {
     let mut ds = use_resource(move || async move { api::get_ds(id).await });
+    let tags = use_resource(move || async move { api::ds_tags(id).await });
     let mut show_modules = use_signal(|| false);
     let mut show_deploy = use_signal(|| false);
     let mut confirm_delete = use_signal(|| false);
@@ -43,6 +45,9 @@ pub fn DsDetail(id: i64) -> Element {
                             }
                         }
                     }
+                }
+                Card { class: "mt-4",
+                    EntityTags { kind: TagKind::Ds, entity_key: id.to_string(), tags }
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| ds.restart() } },
