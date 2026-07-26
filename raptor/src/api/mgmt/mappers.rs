@@ -1,3 +1,8 @@
+//! Entity-to-REST mapping functions shared across the management API handlers
+//! (software modules, targets, distribution sets). The actual DTO/REST struct
+//! definitions live in the `raptor-api-types` crate; this module only builds
+//! them from SeaORM entity models.
+
 use crate::entity::{distribution_set, software_module, target};
 pub use raptor_api_types::{DsRest, PollStatus, SmRest, TargetRest};
 use serde_json::json;

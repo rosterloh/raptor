@@ -1,3 +1,7 @@
+//! Deployment action endpoints: distribution-set assignment on a target
+//! (`/rest/v1/targets/{cid}/assignedDS`, `installedDS`), the per-target and
+//! fleet-wide action listings, and action cancellation.
+
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::domain::deployment::{action_rest, assign_ds};
 use crate::entity::{
@@ -8,12 +12,33 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::DsAssignment;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
 };
 use serde::Deserialize;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/rest/v1/targets/{cid}/assignedDS",
+            post(assign).get(assigned_ds),
+        )
+        .route("/rest/v1/targets/{cid}/installedDS", get(installed_ds))
+        .route("/rest/v1/targets/{cid}/actions", get(target_actions))
+        .route(
+            "/rest/v1/targets/{cid}/actions/{aid}",
+            get(target_action).delete(cancel_action),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/actions/{aid}/status",
+            get(action_status_history),
+        )
+        .route("/rest/v1/actions", get(all_actions))
+}
 
 fn fiql_map(f: &str) -> Option<action::Column> {
     match f {
@@ -82,7 +107,7 @@ pub async fn ds_rest_for(
         .map(|t| t.key)
         .unwrap_or_else(|| "?".into());
     let modules = super::distribution_sets::load_modules(st, ds.id, &base).await?;
-    Ok(Some(super::dto::ds_rest(&ds, &ty, modules, &base)))
+    Ok(Some(super::mappers::ds_rest(&ds, &ty, modules, &base)))
 }
 
 pub async fn assigned_ds(

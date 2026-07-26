@@ -2,7 +2,7 @@
 //! `/rest/v1/distributionsettags`): free-form labels used for fleet
 //! organisation and as the `tag==` FIQL term on target/DS lists.
 
-use super::dto::{DsRest, TargetRest};
+use super::mappers::{DsRest, TargetRest};
 use super::targets::find_by_cid;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{
@@ -14,13 +14,59 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 use sea_orm::sea_query::{Expr as SqlExpr, Query as SqlQuery, SelectStatement, SimpleExpr};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, QueryFilter,
 };
 use serde_json::json;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/rest/v1/targettags",
+            get(target_tag_list).post(target_tag_create),
+        )
+        .route(
+            "/rest/v1/targettags/{id}",
+            get(target_tag_one)
+                .put(target_tag_update)
+                .delete(target_tag_delete),
+        )
+        .route(
+            "/rest/v1/targettags/{id}/assigned",
+            get(target_tag_assigned)
+                .post(target_tag_assign_many)
+                .delete(target_tag_unassign_many),
+        )
+        .route(
+            "/rest/v1/targettags/{id}/assigned/{cid}",
+            post(target_tag_assign_one).delete(target_tag_unassign_one),
+        )
+        .route("/rest/v1/targets/{cid}/tags", get(tags_of_target))
+        .route(
+            "/rest/v1/distributionsettags",
+            get(ds_tag_list).post(ds_tag_create),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}",
+            get(ds_tag_one).put(ds_tag_update).delete(ds_tag_delete),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}/assigned",
+            get(ds_tag_assigned)
+                .post(ds_tag_assign_many)
+                .delete(ds_tag_unassign_many),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}/assigned/{dsid}",
+            post(ds_tag_assign_one).delete(ds_tag_unassign_one),
+        )
+        .route("/rest/v1/distributionsets/{id}/tags", get(tags_of_ds))
+}
 
 // --------------------------------------------------------------------------
 // JSON rendering (hawkBit `MgmtTag` shape)
@@ -348,7 +394,7 @@ pub async fn target_tag_assigned(
     let interval = st.cfg.ddi.polling_duration();
     Ok(Json(Paged::new(
         rows.iter()
-            .map(|t| super::dto::target_rest(t, interval, &base))
+            .map(|t| super::mappers::target_rest(t, interval, &base))
             .collect(),
         total,
     )))
@@ -418,7 +464,7 @@ pub async fn target_tag_assign_many(
     let mut out = Vec::with_capacity(cids.len());
     for cid in &cids {
         let t = assign_target(&st, tag.id, cid).await?;
-        out.push(super::dto::target_rest(&t, interval, &base));
+        out.push(super::mappers::target_rest(&t, interval, &base));
     }
     Ok(Json(out))
 }
@@ -431,7 +477,7 @@ pub async fn target_tag_assign_one(
 ) -> Result<Json<TargetRest>, AppError> {
     let tag = load_target_tag(&st, id).await?;
     let t = assign_target(&st, tag.id, &cid).await?;
-    Ok(Json(super::dto::target_rest(
+    Ok(Json(super::mappers::target_rest(
         &t,
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),

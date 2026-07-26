@@ -1,11 +1,24 @@
+//! Session login/logout (`/rest/v1/login`, `/rest/v1/logout`). Deliberately
+//! NOT merged into `mgmt::router()`'s auth-gated `Router` — these two routes
+//! must stay reachable without a session, so `app::build_app` merges
+//! [`routes`] directly, ahead of the `mgmt_auth` layer.
+
 use crate::auth::session::{session_cookie, COOKIE};
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
+use axum::routing::post;
 use axum::Json;
+use axum::Router;
 use raptor_api_types::LoginRequest;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/login", post(login))
+        .route("/rest/v1/logout", post(logout))
+}
 
 pub async fn login(
     State(st): State<AppState>,

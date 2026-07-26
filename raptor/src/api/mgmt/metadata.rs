@@ -10,13 +10,43 @@ use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{MetadataCreate, MetadataRest, MetadataUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
     QueryOrder,
 };
 use std::collections::HashSet;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/rest/v1/softwaremodules/{id}/metadata",
+            post(sm_create).get(sm_list),
+        )
+        .route(
+            "/rest/v1/softwaremodules/{id}/metadata/{key}",
+            get(sm_get).put(sm_update).delete(sm_delete),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/metadata",
+            post(target_create).get(target_list),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/metadata/{key}",
+            get(target_get).put(target_update).delete(target_delete),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/metadata",
+            post(ds_create).get(ds_list),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/metadata/{key}",
+            get(ds_get).put(ds_update).delete(ds_delete),
+        )
+}
 
 fn target_meta_rest(m: &target_metadata::Model) -> MetadataRest {
     MetadataRest {

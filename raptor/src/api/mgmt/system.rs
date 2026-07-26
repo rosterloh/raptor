@@ -6,11 +6,25 @@ use crate::entity::{action, distribution_set, rollout, software_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::{Path, State};
+use axum::routing::get;
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{SystemStatistics, TenantConfigValue};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/system/configs", get(get_configs))
+        .route(
+            "/rest/v1/system/configs/{key}",
+            get(get_config)
+                .put(config_read_only)
+                .delete(config_read_only),
+        )
+        .route("/rest/v1/system/statistics", get(statistics))
+}
 
 /// The tenant-configuration keys raptor derives from its config file. raptor is
 /// single-tenant and config-file driven, so all values are `global` and
