@@ -17,7 +17,7 @@ use sea_orm::{
 };
 use std::collections::HashSet;
 
-fn fiql_map(f: &str) -> Option<distribution_set::Column> {
+pub fn fiql_map(f: &str) -> Option<distribution_set::Column> {
     match f {
         "id" => Some(distribution_set::Column::Id),
         "name" => Some(distribution_set::Column::Name),
@@ -26,6 +26,13 @@ fn fiql_map(f: &str) -> Option<distribution_set::Column> {
         "complete" => Some(distribution_set::Column::Complete),
         _ => None,
     }
+}
+
+/// Compiles a FIQL query over distribution sets, including the joined `tag`
+/// field (`tag==beta`).
+pub fn condition(q: &str) -> Result<sea_orm::Condition, AppError> {
+    let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
+    crate::fiql::to_condition_ext(&expr, &fiql_map, &super::tags::ds_tag_field)
 }
 
 /// A distribution set is `complete` when every mandatory software-module type of
@@ -94,7 +101,7 @@ pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<S
         .collect())
 }
 
-async fn ds_with_modules(
+pub async fn ds_with_modules(
     st: &AppState,
     ds: &distribution_set::Model,
     base: &str,
@@ -210,8 +217,7 @@ pub async fn list(
     let base = base_url(&st.cfg, &headers);
     let mut sel = distribution_set::Entity::find();
     if let Some(q) = &p.q {
-        let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
-        sel = sel.filter(crate::fiql::to_condition(&expr, &fiql_map)?);
+        sel = sel.filter(condition(q)?);
     }
     sel = apply_sort(sel, &p.sort, &fiql_map)?;
     let (rows, total) = page(&st.db, sel, &p).await?;

@@ -36,7 +36,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | Per-target auto-confirm | ✅ |
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |
-| Tags | ❌ |
+| Target / distribution-set **tags** CRUD, assign/unassign, `q=tag==x` | ✅ |
 | Metadata endpoints (targets / modules / DS) | ❌ |
 | Rollout approval workflow, dynamic rollouts | ❌ |
 | Maintenance windows, `downloadonly`/`timeforced` action types | ❌ |

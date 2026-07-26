@@ -50,13 +50,33 @@ Each resource exposes its own field map; an unknown field returns `400 Bad
 Request`. Common maps:
 
 - **targets** — `id`/`controllerId`, `name`, `description`, `updateStatus`,
-  `lastControllerRequestAt`, `address`
+  `lastControllerRequestAt`, `address`, `tag`
+- **distribution sets** — `id`, `name`, `version`, `description`, `complete`,
+  `tag`
+- **target tags / DS tags** — `id`, `name`, `description`, `colour`
 - **actions** — `id`, `active`, `detailStatus`
 - **rollouts** — `id`, `name`, `status`
 - **target filters** — `id`, `name`
 
 Boolean fields (e.g. `active`) accept `true`/`false` and compile to typed boolean
 comparisons.
+
+## The `tag` field
+
+`tag` is not a column but a membership test against the entity's tags, so it
+only accepts `==`, `!=`, `=in=` and `=out=` — the ordering operators return
+`400`. Negation applies to the membership, not the tag name: `tag!=beta` means
+"not tagged beta", so a target tagged both `beta` and `stable` is excluded.
+
+```
+tag==beta                        # targets tagged beta
+tag!=beta                        # targets not tagged beta
+tag=in=(beta,canary)             # tagged with either
+tag==beta ; updateStatus==error  # tagged beta and in error
+```
+
+The same term works on `/rest/v1/distributionsets` and inside saved target
+filter queries (and therefore rollout target filters).
 
 ## Where FIQL is used
 

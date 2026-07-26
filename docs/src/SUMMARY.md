@@ -22,6 +22,7 @@
 - [Assignments & Actions](./guides/actions.md)
 - [Rollouts](./guides/rollouts.md)
 - [Target Filters & Auto-Assignment](./guides/target-filters.md)
+- [Tags](./guides/tags.md)
 - [Confirmation Flow](./guides/confirmation-flow.md)
 - [Filtering with FIQL](./guides/fiql.md)
 - [Authentication](./guides/authentication.md)

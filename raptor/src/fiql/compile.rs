@@ -1,51 +1,79 @@
 use super::{Comparison, Expr, Op};
 use crate::error::AppError;
+use sea_orm::sea_query::SimpleExpr;
 use sea_orm::{ColumnTrait, Condition};
+
+/// Resolves a FIQL field that is not a column of the queried entity — `tag`,
+/// which compiles to a membership test against the tag join table. Returns
+/// `None` for names it does not handle, so they fall through to the column map.
+pub type VirtualField = dyn Fn(&str, &Op, &[String]) -> Option<Result<SimpleExpr, AppError>>;
+
+/// Compiles one comparison against a column: `*` wildcards become `LIKE`, the
+/// literals `true`/`false` become typed booleans, everything else a string.
+pub fn cmp_expr<C: ColumnTrait>(col: C, op: &Op, values: &[String]) -> SimpleExpr {
+    let v = values.first().cloned().unwrap_or_default();
+    let has_wild = v.contains('*');
+    let like = v.replace('*', "%");
+    match op {
+        Op::Eq if has_wild => col.like(like),
+        Op::Eq => match v.as_str() {
+            "true" => col.eq(true),
+            "false" => col.eq(false),
+            _ => col.eq(v),
+        },
+        Op::Ne if has_wild => col.not_like(like),
+        Op::Ne => match v.as_str() {
+            "true" => col.ne(true),
+            "false" => col.ne(false),
+            _ => col.ne(v),
+        },
+        Op::Lt => col.lt(v),
+        Op::Le => col.lte(v),
+        Op::Gt => col.gt(v),
+        Op::Ge => col.gte(v),
+        Op::In => col.is_in(values.to_vec()),
+        Op::Out => col.is_not_in(values.to_vec()),
+    }
+}
 
 pub fn to_condition<C: ColumnTrait>(
     expr: &Expr,
     map: &dyn Fn(&str) -> Option<C>,
 ) -> Result<Condition, AppError> {
+    to_condition_ext(expr, map, &|_, _, _| None)
+}
+
+/// Like [`to_condition`], but consults `virtual_field` before the column map so
+/// callers can compile joined fields (`tag==beta`) into subqueries.
+pub fn to_condition_ext<C: ColumnTrait>(
+    expr: &Expr,
+    map: &dyn Fn(&str) -> Option<C>,
+    virtual_field: &VirtualField,
+) -> Result<Condition, AppError> {
     Ok(match expr {
         Expr::And(items) => {
             let mut c = Condition::all();
             for i in items {
-                c = c.add(to_condition(i, map)?);
+                c = c.add(to_condition_ext(i, map, virtual_field)?);
             }
             c
         }
         Expr::Or(items) => {
             let mut c = Condition::any();
             for i in items {
-                c = c.add(to_condition(i, map)?);
+                c = c.add(to_condition_ext(i, map, virtual_field)?);
             }
             c
         }
         Expr::Cmp(Comparison { field, op, values }) => {
-            let col = map(field)
-                .ok_or_else(|| AppError::BadRequest(format!("unknown query field: {field}")))?;
-            let v = values.first().cloned().unwrap_or_default();
-            let has_wild = v.contains('*');
-            let like = v.replace('*', "%");
-            let e = match op {
-                Op::Eq if has_wild => col.like(like),
-                Op::Eq => match v.as_str() {
-                    "true" => col.eq(true),
-                    "false" => col.eq(false),
-                    _ => col.eq(v),
-                },
-                Op::Ne if has_wild => col.not_like(like),
-                Op::Ne => match v.as_str() {
-                    "true" => col.ne(true),
-                    "false" => col.ne(false),
-                    _ => col.ne(v),
-                },
-                Op::Lt => col.lt(v),
-                Op::Le => col.lte(v),
-                Op::Gt => col.gt(v),
-                Op::Ge => col.gte(v),
-                Op::In => col.is_in(values.clone()),
-                Op::Out => col.is_not_in(values.clone()),
+            let e = match virtual_field(field, op, values) {
+                Some(r) => r?,
+                None => {
+                    let col = map(field).ok_or_else(|| {
+                        AppError::BadRequest(format!("unknown query field: {field}"))
+                    })?;
+                    cmp_expr(col, op, values)
+                }
             };
             Condition::all().add(e)
         }

@@ -93,6 +93,27 @@ use returns `409`.
 | `GET` / `POST` | `/rest/v1/targettypes/{id}/compatibledistributionsettypes` | list / add compatible DS type |
 | `DELETE` | `/rest/v1/targettypes/{id}/compatibledistributionsettypes/{dsid}` | remove compatible DS type |
 
+## Tags
+
+Target and distribution-set tags are free-form labels (name, description,
+`colour`) used for fleet organisation and as the `tag==` FIQL term on the target
+and distribution-set lists. Deleting a tag removes its assignments; the tagged
+targets and sets are untouched. Assignment is idempotent — re-assigning an
+already-tagged entity succeeds without creating a duplicate.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` / `GET` | `/rest/v1/targettags` | create (array body) / list |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/targettags/{id}` | get / update / delete |
+| `GET` | `/rest/v1/targettags/{id}/assigned` | list tagged targets (paging, `sort=`, `q=`) |
+| `POST` / `DELETE` | `/rest/v1/targettags/{id}/assigned` | bulk assign / unassign, body `["dev-1","dev-2"]` |
+| `POST` / `DELETE` | `/rest/v1/targettags/{id}/assigned/{cid}` | assign / unassign one target |
+| `POST` / `GET` | `/rest/v1/distributionsettags` | create (array body) / list |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/distributionsettags/{id}` | get / update / delete |
+| `GET` | `/rest/v1/distributionsettags/{id}/assigned` | list tagged distribution sets |
+| `POST` / `DELETE` | `/rest/v1/distributionsettags/{id}/assigned` | bulk assign / unassign, body `[1,2]` |
+| `POST` / `DELETE` | `/rest/v1/distributionsettags/{id}/assigned/{dsid}` | assign / unassign one set |
+
 ## Rollouts
 
 | Method | Path | Description |

@@ -327,6 +327,32 @@ pub struct TargetTypeUpdate {
     pub colour: Option<String>,
 }
 
+// ---- tag request bodies ----
+
+/// One element of `POST /rest/v1/targettags` or `/rest/v1/distributionsettags`
+/// (hawkBit `MgmtTagRequestBodyPut`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagCreate {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    /// Display colour, hawkBit's British spelling.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub colour: Option<String>,
+}
+
+/// Body of `PUT /rest/v1/targettags/{id}` / `/rest/v1/distributionsettags/{id}`.
+/// Omitted fields are left unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct TagUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub colour: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DsCreate {
@@ -724,6 +750,21 @@ mod tests {
         };
         let v = serde_json::to_value(&t).unwrap();
         assert!(v.get("targetType").is_none());
+    }
+
+    #[test]
+    fn tag_shapes() {
+        round_trip::<TagCreate>(json!({
+            "name": "beta", "description": "early access", "colour": "#00ff00"
+        }));
+        // optional fields omitted when None
+        let c = TagCreate {
+            name: "beta".into(),
+            description: None,
+            colour: None,
+        };
+        assert_eq!(serde_json::to_value(&c).unwrap(), json!({"name": "beta"}));
+        round_trip::<TagUpdate>(json!({"colour": "#ff0000"}));
     }
 
     #[test]
