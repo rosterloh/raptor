@@ -34,11 +34,13 @@ The console surfaces the core read/observe workflow and common actions:
 
 - a dashboard (polling the actions feed),
 - targets and target detail,
+- [target filters and auto-assignment](target-filters.md),
 - distribution sets and detail,
 - software modules and detail,
+- rollouts and rollout detail,
 - the actions feed.
 
-> **Note:** The console tracks the API and lags it slightly. Pages for rollouts,
-> target filters, and the confirmation flow are planned (tracked as issues on
-> GitHub). Anything not yet in the UI is always available through the
+> **Note:** The console tracks the API and lags it slightly. A page for the
+> confirmation flow is planned (tracked as an issue on GitHub). Anything not yet
+> in the UI is always available through the
 > [Management API](../reference/management-api.md).

@@ -13,6 +13,17 @@ pub enum ApiError {
     Network(String),
 }
 
+impl ApiError {
+    /// The server's message on its own, without the `(HTTP nnn)` suffix
+    /// `Display` adds — for showing an error inline against a form field.
+    pub fn message(&self) -> String {
+        match self {
+            ApiError::Server { message, .. } => message.clone(),
+            other => other.to_string(),
+        }
+    }
+}
+
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -94,6 +105,20 @@ async fn post_json<B: Serialize + ?Sized, T: DeserializeOwned>(
 ) -> ApiResult<T> {
     let resp = reqwest::Client::new()
         .post(format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
+        .json(body)
+        .send()
+        .await
+        .map_err(net)?;
+    check(resp).await?.json().await.map_err(net)
+}
+
+async fn put_json<B: Serialize + ?Sized, T: DeserializeOwned>(
+    path: &str,
+    body: &B,
+) -> ApiResult<T> {
+    let resp = reqwest::Client::new()
+        .put(format!("{}{path}", base()))
         .header(AJAX_HEADER.0, AJAX_HEADER.1)
         .json(body)
         .send()
@@ -447,6 +472,51 @@ pub async fn resume_rollout(id: i64) -> ApiResult<RolloutRest> {
 
 pub async fn delete_rollout(id: i64) -> ApiResult<()> {
     delete(&format!("/rest/v1/rollouts/{id}")).await
+}
+
+// ---- target filters ----
+
+pub async fn list_target_filters(
+    offset: u64,
+    limit: u64,
+    q: Option<&str>,
+) -> ApiResult<PagedList<TargetFilterRest>> {
+    get_json(&list_path("/rest/v1/targetfilters", offset, limit, q)).await
+}
+
+pub async fn create_target_filter(f: &TargetFilterCreate) -> ApiResult<TargetFilterRest> {
+    post_json("/rest/v1/targetfilters", f).await
+}
+
+pub async fn update_target_filter(id: i64, u: &TargetFilterUpdate) -> ApiResult<TargetFilterRest> {
+    put_json(&format!("/rest/v1/targetfilters/{id}"), u).await
+}
+
+pub async fn delete_target_filter(id: i64) -> ApiResult<()> {
+    delete(&format!("/rest/v1/targetfilters/{id}")).await
+}
+
+pub async fn set_auto_assign_ds(id: i64, ds_id: i64, forced: bool) -> ApiResult<TargetFilterRest> {
+    post_json(
+        &format!("/rest/v1/targetfilters/{id}/autoAssignDS"),
+        &AutoAssignRequest {
+            id: ds_id,
+            action_type: Some(if forced { "forced" } else { "soft" }.into()),
+        },
+    )
+    .await
+}
+
+/// Detaches the auto-assign set. The API answers with the updated filter, which
+/// the caller re-reads from the list instead, so the body is discarded.
+pub async fn clear_auto_assign_ds(id: i64) -> ApiResult<()> {
+    delete(&format!("/rest/v1/targetfilters/{id}/autoAssignDS")).await
+}
+
+/// How many targets a FIQL query currently matches — a one-row page read for
+/// its `total`, used by the filter form's live preview.
+pub async fn count_targets(q: &str) -> ApiResult<u64> {
+    list_targets(0, 1, Some(q)).await.map(|p| p.total)
 }
 
 // ---- actions ----

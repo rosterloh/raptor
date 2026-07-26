@@ -17,6 +17,7 @@ pub fn Shell() -> Element {
                 nav { class: "flex flex-1 flex-col gap-1 px-2",
                     NavLink { to: Route::Dashboard {}, label: "Dashboard" }
                     NavLink { to: Route::Targets {}, label: "Targets" }
+                    NavLink { to: Route::TargetFilters {}, label: "Target filters" }
                     NavLink { to: Route::Distributions {}, label: "Distributions" }
                     NavLink { to: Route::Modules {}, label: "Modules" }
                     NavLink { to: Route::Rollouts {}, label: "Rollouts" }
