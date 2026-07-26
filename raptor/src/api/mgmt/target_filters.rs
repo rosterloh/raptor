@@ -51,8 +51,7 @@ async fn find(st: &AppState, id: i64) -> Result<target_filter::Model, AppError> 
 /// Parses and compiles the FIQL query against the target field map so bad
 /// queries are rejected at write time with a hawkBit-style 400.
 fn validate_query(q: &str) -> Result<(), AppError> {
-    let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
-    crate::fiql::to_condition(&expr, &crate::api::mgmt::targets::fiql_map)?;
+    crate::api::mgmt::targets::condition(q)?;
     Ok(())
 }
 

@@ -7,6 +7,7 @@ pub mod metadata;
 pub mod rollouts;
 pub mod software_modules;
 pub mod system;
+pub mod tags;
 pub mod target_filters;
 pub mod targets;
 pub mod types;
@@ -228,6 +229,46 @@ pub fn router(state: AppState) -> Router<AppState> {
             get(target_filters::get_auto_assign)
                 .post(target_filters::set_auto_assign)
                 .delete(target_filters::delete_auto_assign),
+        )
+        .route(
+            "/rest/v1/targettags",
+            get(tags::target_tag_list).post(tags::target_tag_create),
+        )
+        .route(
+            "/rest/v1/targettags/{id}",
+            get(tags::target_tag_one)
+                .put(tags::target_tag_update)
+                .delete(tags::target_tag_delete),
+        )
+        .route(
+            "/rest/v1/targettags/{id}/assigned",
+            get(tags::target_tag_assigned)
+                .post(tags::target_tag_assign_many)
+                .delete(tags::target_tag_unassign_many),
+        )
+        .route(
+            "/rest/v1/targettags/{id}/assigned/{cid}",
+            post(tags::target_tag_assign_one).delete(tags::target_tag_unassign_one),
+        )
+        .route(
+            "/rest/v1/distributionsettags",
+            get(tags::ds_tag_list).post(tags::ds_tag_create),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}",
+            get(tags::ds_tag_one)
+                .put(tags::ds_tag_update)
+                .delete(tags::ds_tag_delete),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}/assigned",
+            get(tags::ds_tag_assigned)
+                .post(tags::ds_tag_assign_many)
+                .delete(tags::ds_tag_unassign_many),
+        )
+        .route(
+            "/rest/v1/distributionsettags/{id}/assigned/{dsid}",
+            post(tags::ds_tag_assign_one).delete(tags::ds_tag_unassign_one),
         )
         .route("/rest/v1/system/configs", get(system::get_configs))
         .route(
