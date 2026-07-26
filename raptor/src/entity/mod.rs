@@ -1,3 +1,6 @@
+//! SeaORM entity definitions — one module per table, generated shape kept
+//! plain (`Model`/`Relation`/`ActiveModelBehavior`); no query logic lives here.
+
 pub mod action;
 pub mod action_status;
 pub mod action_status_message;

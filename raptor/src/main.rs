@@ -1,3 +1,9 @@
+//! `raptor` binary: CLI entry point. `serve` loads config, runs migrations,
+//! spawns the rollout/auto-assignment sweep loop, and starts the axum server
+//! built by `app::build_app`; `hash-password` is a standalone utility for
+//! generating `raptor.toml` credentials. All request-handling logic lives in
+//! the library crate.
+
 use clap::Parser;
 use migration::MigratorTrait;
 use raptor::config::Config;

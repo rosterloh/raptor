@@ -1,3 +1,5 @@
+//! `software_module_type`: the type catalogue entry a `software_module` belongs to.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

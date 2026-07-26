@@ -1,3 +1,5 @@
+//! `target_type_ds_type`: compatibility join between target types and distribution-set types.
+
 use sea_orm::entity::prelude::*;
 
 /// Distribution-set types a target type is compatible with. A typed target may

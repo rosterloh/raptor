@@ -1,3 +1,6 @@
+//! `rollout`: a staged, group-by-group deployment of a distribution set
+//! across the targets matched by a filter query.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

@@ -1,3 +1,8 @@
+//! Assembles the axum `Router`: merges the mgmt and DDI routers (and the
+//! embedded UI, when built with `embed-ui`), and — when metrics export is
+//! enabled — layers request-metrics middleware. No route logic of its own;
+//! that lives in `api::mgmt` and `api::ddi`.
+
 use crate::metrics;
 use crate::state::AppState;
 use axum::extract::{MatchedPath, Request, State};

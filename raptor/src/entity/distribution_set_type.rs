@@ -1,3 +1,5 @@
+//! `distribution_set_type`: the type catalogue entry a `distribution_set` belongs to.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

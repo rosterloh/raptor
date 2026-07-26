@@ -1,3 +1,7 @@
+//! Device feedback on deployments and cancel requests: parses hawkBit's
+//! `status.execution`/`result.finished` shape and hands off to
+//! `domain::deployment` for the actual state transition.
+
 use super::deployment::find_target_action;
 use crate::error::AppError;
 use crate::state::AppState;

@@ -1,3 +1,5 @@
+//! `target_attribute`: device-reported key/value attributes (from DDI `configData`).
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

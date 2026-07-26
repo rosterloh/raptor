@@ -1,3 +1,7 @@
+//! `Config`: deserialized from `raptor.toml` (and `RAPTOR_`-prefixed env
+//! overrides) via figment. Owns only parsing/defaults — no validation beyond
+//! what `serde` gives for free, and no I/O besides the file/env sources.
+
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
 use serde::Deserialize;

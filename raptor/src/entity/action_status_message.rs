@@ -1,3 +1,5 @@
+//! `action_status_message`: free-text message(s) attached to an `action_status` entry.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

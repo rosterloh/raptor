@@ -1,3 +1,5 @@
+//! `action`: a device's in-progress or historical deployment/cancel action.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

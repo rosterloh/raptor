@@ -1,3 +1,5 @@
+//! `rollout_target_group`: membership of a target in a `rollout_group`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

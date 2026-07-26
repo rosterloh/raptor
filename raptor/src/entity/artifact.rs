@@ -1,3 +1,6 @@
+//! `artifact`: a software module's binary file, with its content hashes and
+//! size; the actual bytes live in `storage::ArtifactStore`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

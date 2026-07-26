@@ -1,3 +1,8 @@
+//! Rollout lifecycle: creating groups from a target-filter query, starting
+//! the first group, and the success/error-threshold evaluation that advances
+//! or pauses subsequent groups. `evaluate_rollouts` is the entry point called
+//! by the background sweep in `main`.
+
 use crate::entity::{
     action, distribution_set, rollout, rollout_group, rollout_target_group, target,
 };

@@ -7,6 +7,11 @@ anonymous mode — see [Authentication](../guides/authentication.md).
 
 Response JSON matches the hawkBit DDI v1 schemas field-for-field.
 
+Handlers live under `raptor/src/api/ddi/`, one module per resource: poll root
+in `root.rs`, deployment/installed base in `deployment.rs`, feedback/cancel in
+`feedback.rs`, confirmation flow in `confirmation.rs`, and artifacts in
+`artifacts.rs`, all wired together in `mod.rs`.
+
 ## Endpoints
 
 | Method | Path (under `/{tenant}/controller/v1/{cid}`) | Description |

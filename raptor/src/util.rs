@@ -1,3 +1,6 @@
+//! Small stateless helpers shared across handlers: timestamps, random tokens,
+//! and base-URL resolution for `_links`. No domain logic.
+
 use crate::config::Config;
 use axum::http::HeaderMap;
 

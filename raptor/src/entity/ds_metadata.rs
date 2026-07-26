@@ -1,3 +1,5 @@
+//! `ds_metadata`: arbitrary key/value metadata attached to a `distribution_set`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

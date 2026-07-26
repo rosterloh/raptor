@@ -1,3 +1,5 @@
+//! `ds_module`: join table of software modules belonging to a distribution set.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

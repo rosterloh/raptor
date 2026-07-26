@@ -1,3 +1,7 @@
+//! DDI artifact listing and download, including HTTP byte-range support and
+//! the `.MD5SUM` companion file. Actual blob storage lives in `storage`; this
+//! module only resolves metadata and streams bytes.
+
 use crate::entity::artifact;
 use crate::error::AppError;
 use crate::state::AppState;

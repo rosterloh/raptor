@@ -1,3 +1,5 @@
+//! `software_module`: a named, versioned piece of a distribution set (e.g. OS, app).
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
