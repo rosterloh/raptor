@@ -5,7 +5,7 @@
 //! Assignment is deliberately non-disruptive: it never supersedes a target's
 //! in-flight action and never re-assigns a DS the target already has assigned.
 
-use crate::api::mgmt::targets::fiql_map;
+use crate::api::mgmt::targets::condition;
 use crate::domain::deployment::{active_action, assign_ds};
 use crate::entity::{distribution_set, target, target_filter};
 use crate::error::AppError;
@@ -54,8 +54,7 @@ pub async fn run_auto_assign(st: &AppState, filter: &target_filter::Model) -> Re
     if assignable_ds(st, ds_id).await?.is_none() {
         return Ok(());
     }
-    let expr = crate::fiql::parse(&filter.query).map_err(AppError::BadRequest)?;
-    let cond = crate::fiql::to_condition(&expr, &fiql_map)?;
+    let cond = condition(&filter.query)?;
     let targets = target::Entity::find()
         .filter(cond)
         .order_by_asc(target::Column::Id)
@@ -96,11 +95,8 @@ pub async fn auto_assign_for_target(st: &AppState, target: &target::Model) -> Re
             continue;
         };
         // The stored query was validated at create/update time; if it somehow no
-        // longer parses (e.g. a field map changed), skip rather than fail the poll.
-        let Ok(expr) = crate::fiql::parse(&f.query) else {
-            continue;
-        };
-        let Ok(cond) = crate::fiql::to_condition(&expr, &fiql_map) else {
+        // longer compiles (e.g. a field map changed), skip rather than fail the poll.
+        let Ok(cond) = condition(&f.query) else {
             continue;
         };
         let matched = target::Entity::find()

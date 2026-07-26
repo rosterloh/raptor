@@ -34,6 +34,7 @@ The console surfaces the core read/observe workflow and common actions:
 
 - a dashboard (polling the actions feed and active rollouts),
 - targets and target detail,
+- [target filters and auto-assignment](target-filters.md),
 - distribution sets and detail,
 - software modules and detail,
 - rollouts and rollout detail,
@@ -51,7 +52,7 @@ transitions the rollout's current status allows, so an operator can drive a
 rollout end to end without touching the API. Creating a rollout is still
 API-only; see the [Rollouts guide](rollouts.md).
 
-> **Note:** The console tracks the API and lags it slightly. Pages for target
-> filters and the confirmation flow are planned (tracked as issues on GitHub).
-> Anything not yet in the UI is always available through the
+> **Note:** The console tracks the API and lags it slightly. A page for the
+> confirmation flow is planned (tracked as an issue on GitHub). Anything not yet
+> in the UI is always available through the
 > [Management API](../reference/management-api.md).

@@ -43,6 +43,21 @@ curl -u admin:pw           localhost:8080/rest/v1/targetfilters/1/autoAssignDS  
 curl -u admin:pw -X DELETE localhost:8080/rest/v1/targetfilters/1/autoAssignDS
 ```
 
+## From the web console
+
+Everything above is also available under **Target filters** in the
+[web console](web-console.md):
+
+- **New filter** / **Edit** — name plus FIQL query. The query is checked against
+  the live target list as you type, so the form shows how many targets it matches
+  (or the parser's complaint) before you save; the API's `400`/`409` messages are
+  shown against the query and name fields.
+- **Auto-assign…** — pick a distribution set and the action type (`forced` or
+  `soft`), or **Detach** to remove the attachment. An incomplete set is reported
+  inline rather than as a raw failure.
+- The **Auto-assign** column names the attached set, so you can see which filters
+  are live rules at a glance.
+
 ## When auto-assignment runs
 
 A matching target receives the DS:

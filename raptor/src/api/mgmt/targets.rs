@@ -26,6 +26,13 @@ pub fn fiql_map(f: &str) -> Option<target::Column> {
     }
 }
 
+/// Compiles a FIQL query over targets. Shared by the target list, saved target
+/// filters and rollouts so `tag==beta` means the same thing everywhere.
+pub fn condition(q: &str) -> Result<sea_orm::Condition, AppError> {
+    let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
+    crate::fiql::to_condition_ext(&expr, &fiql_map, &super::tags::target_tag_field)
+}
+
 pub async fn find_by_cid(db: &DatabaseConnection, cid: &str) -> Result<target::Model, AppError> {
     target::Entity::find()
         .filter(target::Column::ControllerId.eq(cid))
@@ -99,8 +106,7 @@ pub async fn list(
     let interval = st.cfg.ddi.polling_duration();
     let mut sel = target::Entity::find();
     if let Some(q) = &p.q {
-        let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
-        sel = sel.filter(crate::fiql::to_condition(&expr, &fiql_map)?);
+        sel = sel.filter(condition(q)?);
     }
     sel = apply_sort(sel, &p.sort, &fiql_map)?;
     let (rows, total) = page(&st.db, sel, &p).await?;

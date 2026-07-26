@@ -35,8 +35,7 @@ pub async fn create_rollout(
         return Err(AppError::BadRequest("amountGroups must be >= 1".into()));
     }
 
-    let expr = crate::fiql::parse(&req.target_filter_query).map_err(AppError::BadRequest)?;
-    let cond = crate::fiql::to_condition(&expr, &crate::api::mgmt::targets::fiql_map)?;
+    let cond = crate::api::mgmt::targets::condition(&req.target_filter_query)?;
     let targets = target::Entity::find()
         .filter(cond)
         .order_by_asc(target::Column::Id)

@@ -9,6 +9,7 @@ mod rollout_detail;
 mod rollouts;
 mod shell;
 mod target_detail;
+mod target_filters;
 mod targets;
 
 pub use actions::Actions;
@@ -22,4 +23,5 @@ pub use rollout_detail::RolloutDetail;
 pub use rollouts::Rollouts;
 pub use shell::Shell;
 pub use target_detail::TargetDetail;
+pub use target_filters::TargetFilters;
 pub use targets::Targets;
