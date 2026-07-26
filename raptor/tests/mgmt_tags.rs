@@ -26,6 +26,18 @@ async fn json_of(
     common::body_json(call(app, method, uri, body).await).await
 }
 
+/// Percent-encodes a FIQL query for the `q=` parameter.
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
 /// Creates `n` targets named dev-1..dev-n.
 async fn make_targets(app: &axum::Router, cids: &[&str]) {
     let body: Vec<_> = cids.iter().map(|c| json!({"controllerId": c})).collect();
@@ -278,6 +290,76 @@ async fn target_tag_assign_and_unassign() {
 }
 
 #[tokio::test]
+async fn entity_tag_listings() {
+    let (app, _) = common::setup().await;
+    make_targets(&app, &["dev-1", "dev-2"]).await;
+    let ds = make_ds(&app, "release", "1.0").await;
+    let beta = make_target_tag(&app, "beta").await;
+    let stable = make_target_tag(&app, "stable").await;
+    let qa = make_ds_tag(&app, "qa").await;
+
+    // dev-1 carries both target tags, dev-2 none
+    for tag in [beta, stable] {
+        call(
+            &app,
+            "POST",
+            &format!("/rest/v1/targettags/{tag}/assigned/dev-1"),
+            None,
+        )
+        .await;
+    }
+    call(
+        &app,
+        "POST",
+        &format!("/rest/v1/distributionsettags/{qa}/assigned/{ds}"),
+        None,
+    )
+    .await;
+
+    let tags = json_of(
+        &app,
+        "GET",
+        "/rest/v1/targets/dev-1/tags?sort=name:ASC",
+        None,
+    )
+    .await;
+    assert_eq!(tags["total"], 2);
+    assert_eq!(tags["content"][0]["name"], "beta");
+    assert_eq!(tags["content"][1]["name"], "stable");
+
+    let tags = json_of(&app, "GET", "/rest/v1/targets/dev-2/tags", None).await;
+    assert_eq!(tags["total"], 0);
+
+    let tags = json_of(
+        &app,
+        "GET",
+        &format!("/rest/v1/distributionsets/{ds}/tags"),
+        None,
+    )
+    .await;
+    assert_eq!(tags["total"], 1);
+    assert_eq!(tags["content"][0]["name"], "qa");
+
+    // unassigning removes it from the listing again
+    call(
+        &app,
+        "DELETE",
+        &format!("/rest/v1/targettags/{beta}/assigned/dev-1"),
+        None,
+    )
+    .await;
+    let tags = json_of(&app, "GET", "/rest/v1/targets/dev-1/tags", None).await;
+    assert_eq!(tags["total"], 1);
+    assert_eq!(tags["content"][0]["name"], "stable");
+
+    // unknown entities 404
+    let resp = call(&app, "GET", "/rest/v1/targets/nope/tags", None).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let resp = call(&app, "GET", "/rest/v1/distributionsets/9999/tags", None).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn deleting_a_target_tag_keeps_its_targets() {
     let (app, _) = common::setup().await;
     make_targets(&app, &["dev-1"]).await;
@@ -391,6 +473,33 @@ async fn target_list_filters_by_tag() {
     let r = json_of(&app, "GET", "/rest/v1/targets?q=tag==beta&limit=1", None).await;
     assert_eq!(r["total"], 2);
     assert_eq!(r["size"], 1);
+}
+
+/// The web console ANDs its search box with the tag dropdown, parenthesising the
+/// search's OR group and quoting the tag name. That exact shape has to parse.
+#[tokio::test]
+async fn console_style_combined_query() {
+    let (app, _) = common::setup().await;
+    make_targets(&app, &["dev-1", "dev-2", "other-1"]).await;
+    let beta = make_target_tag(&app, "beta ring").await;
+    call(
+        &app,
+        "POST",
+        &format!("/rest/v1/targettags/{beta}/assigned"),
+        Some(json!(["dev-1", "other-1"])),
+    )
+    .await;
+
+    let q = "(name==*dev*,controllerId==*dev*);(tag=='beta ring')";
+    let r = json_of(
+        &app,
+        "GET",
+        &format!("/rest/v1/targets?q={}", urlencode(q)),
+        None,
+    )
+    .await;
+    assert_eq!(r["total"], 1);
+    assert_eq!(r["content"][0]["controllerId"], "dev-1");
 }
 
 #[tokio::test]

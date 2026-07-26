@@ -15,47 +15,47 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
-use raptor_api_types::{TagCreate, TagUpdate};
+use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 use sea_orm::sea_query::{Expr as SqlExpr, Query as SqlQuery, SelectStatement, SimpleExpr};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, QueryFilter,
 };
-use serde_json::{json, Value};
+use serde_json::json;
 
 // --------------------------------------------------------------------------
 // JSON rendering (hawkBit `MgmtTag` shape)
 // --------------------------------------------------------------------------
 
-fn target_tag_json(t: &target_tag::Model) -> Value {
+fn target_tag_rest(t: &target_tag::Model) -> TagRest {
     let base = format!("/rest/v1/targettags/{}", t.id);
-    json!({
-        "id": t.id,
-        "name": t.name,
-        "description": t.description,
-        "colour": t.colour,
-        "createdAt": t.created_at,
-        "lastModifiedAt": t.updated_at,
-        "_links": {
+    TagRest {
+        id: t.id,
+        name: t.name.clone(),
+        description: t.description.clone(),
+        colour: t.colour.clone(),
+        created_at: t.created_at,
+        last_modified_at: t.updated_at,
+        links: json!({
             "self": {"href": base},
             "assignedTargets": {"href": format!("{base}/assigned")},
-        },
-    })
+        }),
+    }
 }
 
-fn ds_tag_json(t: &ds_tag::Model) -> Value {
+fn ds_tag_rest(t: &ds_tag::Model) -> TagRest {
     let base = format!("/rest/v1/distributionsettags/{}", t.id);
-    json!({
-        "id": t.id,
-        "name": t.name,
-        "description": t.description,
-        "colour": t.colour,
-        "createdAt": t.created_at,
-        "lastModifiedAt": t.updated_at,
-        "_links": {
+    TagRest {
+        id: t.id,
+        name: t.name.clone(),
+        description: t.description.clone(),
+        colour: t.colour.clone(),
+        created_at: t.created_at,
+        last_modified_at: t.updated_at,
+        links: json!({
             "self": {"href": base},
             "assignedDistributionSets": {"href": format!("{base}/assigned")},
-        },
-    })
+        }),
+    }
 }
 
 fn target_tag_fiql(f: &str) -> Option<target_tag::Column> {
@@ -201,6 +201,12 @@ fn ds_with_tag(tag_id: i64) -> Condition {
     )
 }
 
+/// `tag.id IN (SELECT tag_id FROM <join> WHERE <owner_col> = <owner_id>)` — the
+/// tags carried by one entity, the inverse of [`targets_with_tag`].
+fn tags_of(tag_id_col: SqlExpr, link: SelectStatement) -> Condition {
+    Condition::all().add(tag_id_col.in_subquery(link))
+}
+
 // --------------------------------------------------------------------------
 // Target tags
 // --------------------------------------------------------------------------
@@ -215,7 +221,7 @@ async fn load_target_tag(st: &AppState, id: i64) -> Result<target_tag::Model, Ap
 pub async fn target_tag_list(
     State(st): State<AppState>,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<TagRest>>, AppError> {
     let mut sel = target_tag::Entity::find();
     if let Some(q) = &p.q {
         let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
@@ -224,7 +230,7 @@ pub async fn target_tag_list(
     sel = apply_sort(sel, &p.sort, &target_tag_fiql)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(target_tag_json).collect(),
+        rows.iter().map(target_tag_rest).collect(),
         total,
     )))
 }
@@ -232,14 +238,14 @@ pub async fn target_tag_list(
 pub async fn target_tag_one(
     State(st): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<Json<Value>, AppError> {
-    Ok(Json(target_tag_json(&load_target_tag(&st, id).await?)))
+) -> Result<Json<TagRest>, AppError> {
+    Ok(Json(target_tag_rest(&load_target_tag(&st, id).await?)))
 }
 
 pub async fn target_tag_create(
     State(st): State<AppState>,
     Json(body): Json<Vec<TagCreate>>,
-) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+) -> Result<(StatusCode, Json<Vec<TagRest>>), AppError> {
     // Validate every item before writing so a clash can't leave a partial batch.
     let mut seen = std::collections::HashSet::new();
     for c in &body {
@@ -274,7 +280,7 @@ pub async fn target_tag_create(
         }
         .insert(&st.db)
         .await?;
-        out.push(target_tag_json(&t));
+        out.push(target_tag_rest(&t));
     }
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -283,7 +289,7 @@ pub async fn target_tag_update(
     State(st): State<AppState>,
     Path(id): Path<i64>,
     Json(u): Json<TagUpdate>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<TagRest>, AppError> {
     let t = load_target_tag(&st, id).await?;
     if let Some(name) = &u.name {
         if target_tag::Entity::find()
@@ -308,7 +314,7 @@ pub async fn target_tag_update(
         am.colour = Set(Some(c));
     }
     am.updated_at = Set(now_ms());
-    Ok(Json(target_tag_json(&am.update(&st.db).await?)))
+    Ok(Json(target_tag_rest(&am.update(&st.db).await?)))
 }
 
 /// Deleting a tag drops its assignments; the tagged targets stay.
@@ -344,6 +350,33 @@ pub async fn target_tag_assigned(
         rows.iter()
             .map(|t| super::dto::target_rest(t, interval, &base))
             .collect(),
+        total,
+    )))
+}
+
+/// `GET /rest/v1/targets/{cid}/tags` — the tags carried by one target.
+///
+/// raptor extension (additive, not in hawkBit): the reverse lookup exists only
+/// as `/rest/v1/targettags/{id}/assigned`, so showing one target's tags would
+/// otherwise cost a request per tag.
+pub async fn tags_of_target(
+    State(st): State<AppState>,
+    Path(cid): Path<String>,
+    Query(p): Query<ListParams>,
+) -> Result<Json<Paged<TagRest>>, AppError> {
+    let t = find_by_cid(&st.db, &cid).await?;
+    let link = SqlQuery::select()
+        .column(target_tag_assignment::Column::TagId)
+        .from(target_tag_assignment::Entity)
+        .and_where(SqlExpr::col(target_tag_assignment::Column::TargetId).eq(t.id))
+        .to_owned();
+    let sel = target_tag::Entity::find().filter(tags_of(
+        SqlExpr::col((target_tag::Entity, target_tag::Column::Id)),
+        link,
+    ));
+    let (rows, total) = page(&st.db, apply_sort(sel, &p.sort, &target_tag_fiql)?, &p).await?;
+    Ok(Json(Paged::new(
+        rows.iter().map(target_tag_rest).collect(),
         total,
     )))
 }
@@ -465,7 +498,7 @@ async fn load_ds(st: &AppState, id: i64) -> Result<distribution_set::Model, AppE
 pub async fn ds_tag_list(
     State(st): State<AppState>,
     Query(p): Query<ListParams>,
-) -> Result<Json<Paged<Value>>, AppError> {
+) -> Result<Json<Paged<TagRest>>, AppError> {
     let mut sel = ds_tag::Entity::find();
     if let Some(q) = &p.q {
         let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
@@ -474,7 +507,7 @@ pub async fn ds_tag_list(
     sel = apply_sort(sel, &p.sort, &ds_tag_fiql)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(ds_tag_json).collect(),
+        rows.iter().map(ds_tag_rest).collect(),
         total,
     )))
 }
@@ -482,14 +515,14 @@ pub async fn ds_tag_list(
 pub async fn ds_tag_one(
     State(st): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<Json<Value>, AppError> {
-    Ok(Json(ds_tag_json(&load_ds_tag(&st, id).await?)))
+) -> Result<Json<TagRest>, AppError> {
+    Ok(Json(ds_tag_rest(&load_ds_tag(&st, id).await?)))
 }
 
 pub async fn ds_tag_create(
     State(st): State<AppState>,
     Json(body): Json<Vec<TagCreate>>,
-) -> Result<(StatusCode, Json<Vec<Value>>), AppError> {
+) -> Result<(StatusCode, Json<Vec<TagRest>>), AppError> {
     let mut seen = std::collections::HashSet::new();
     for c in &body {
         if !seen.insert(c.name.as_str()) {
@@ -523,7 +556,7 @@ pub async fn ds_tag_create(
         }
         .insert(&st.db)
         .await?;
-        out.push(ds_tag_json(&t));
+        out.push(ds_tag_rest(&t));
     }
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -532,7 +565,7 @@ pub async fn ds_tag_update(
     State(st): State<AppState>,
     Path(id): Path<i64>,
     Json(u): Json<TagUpdate>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<TagRest>, AppError> {
     let t = load_ds_tag(&st, id).await?;
     if let Some(name) = &u.name {
         if ds_tag::Entity::find()
@@ -557,7 +590,7 @@ pub async fn ds_tag_update(
         am.colour = Set(Some(c));
     }
     am.updated_at = Set(now_ms());
-    Ok(Json(ds_tag_json(&am.update(&st.db).await?)))
+    Ok(Json(ds_tag_rest(&am.update(&st.db).await?)))
 }
 
 pub async fn ds_tag_delete(
@@ -592,6 +625,30 @@ pub async fn ds_tag_assigned(
         content.push(super::distribution_sets::ds_with_modules(&st, ds, &base).await?);
     }
     Ok(Json(Paged::new(content, total)))
+}
+
+/// `GET /rest/v1/distributionsets/{id}/tags` — the tags carried by one set.
+/// raptor extension, see [`tags_of_target`].
+pub async fn tags_of_ds(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(p): Query<ListParams>,
+) -> Result<Json<Paged<TagRest>>, AppError> {
+    let ds = load_ds(&st, id).await?;
+    let link = SqlQuery::select()
+        .column(ds_tag_assignment::Column::TagId)
+        .from(ds_tag_assignment::Entity)
+        .and_where(SqlExpr::col(ds_tag_assignment::Column::DsId).eq(ds.id))
+        .to_owned();
+    let sel = ds_tag::Entity::find().filter(tags_of(
+        SqlExpr::col((ds_tag::Entity, ds_tag::Column::Id)),
+        link,
+    ));
+    let (rows, total) = page(&st.db, apply_sort(sel, &p.sort, &ds_tag_fiql)?, &p).await?;
+    Ok(Json(Paged::new(
+        rows.iter().map(ds_tag_rest).collect(),
+        total,
+    )))
 }
 
 async fn assign_ds_tag(

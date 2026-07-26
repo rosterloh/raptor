@@ -3,6 +3,7 @@ pub mod confirm;
 pub mod error_pane;
 pub mod paginator;
 pub mod search;
+pub mod tag_chip;
 pub mod toast;
 pub mod ui;
 
@@ -11,6 +12,7 @@ pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;
 pub use paginator::Paginator;
 pub use search::SearchBox;
+pub use tag_chip::TagChip;
 pub use toast::{toast_error, toast_ok, ToastStack};
 
 use dioxus::prelude::*;

@@ -1,4 +1,5 @@
 use crate::components::*;
+use crate::pages::{TagFilter, TagKind};
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
 
@@ -8,20 +9,31 @@ pub const LIMIT: u64 = 25;
 pub fn Targets() -> Element {
     let mut offset = use_signal(|| 0u64);
     let mut query = use_signal(String::new);
+    let tag = use_signal(String::new);
     let mut targets = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name", "controllerId"], &query());
+        let q = logic::fiql_and(&[
+            logic::fiql_contains(&["name", "controllerId"], &query()),
+            logic::fiql_tag(&tag()),
+        ]);
         api::list_targets(offset(), LIMIT, q.as_deref()).await
     });
     let nav = use_navigator();
     rsx! {
         h1 { class: HEADING, "Targets" }
-        div { class: "mb-3",
-            SearchBox {
-                placeholder: "Search name or controller id…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+        div { class: "mb-3 flex items-center gap-3",
+            div { class: "flex-1",
+                SearchBox {
+                    placeholder: "Search name or controller id…",
+                    on_search: move |s| {
+                        query.set(s);
+                        offset.set(0);
+                    },
+                }
+            }
+            TagFilter {
+                kind: TagKind::Target,
+                selected: tag,
+                on_change: move |_| offset.set(0),
             }
         }
         match &*targets.read_unchecked() {

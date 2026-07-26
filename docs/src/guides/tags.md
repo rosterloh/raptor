@@ -67,6 +67,14 @@ curl -u admin:pw -X DELETE localhost:8080/rest/v1/targettags/1/assigned \
 curl -u admin:pw 'localhost:8080/rest/v1/targettags/1/assigned?limit=100'
 ```
 
+The reverse lookup — the tags carried by one entity — is a raptor extension,
+since hawkBit only exposes the tag-to-entity direction:
+
+```bash
+curl -u admin:pw localhost:8080/rest/v1/targets/dev-1/tags
+curl -u admin:pw localhost:8080/rest/v1/distributionsets/7/tags
+```
+
 Distribution-set tags work the same way, keyed by distribution set **id**:
 
 ```bash
@@ -75,6 +83,15 @@ curl -u admin:pw -X POST   localhost:8080/rest/v1/distributionsettags/1/assigned
   -H 'Content-Type: application/json' -d '[8,9]'
 curl -u admin:pw           localhost:8080/rest/v1/distributionsettags/1/assigned
 ```
+
+## In the web console
+
+The [web console](web-console.md) has a **Tags** page with a tab per kind, where
+tags are created, recoloured and deleted, alongside a count of how many targets
+or sets carry each one. A target's or distribution set's own tags appear on its
+detail page, where **Manage…** assigns and unassigns them, and the targets and
+distributions lists gain a tag dropdown that filters the list to one tag —
+combined with whatever is in the search box.
 
 ## Filtering by tag
 

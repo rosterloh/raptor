@@ -22,6 +22,7 @@ pub fn Shell() -> Element {
                     NavLink { to: Route::Modules {}, label: "Modules" }
                     NavLink { to: Route::Rollouts {}, label: "Rollouts" }
                     NavLink { to: Route::Actions {}, label: "Actions" }
+                    NavLink { to: Route::Tags {}, label: "Tags" }
                 }
                 button {
                     class: "m-2 rounded px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-800",

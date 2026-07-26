@@ -1,5 +1,6 @@
 use crate::components::ui::{Button, Dialog, Input};
 use crate::components::*;
+use crate::pages::{TagFilter, TagKind};
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
 use raptor_api_types::DsCreate;
@@ -10,8 +11,12 @@ const LIMIT: u64 = 25;
 pub fn Distributions() -> Element {
     let mut offset = use_signal(|| 0u64);
     let mut query = use_signal(String::new);
+    let tag = use_signal(String::new);
     let mut sets = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name", "version"], &query());
+        let q = logic::fiql_and(&[
+            logic::fiql_contains(&["name", "version"], &query()),
+            logic::fiql_tag(&tag()),
+        ]);
         api::list_ds(offset(), LIMIT, q.as_deref()).await
     });
     let mut show_create = use_signal(|| false);
@@ -21,14 +26,17 @@ pub fn Distributions() -> Element {
             h1 { class: "text-xl font-bold text-zinc-100", "Distributions" }
             Button { onclick: move |_| show_create.set(true), "New distribution set" }
         }
-        div { class: "mb-3",
-            SearchBox {
-                placeholder: "Search name or version…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+        div { class: "mb-3 flex items-center gap-3",
+            div { class: "flex-1",
+                SearchBox {
+                    placeholder: "Search name or version…",
+                    on_search: move |s| {
+                        query.set(s);
+                        offset.set(0);
+                    },
+                }
             }
+            TagFilter { kind: TagKind::Ds, selected: tag, on_change: move |_| offset.set(0) }
         }
         match &*sets.read_unchecked() {
             Some(Ok(page)) => rsx! {

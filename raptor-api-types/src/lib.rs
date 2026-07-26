@@ -327,6 +327,21 @@ pub struct TargetTypeUpdate {
     pub colour: Option<String>,
 }
 
+/// A target or distribution-set tag (hawkBit `MgmtTag`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRest {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    /// Display colour, hawkBit's British spelling.
+    pub colour: Option<String>,
+    pub created_at: i64,
+    pub last_modified_at: i64,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
+
 // ---- tag request bodies ----
 
 /// One element of `POST /rest/v1/targettags` or `/rest/v1/distributionsettags`
@@ -750,6 +765,15 @@ mod tests {
         };
         let v = serde_json::to_value(&t).unwrap();
         assert!(v.get("targetType").is_none());
+    }
+
+    #[test]
+    fn tag_rest_shape() {
+        round_trip::<TagRest>(json!({
+            "id": 3, "name": "beta", "description": null, "colour": "#00ff00",
+            "createdAt": 1, "lastModifiedAt": 2,
+            "_links": {"self": {"href": "/rest/v1/targettags/3"}}
+        }));
     }
 
     #[test]

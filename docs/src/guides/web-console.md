@@ -35,6 +35,9 @@ The console surfaces the core read/observe workflow and common actions:
 - a dashboard (polling the actions feed),
 - targets and target detail,
 - [target filters and auto-assignment](target-filters.md),
+- [tags](tags.md) — create and edit target and distribution-set tags, tag an
+  entity from its detail page, and filter the target and distribution lists by
+  tag,
 - distribution sets and detail,
 - software modules and detail,
 - rollouts and rollout detail,

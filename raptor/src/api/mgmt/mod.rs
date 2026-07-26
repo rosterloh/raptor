@@ -133,6 +133,7 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .put(metadata::target_update)
                 .delete(metadata::target_delete),
         )
+        .route("/rest/v1/targets/{cid}/tags", get(tags::tags_of_target))
         .route(
             "/rest/v1/targets/{cid}/autoConfirm",
             get(targets::auto_confirm_status),
@@ -165,6 +166,7 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .put(metadata::ds_update)
                 .delete(metadata::ds_delete),
         )
+        .route("/rest/v1/distributionsets/{id}/tags", get(tags::tags_of_ds))
         .route(
             "/rest/v1/distributionsets/{id}/assignedSM",
             post(distribution_sets::assign_modules).get(distribution_sets::assigned_modules),
