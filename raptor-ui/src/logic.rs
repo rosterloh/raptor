@@ -59,6 +59,43 @@ pub fn status_style(update_status: &str) -> (&'static str, &'static str) {
     }
 }
 
+/// Which field of the target-filter form an API write error belongs to. The
+/// server validates FIQL at write time (400) and rejects duplicate names (409),
+/// so the status alone says where the message goes; anything else is a
+/// form-level failure worth a toast.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterField {
+    Name,
+    Query,
+}
+
+pub fn filter_error_field(status: u16) -> Option<FilterField> {
+    match status {
+        400 => Some(FilterField::Query),
+        409 => Some(FilterField::Name),
+        _ => None,
+    }
+}
+
+/// Label for a filter's auto-assign column: the distribution set plus its action
+/// type, or `None` when nothing is attached. `ds` is the resolved set name; it is
+/// absent when the set is outside the page of sets the list page loaded, in which
+/// case the id stands in.
+pub fn auto_assign_label(
+    ds_id: Option<i64>,
+    ds: Option<&str>,
+    action_type: Option<&str>,
+) -> Option<String> {
+    let id = ds_id?;
+    let name = ds
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("DS #{id}"));
+    Some(match action_type.filter(|t| !t.is_empty()) {
+        Some(t) => format!("{name} · {t}"),
+        None => name,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,5 +141,30 @@ mod tests {
             assert!(!label.is_empty());
             assert!(classes.contains("bg-"));
         }
+    }
+
+    #[test]
+    fn filter_errors_map_to_their_field() {
+        assert_eq!(filter_error_field(400), Some(FilterField::Query));
+        assert_eq!(filter_error_field(409), Some(FilterField::Name));
+        assert_eq!(filter_error_field(404), None);
+        assert_eq!(filter_error_field(500), None);
+    }
+
+    #[test]
+    fn auto_assign_labels_cover_missing_pieces() {
+        assert_eq!(
+            auto_assign_label(Some(7), Some("fleet 1.0"), Some("forced")),
+            Some("fleet 1.0 · forced".into())
+        );
+        assert_eq!(
+            auto_assign_label(Some(7), None, Some("soft")),
+            Some("DS #7 · soft".into())
+        );
+        assert_eq!(
+            auto_assign_label(Some(7), Some("fleet 1.0"), None),
+            Some("fleet 1.0".into())
+        );
+        assert_eq!(auto_assign_label(None, None, Some("forced")), None);
     }
 }
