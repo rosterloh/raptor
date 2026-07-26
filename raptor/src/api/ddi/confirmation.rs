@@ -1,3 +1,8 @@
+//! Confirmation flow (hawkBit's `user.confirmation.flow`): confirmationBase
+//! and its feedback endpoint for actions in `wait_for_confirmation`, plus the
+//! device-side auto-confirm toggle. Renders like `deployment`'s payload but
+//! under a `confirmation` key.
+
 use super::deployment::{deployment_json_keyed, find_target_action};
 use crate::auth::ddi::AuthKind;
 use crate::entity::target;

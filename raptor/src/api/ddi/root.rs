@@ -1,3 +1,9 @@
+//! Controller poll base (`GET .../controller/v1/{controllerId}`):
+//! registers/looks up the target and reports the actionable `_links`
+//! (deploymentBase, confirmationBase, cancelAction, installedBase) for its
+//! current state. `get_or_register` is also the shared target-lookup used
+//! by every other DDI handler.
+
 use crate::auth::ddi::AuthKind;
 use crate::domain::deployment::active_action;
 use crate::entity::{action, target};

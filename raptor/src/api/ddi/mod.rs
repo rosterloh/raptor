@@ -1,3 +1,8 @@
+//! Device (`/{tenant}/controller/v1/...`) API: each submodule owns one
+//! DDI resource — polling base (`root`), config data, deployment/installed
+//! base, feedback/cancel, and confirmation flow. [`router`] wires the routes
+//! and applies `ddi_auth` middleware once, covering every route below it.
+
 pub mod artifacts;
 pub mod config_data;
 pub mod confirmation;

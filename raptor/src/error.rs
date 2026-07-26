@@ -1,3 +1,7 @@
+//! `AppError`: the crate-wide error type, and its `IntoResponse` mapping to
+//! hawkBit-compatible error bodies (status code, exception class,
+//! `errorCode` string — clients mostly branch on the status code).
+
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;

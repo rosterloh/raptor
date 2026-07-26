@@ -1,3 +1,6 @@
+//! Rollout CRUD and lifecycle (`/rest/v1/rollouts`): start/pause/resume, plus
+//! the read-only deployment-group and per-group target listings.
+
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::domain::rollout::{rollout_group_rest, rollout_rest};
 use crate::entity::{rollout, rollout_group, rollout_target_group};
@@ -6,9 +9,26 @@ use crate::state::AppState;
 use crate::util::base_url;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{RolloutCreate, RolloutGroupRest, RolloutRest};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/rollouts", post(create).get(list))
+        .route("/rest/v1/rollouts/{id}", get(get_one).delete(delete))
+        .route("/rest/v1/rollouts/{id}/start", post(start))
+        .route("/rest/v1/rollouts/{id}/pause", post(pause))
+        .route("/rest/v1/rollouts/{id}/resume", post(resume))
+        .route("/rest/v1/rollouts/{id}/deploygroups", get(groups))
+        .route("/rest/v1/rollouts/{id}/deploygroups/{gid}", get(group_one))
+        .route(
+            "/rest/v1/rollouts/{id}/deploygroups/{gid}/targets",
+            get(group_targets),
+        )
+}
 
 fn fiql_map(f: &str) -> Option<rollout::Column> {
     match f {

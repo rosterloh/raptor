@@ -1,3 +1,7 @@
+//! deploymentBase / installedBase: builds the chunk/artifact/history payload
+//! shared by both (and by `confirmation`'s confirmationBase), and looks up
+//! the target+action pair (`find_target_action`) used across `api::ddi`.
+
 use crate::entity::{
     action, action_status, action_status_message, artifact, ds_module, sm_metadata,
     software_module, target,

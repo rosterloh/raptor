@@ -1,8 +1,14 @@
+//! Management (`/rest/v1/...`) API: each submodule owns one resource family
+//! and exposes a `routes()` (or `router()`) building just its own routes;
+//! [`router`] merges them all and applies the `mgmt_auth` middleware once,
+//! covering every merged route. `login` is deliberately excluded — see its
+//! module doc.
+
 pub mod actions;
 pub mod artifacts;
 pub mod distribution_sets;
-pub mod dto;
 pub mod login;
+pub mod mappers;
 pub mod metadata;
 pub mod rollouts;
 pub mod software_modules;
@@ -14,272 +20,22 @@ pub mod types;
 
 use crate::state::AppState;
 use axum::middleware;
-use axum::routing::{get, post};
 use axum::Router;
 
 pub fn router(state: AppState) -> Router<AppState> {
     let max_artifact_size = state.cfg.max_artifact_size as usize;
     Router::new()
-        .route(
-            "/rest/v1/softwaremodules",
-            post(software_modules::create).get(software_modules::list),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}",
-            get(software_modules::get_one)
-                .put(software_modules::update)
-                .delete(software_modules::delete),
-        )
-        .route(
-            "/rest/v1/softwaremoduletypes",
-            get(types::sm_types).post(types::sm_type_create),
-        )
-        .route(
-            "/rest/v1/softwaremoduletypes/{id}",
-            get(types::sm_type)
-                .put(types::sm_type_update)
-                .delete(types::sm_type_delete),
-        )
-        .route(
-            "/rest/v1/distributionsettypes",
-            get(types::ds_types).post(types::ds_type_create),
-        )
-        .route(
-            "/rest/v1/distributionsettypes/{id}",
-            get(types::ds_type)
-                .put(types::ds_type_update)
-                .delete(types::ds_type_delete),
-        )
-        .route(
-            "/rest/v1/distributionsettypes/{id}/mandatorymoduletypes",
-            get(types::ds_type_mandatory).post(types::ds_type_add_mandatory),
-        )
-        .route(
-            "/rest/v1/distributionsettypes/{id}/mandatorymoduletypes/{mid}",
-            axum::routing::delete(types::ds_type_remove_module),
-        )
-        .route(
-            "/rest/v1/distributionsettypes/{id}/optionalmoduletypes",
-            get(types::ds_type_optional).post(types::ds_type_add_optional),
-        )
-        .route(
-            "/rest/v1/distributionsettypes/{id}/optionalmoduletypes/{mid}",
-            axum::routing::delete(types::ds_type_remove_module),
-        )
-        .route(
-            "/rest/v1/targettypes",
-            get(types::tt_list).post(types::tt_create),
-        )
-        .route(
-            "/rest/v1/targettypes/{id}",
-            get(types::tt_one)
-                .put(types::tt_update)
-                .delete(types::tt_delete),
-        )
-        .route(
-            "/rest/v1/targettypes/{id}/compatibledistributionsettypes",
-            get(types::tt_compat_list).post(types::tt_add_compat),
-        )
-        .route(
-            "/rest/v1/targettypes/{id}/compatibledistributionsettypes/{dsid}",
-            axum::routing::delete(types::tt_remove_compat),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}/metadata",
-            post(metadata::sm_create).get(metadata::sm_list),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}/metadata/{key}",
-            get(metadata::sm_get)
-                .put(metadata::sm_update)
-                .delete(metadata::sm_delete),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}/artifacts",
-            post(artifacts::upload)
-                .get(artifacts::list)
-                .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size)),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}/artifacts/{aid}",
-            get(artifacts::get_one).delete(artifacts::delete),
-        )
-        .route(
-            "/rest/v1/softwaremodules/{id}/artifacts/{aid}/download",
-            get(artifacts::download),
-        )
-        .route("/rest/v1/targets", post(targets::create).get(targets::list))
-        .route(
-            "/rest/v1/targets/{cid}",
-            get(targets::get_one)
-                .put(targets::update)
-                .delete(targets::delete),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/attributes",
-            get(targets::attributes),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/targettype",
-            post(targets::assign_type).delete(targets::unassign_type),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/metadata",
-            post(metadata::target_create).get(metadata::target_list),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/metadata/{key}",
-            get(metadata::target_get)
-                .put(metadata::target_update)
-                .delete(metadata::target_delete),
-        )
-        .route("/rest/v1/targets/{cid}/tags", get(tags::tags_of_target))
-        .route(
-            "/rest/v1/targets/{cid}/autoConfirm",
-            get(targets::auto_confirm_status),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/autoConfirm/activate",
-            post(targets::activate_auto_confirm),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/autoConfirm/deactivate",
-            post(targets::deactivate_auto_confirm),
-        )
-        .route(
-            "/rest/v1/distributionsets",
-            post(distribution_sets::create).get(distribution_sets::list),
-        )
-        .route(
-            "/rest/v1/distributionsets/{id}",
-            get(distribution_sets::get_one)
-                .put(distribution_sets::update)
-                .delete(distribution_sets::delete),
-        )
-        .route(
-            "/rest/v1/distributionsets/{id}/metadata",
-            post(metadata::ds_create).get(metadata::ds_list),
-        )
-        .route(
-            "/rest/v1/distributionsets/{id}/metadata/{key}",
-            get(metadata::ds_get)
-                .put(metadata::ds_update)
-                .delete(metadata::ds_delete),
-        )
-        .route("/rest/v1/distributionsets/{id}/tags", get(tags::tags_of_ds))
-        .route(
-            "/rest/v1/distributionsets/{id}/assignedSM",
-            post(distribution_sets::assign_modules).get(distribution_sets::assigned_modules),
-        )
-        .route(
-            "/rest/v1/distributionsets/{id}/invalidate",
-            post(distribution_sets::invalidate),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/assignedDS",
-            post(actions::assign).get(actions::assigned_ds),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/installedDS",
-            get(actions::installed_ds),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/actions",
-            get(actions::target_actions),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/actions/{aid}",
-            get(actions::target_action).delete(actions::cancel_action),
-        )
-        .route(
-            "/rest/v1/targets/{cid}/actions/{aid}/status",
-            get(actions::action_status_history),
-        )
-        .route("/rest/v1/actions", get(actions::all_actions))
-        .route(
-            "/rest/v1/rollouts",
-            post(rollouts::create).get(rollouts::list),
-        )
-        .route(
-            "/rest/v1/rollouts/{id}",
-            get(rollouts::get_one).delete(rollouts::delete),
-        )
-        .route("/rest/v1/rollouts/{id}/start", post(rollouts::start))
-        .route("/rest/v1/rollouts/{id}/pause", post(rollouts::pause))
-        .route("/rest/v1/rollouts/{id}/resume", post(rollouts::resume))
-        .route("/rest/v1/rollouts/{id}/deploygroups", get(rollouts::groups))
-        .route(
-            "/rest/v1/rollouts/{id}/deploygroups/{gid}",
-            get(rollouts::group_one),
-        )
-        .route(
-            "/rest/v1/rollouts/{id}/deploygroups/{gid}/targets",
-            get(rollouts::group_targets),
-        )
-        .route(
-            "/rest/v1/targetfilters",
-            post(target_filters::create).get(target_filters::list),
-        )
-        .route(
-            "/rest/v1/targetfilters/{id}",
-            get(target_filters::get_one)
-                .put(target_filters::update)
-                .delete(target_filters::delete),
-        )
-        .route(
-            "/rest/v1/targetfilters/{id}/autoAssignDS",
-            get(target_filters::get_auto_assign)
-                .post(target_filters::set_auto_assign)
-                .delete(target_filters::delete_auto_assign),
-        )
-        .route(
-            "/rest/v1/targettags",
-            get(tags::target_tag_list).post(tags::target_tag_create),
-        )
-        .route(
-            "/rest/v1/targettags/{id}",
-            get(tags::target_tag_one)
-                .put(tags::target_tag_update)
-                .delete(tags::target_tag_delete),
-        )
-        .route(
-            "/rest/v1/targettags/{id}/assigned",
-            get(tags::target_tag_assigned)
-                .post(tags::target_tag_assign_many)
-                .delete(tags::target_tag_unassign_many),
-        )
-        .route(
-            "/rest/v1/targettags/{id}/assigned/{cid}",
-            post(tags::target_tag_assign_one).delete(tags::target_tag_unassign_one),
-        )
-        .route(
-            "/rest/v1/distributionsettags",
-            get(tags::ds_tag_list).post(tags::ds_tag_create),
-        )
-        .route(
-            "/rest/v1/distributionsettags/{id}",
-            get(tags::ds_tag_one)
-                .put(tags::ds_tag_update)
-                .delete(tags::ds_tag_delete),
-        )
-        .route(
-            "/rest/v1/distributionsettags/{id}/assigned",
-            get(tags::ds_tag_assigned)
-                .post(tags::ds_tag_assign_many)
-                .delete(tags::ds_tag_unassign_many),
-        )
-        .route(
-            "/rest/v1/distributionsettags/{id}/assigned/{dsid}",
-            post(tags::ds_tag_assign_one).delete(tags::ds_tag_unassign_one),
-        )
-        .route("/rest/v1/system/configs", get(system::get_configs))
-        .route(
-            "/rest/v1/system/configs/{key}",
-            get(system::get_config)
-                .put(system::config_read_only)
-                .delete(system::config_read_only),
-        )
-        .route("/rest/v1/system/statistics", get(system::statistics))
+        .merge(software_modules::routes())
+        .merge(artifacts::routes(max_artifact_size))
+        .merge(types::routes())
+        .merge(metadata::routes())
+        .merge(targets::routes())
+        .merge(distribution_sets::routes())
+        .merge(actions::routes())
+        .merge(rollouts::routes())
+        .merge(target_filters::routes())
+        .merge(tags::routes())
+        .merge(system::routes())
         .route_layer(middleware::from_fn_with_state(
             state,
             crate::auth::mgmt::mgmt_auth,

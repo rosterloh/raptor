@@ -1,4 +1,8 @@
-use super::dto::{target_rest, TargetRest};
+//! Target CRUD (`/rest/v1/targets`), attributes, type assignment, and
+//! auto-confirm toggles. Action/deployment sub-resources live in `actions`,
+//! metadata sub-resources in `metadata`.
+
+use super::mappers::{target_rest, TargetRest};
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{target, target_attribute, target_metadata, target_type};
 use crate::error::AppError;
@@ -6,13 +10,41 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{TargetCreate, TargetUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
     QueryFilter,
 };
 use std::collections::{BTreeMap, HashSet};
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/targets", post(create).get(list))
+        .route(
+            "/rest/v1/targets/{cid}",
+            get(get_one).put(update).delete(delete),
+        )
+        .route("/rest/v1/targets/{cid}/attributes", get(attributes))
+        .route(
+            "/rest/v1/targets/{cid}/targettype",
+            post(assign_type).delete(unassign_type),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/autoConfirm",
+            get(auto_confirm_status),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/autoConfirm/activate",
+            post(activate_auto_confirm),
+        )
+        .route(
+            "/rest/v1/targets/{cid}/autoConfirm/deactivate",
+            post(deactivate_auto_confirm),
+        )
+}
 
 pub fn fiql_map(f: &str) -> Option<target::Column> {
     match f {

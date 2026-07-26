@@ -1,3 +1,8 @@
+//! Management API auth middleware: accepts a valid session cookie or HTTP
+//! Basic auth against the single configured operator account
+//! (argon2id-hashed password). `verify_creds` is exposed separately for the
+//! login handler.
+
 use crate::error::AppError;
 use crate::state::AppState;
 use argon2::password_hash::PasswordHash;

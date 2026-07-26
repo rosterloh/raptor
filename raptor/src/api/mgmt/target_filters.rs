@@ -1,3 +1,7 @@
+//! Saved target filter CRUD (`/rest/v1/targetfilters`) and the
+//! `autoAssignDS` sub-resource that links a filter to an auto-assigned
+//! distribution set.
+
 use crate::api::mgmt::actions::ds_rest_for;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{distribution_set, target_filter};
@@ -7,13 +11,30 @@ use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{
     AutoAssignRequest, TargetFilterCreate, TargetFilterRest, TargetFilterUpdate,
 };
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
 };
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/targetfilters", post(create).get(list))
+        .route(
+            "/rest/v1/targetfilters/{id}",
+            get(get_one).put(update).delete(delete),
+        )
+        .route(
+            "/rest/v1/targetfilters/{id}/autoAssignDS",
+            get(get_auto_assign)
+                .post(set_auto_assign)
+                .delete(delete_auto_assign),
+        )
+}
 
 fn fiql_map(f: &str) -> Option<target_filter::Column> {
     match f {

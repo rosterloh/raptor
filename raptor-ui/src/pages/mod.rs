@@ -1,3 +1,6 @@
+//! Route-level page components, one module per route in `main`'s `Route`
+//! enum; re-exported here so `main` can import them flatly.
+
 mod actions;
 mod dashboard;
 mod distributions;

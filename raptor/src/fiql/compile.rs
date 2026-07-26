@@ -1,3 +1,7 @@
+//! Compiles a parsed FIQL `Expr` into a SeaORM `Condition`/`SimpleExpr`
+//! against a caller-supplied column map, with an optional `VirtualField` hook
+//! for fields that aren't plain columns (e.g. `tag` membership joins).
+
 use super::{Comparison, Expr, Op};
 use crate::error::AppError;
 use sea_orm::sea_query::SimpleExpr;

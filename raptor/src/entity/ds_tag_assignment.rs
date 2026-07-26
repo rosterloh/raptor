@@ -1,3 +1,5 @@
+//! `ds_tag_assignment`: join table linking a `ds_tag` to a `distribution_set`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

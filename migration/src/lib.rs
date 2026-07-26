@@ -1,3 +1,7 @@
+//! `Migrator`: the ordered list of schema migrations, applied by `raptor`'s
+//! `main` on startup via `Migrator::up`. Each `mNNN...` submodule is one
+//! migration; add new ones here in chronological order.
+
 pub use sea_orm_migration::prelude::*;
 
 mod m20260704_000001_initial;

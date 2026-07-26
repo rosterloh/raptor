@@ -1,3 +1,6 @@
+//! FIQL grammar and parser (via `winnow`): builds the `Expr`/`Comparison`/`Op`
+//! AST from a raw query string. Turning that AST into SQL is `compile`'s job.
+
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, delimited, separated};
 use winnow::prelude::*;

@@ -1,3 +1,5 @@
+//! `target_tag`: a named, colour-tagged label assignable to targets.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

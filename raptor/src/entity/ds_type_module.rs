@@ -1,3 +1,5 @@
+//! `ds_type_module`: composition of a distribution-set type.
+
 use sea_orm::entity::prelude::*;
 
 /// Composition of a distribution-set type: which software-module types it is

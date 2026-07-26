@@ -1,3 +1,7 @@
+//! Dioxus web app entry point: the `Route` enum (client-side routing) and
+//! `main`/`App` bootstrap. Route components live in `pages`, HTTP calls in
+//! `api`, and framework-independent logic in `logic`.
+
 use dioxus::prelude::*;
 
 mod api;

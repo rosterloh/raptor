@@ -1,3 +1,5 @@
+//! `target_filter`: a saved FIQL query, optionally with an auto-assign distribution set.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

@@ -1,3 +1,7 @@
+//! Shared UI components and Tailwind class constants used across pages.
+//! `ui` holds the vendored shadcn-style pilot components (see its own doc);
+//! everything else here is hand-rolled for this app.
+
 pub mod badge;
 pub mod confirm;
 pub mod error_pane;

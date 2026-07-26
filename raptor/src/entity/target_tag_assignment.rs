@@ -1,3 +1,5 @@
+//! `target_tag_assignment`: join table linking a `target_tag` to a `target`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

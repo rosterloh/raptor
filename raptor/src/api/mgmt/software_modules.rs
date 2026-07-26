@@ -1,4 +1,8 @@
-use super::dto::{sm_rest, SmRest};
+//! Software module CRUD (`/rest/v1/softwaremodules`). Artifact, metadata, and
+//! type sub-resources live in the sibling `artifacts`, `metadata`, and `types`
+//! modules respectively.
+
+use super::mappers::{sm_rest, SmRest};
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{software_module, software_module_type};
 use crate::error::AppError;
@@ -6,10 +10,21 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{SmCreate, SmUpdate};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/softwaremodules", post(create).get(list))
+        .route(
+            "/rest/v1/softwaremodules/{id}",
+            get(get_one).put(update).delete(delete),
+        )
+}
 
 fn fiql_map(f: &str) -> Option<software_module::Column> {
     match f {

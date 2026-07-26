@@ -1,3 +1,6 @@
+//! Crate root: just the module tree. `app` wires the modules together into
+//! the axum `Router`; `main.rs` (the `raptor` binary) owns process startup.
+
 pub mod api;
 pub mod app;
 pub mod auth;

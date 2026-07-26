@@ -1,3 +1,6 @@
+//! `distribution_set`: a named, versioned bundle of software modules that
+//! can be assigned to targets.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

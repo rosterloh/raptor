@@ -6,6 +6,11 @@ and `q=<FIQL>`, and return the hawkBit paged envelope `{content, total, size}`.
 
 Base URL examples assume `localhost:8080`.
 
+Handlers live under `raptor/src/api/mgmt/`, one module per resource family,
+each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
+`targets.rs`, distribution-set/software-module/target *type* endpoints in
+`types/`.
+
 ## Auth & session
 
 | Method | Path | Description |

@@ -1,3 +1,8 @@
+//! Shared list-endpoint helpers: `ListParams` (offset/limit/sort/q query
+//! params), `apply_sort` (validates a `field:DIR` sort string against a
+//! caller-supplied column map), and `page` (count + offset/limit). Filtering
+//! itself is left to callers (usually via `fiql`).
+
 use crate::error::AppError;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect,

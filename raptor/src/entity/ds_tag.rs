@@ -1,3 +1,5 @@
+//! `ds_tag`: a named, colour-tagged label assignable to distribution sets.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

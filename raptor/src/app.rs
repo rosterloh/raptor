@@ -1,16 +1,20 @@
+//! Assembles the axum `Router`: merges the mgmt and DDI routers (and the
+//! embedded UI, when built with `embed-ui`), and — when metrics export is
+//! enabled — layers request-metrics middleware. No route logic of its own;
+//! that lives in `api::mgmt` and `api::ddi`.
+
 use crate::metrics;
 use crate::state::AppState;
 use axum::extract::{MatchedPath, Request, State};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 
 pub fn build_app(state: AppState) -> Router {
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/rest/v1/login", post(crate::api::mgmt::login::login))
-        .route("/rest/v1/logout", post(crate::api::mgmt::login::logout))
+        .merge(crate::api::mgmt::login::routes())
         .merge(crate::api::mgmt::router(state.clone()))
         .merge(crate::api::ddi::router(state.clone()));
     #[cfg(feature = "embed-ui")]

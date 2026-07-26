@@ -1,3 +1,7 @@
+//! In-memory `SessionStore` for the mgmt UI's cookie session: random tokens
+//! with sliding idle expiry. By design there is no persistence — a restart
+//! logs every session out.
+
 use axum::http::HeaderMap;
 use std::collections::HashMap;
 use std::sync::Mutex;

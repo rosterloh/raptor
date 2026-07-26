@@ -1,4 +1,7 @@
-use super::dto::{ds_rest, DsRest, SmRest};
+//! Distribution set CRUD (`/rest/v1/distributionsets`), module assignment, and
+//! invalidation. Metadata sub-resources live in `metadata`.
+
+use super::mappers::{ds_rest, DsRest, SmRest};
 use super::software_modules::type_keys;
 use crate::api::paging::{apply_sort, page, ListParams, Paged};
 use crate::entity::{
@@ -10,12 +13,31 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::routing::{get, post};
 use axum::Json;
+use axum::Router;
 use raptor_api_types::{DsCreate, DsInvalidate, DsUpdate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
 use std::collections::HashSet;
+
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/rest/v1/distributionsets", post(create).get(list))
+        .route(
+            "/rest/v1/distributionsets/{id}",
+            get(get_one).put(update).delete(delete),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/assignedSM",
+            post(assign_modules).get(assigned_modules),
+        )
+        .route(
+            "/rest/v1/distributionsets/{id}/invalidate",
+            post(invalidate),
+        )
+}
 
 pub fn fiql_map(f: &str) -> Option<distribution_set::Column> {
     match f {
@@ -92,7 +114,7 @@ pub async fn load_modules(st: &AppState, ds_id: i64, base: &str) -> Result<Vec<S
     Ok(mods
         .iter()
         .map(|m| {
-            super::dto::sm_rest(
+            super::mappers::sm_rest(
                 m,
                 keys.get(&m.type_id).map(String::as_str).unwrap_or("?"),
                 base,

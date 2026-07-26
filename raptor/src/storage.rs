@@ -1,3 +1,8 @@
+//! `ArtifactStore`: content-addressed (sha256) on-disk blob storage for
+//! uploaded artifacts. Streams to a temp file while hashing (sha1/md5/sha256
+//! for hawkBit-compatible metadata), then renames into place, deduping on an
+//! existing hash rather than overwriting.
+
 use crate::error::AppError;
 use futures::StreamExt;
 use md5::Md5;

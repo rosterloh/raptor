@@ -1,3 +1,5 @@
+//! `target_type`: the type catalogue entry a `target` may be constrained to.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

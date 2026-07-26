@@ -1,3 +1,7 @@
+//! `AppState`: the shared, `Clone`-cheap (`Arc`-backed) handle to the db
+//! connection, config, artifact store, session store and metrics that every
+//! handler receives via axum's `State` extractor.
+
 use crate::config::Config;
 use crate::metrics::Metrics;
 use sea_orm::DatabaseConnection;

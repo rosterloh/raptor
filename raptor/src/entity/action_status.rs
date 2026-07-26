@@ -1,3 +1,5 @@
+//! `action_status`: one status-history entry for an `action`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

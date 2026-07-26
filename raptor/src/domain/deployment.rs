@@ -1,3 +1,9 @@
+//! The action/deployment state machine: assigning a distribution set
+//! (`assign_ds`), applying device feedback (`apply_feedback`,
+//! `apply_cancel_feedback`), and the confirmation-flow transitions. This is
+//! the single place action status and target `update_status` are mutated, so
+//! mgmt and DDI handlers stay consistent.
+
 use crate::entity::{
     action, action_status, action_status_message, distribution_set, target, target_type_ds_type,
 };

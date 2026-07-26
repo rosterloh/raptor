@@ -1,0 +1,6 @@
+# Pin the toolchain so local builds, CI, and agent sessions agree on the
+# compiler. Bump deliberately (and re-run CI) rather than tracking stable.
+[toolchain]
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

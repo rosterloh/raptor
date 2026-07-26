@@ -1,3 +1,5 @@
+//! `target`: a device/controller, its auth token, and its current/assigned/installed state.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

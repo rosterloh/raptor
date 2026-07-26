@@ -1,3 +1,5 @@
+//! `rollout_group`: one ordered batch of a `rollout`, with its own success/error thresholds.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

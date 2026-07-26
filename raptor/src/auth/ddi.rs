@@ -1,3 +1,8 @@
+//! DDI auth middleware: accepts a `GatewayToken` (config-wide secret) or
+//! `TargetToken` (per-target `security_token`), or nothing when
+//! `ddi.anonymous` is set. The resolved `AuthKind` is stashed as a request
+//! extension for handlers that need to distinguish gateway from target auth.
+
 use crate::entity::target;
 use crate::error::AppError;
 use crate::state::AppState;

@@ -1,3 +1,7 @@
+//! Software-module artifact (binary) CRUD and download
+//! (`/rest/v1/softwaremodules/{id}/artifacts`). The upload/list route carries
+//! its own body-size limit layer, sized from `Config::max_artifact_size`.
+
 use crate::entity::artifact;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -6,10 +10,30 @@ use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::Response;
+use axum::routing::get;
 use axum::Json;
+use axum::Router;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
+
+pub fn routes(max_artifact_size: usize) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/rest/v1/softwaremodules/{id}/artifacts",
+            axum::routing::post(upload)
+                .get(list)
+                .layer(axum::extract::DefaultBodyLimit::max(max_artifact_size)),
+        )
+        .route(
+            "/rest/v1/softwaremodules/{id}/artifacts/{aid}",
+            get(get_one).delete(delete),
+        )
+        .route(
+            "/rest/v1/softwaremodules/{id}/artifacts/{aid}/download",
+            get(download),
+        )
+}
 
 pub fn artifact_rest(
     a: &artifact::Model,

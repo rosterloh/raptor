@@ -1,3 +1,5 @@
+//! `target_metadata`: arbitrary key/value metadata attached to a `target`.
+
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]

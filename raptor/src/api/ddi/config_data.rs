@@ -1,3 +1,7 @@
+//! `PUT .../configData`: device-reported attributes, applied as merge
+//! (default), replace, or remove against `target_attribute`. May trigger a
+//! re-evaluation of auto-assign target filters since attributes changed.
+
 use crate::auth::ddi::AuthKind;
 use crate::entity::target_attribute;
 use crate::error::AppError;
