@@ -4,11 +4,12 @@ use crate::entity::{
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
-use raptor_api_types::RolloutCreate;
+use raptor_api_types::{RolloutCreate, RolloutTargetsPerStatus as TargetsPerStatus};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    QueryOrder, QuerySelect, TransactionTrait,
 };
+use std::collections::HashMap;
 
 fn parse_percent(expr: &str) -> Result<i64, AppError> {
     expr.parse::<i64>()
@@ -295,7 +296,126 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
     Ok(())
 }
 
-pub fn rollout_rest(r: &rollout::Model, base: &str) -> raptor_api_types::RolloutRest {
+/// Bucket an action status into the hawkBit `totalTargetsPerStatus` field it
+/// contributes to. Everything still in flight (`running`, `canceling`,
+/// `wait_for_confirmation`) counts as running.
+fn bucket(counts: &mut TargetsPerStatus, action_status: &str, n: i64) {
+    match action_status {
+        "finished" => counts.finished += n,
+        "error" => counts.error += n,
+        "canceled" => counts.cancelled += n,
+        _ => counts.running += n,
+    }
+}
+
+/// Per-group target counts by deployment outcome, keyed by rollout group id.
+/// Groups with no members are absent from the map (callers default to zeroes).
+///
+/// Targets without an action yet have not been deployed to: they are `notstarted`
+/// while the rollout itself has not been started, and `scheduled` once it is
+/// running and they are only waiting for their group's turn.
+async fn counts_by_group(
+    st: &AppState,
+    groups: &[rollout_group::Model],
+    started: &HashMap<i64, bool>,
+) -> Result<HashMap<i64, TargetsPerStatus>, AppError> {
+    let ids: Vec<i64> = groups.iter().map(|g| g.id).collect();
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let members: Vec<(i64, i64)> = rollout_target_group::Entity::find()
+        .select_only()
+        .column(rollout_target_group::Column::RolloutGroupId)
+        .column_as(rollout_target_group::Column::Id.count(), "count")
+        .filter(rollout_target_group::Column::RolloutGroupId.is_in(ids.clone()))
+        .group_by(rollout_target_group::Column::RolloutGroupId)
+        .into_tuple()
+        .all(&st.db)
+        .await?;
+    let by_group: HashMap<i64, i64> = members.into_iter().collect();
+
+    let actions: Vec<(Option<i64>, String, i64)> = action::Entity::find()
+        .select_only()
+        .column(action::Column::RolloutGroupId)
+        .column(action::Column::Status)
+        .column_as(action::Column::Id.count(), "count")
+        .filter(action::Column::RolloutGroupId.is_in(ids))
+        .group_by(action::Column::RolloutGroupId)
+        .group_by(action::Column::Status)
+        .into_tuple()
+        .all(&st.db)
+        .await?;
+
+    let mut out: HashMap<i64, TargetsPerStatus> = HashMap::new();
+    for (gid, status, n) in actions {
+        let Some(gid) = gid else { continue };
+        bucket(out.entry(gid).or_default(), &status, n);
+    }
+    for g in groups {
+        let Some(members) = by_group.get(&g.id).copied() else {
+            continue;
+        };
+        let c = out.entry(g.id).or_default();
+        // Members the group has no action for yet. Clamped at zero because a
+        // target whose rollout action was superseded by a later assignment
+        // leaves the canceled one behind, counted against the same group.
+        let pending = (members - (c.finished + c.error + c.cancelled + c.running)).max(0);
+        if started.get(&g.rollout_id).copied().unwrap_or(false) {
+            c.scheduled += pending;
+        } else {
+            c.notstarted += pending;
+        }
+    }
+    Ok(out)
+}
+
+/// Rollout-level target counts (the sum over its groups), keyed by rollout id.
+pub async fn counts_for_rollouts(
+    st: &AppState,
+    rollouts: &[rollout::Model],
+) -> Result<HashMap<i64, TargetsPerStatus>, AppError> {
+    let ids: Vec<i64> = rollouts.iter().map(|r| r.id).collect();
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let started = rollouts
+        .iter()
+        .map(|r| (r.id, r.status != "ready"))
+        .collect();
+    let groups = rollout_group::Entity::find()
+        .filter(rollout_group::Column::RolloutId.is_in(ids))
+        .all(&st.db)
+        .await?;
+    let per_group = counts_by_group(st, &groups, &started).await?;
+
+    let mut out: HashMap<i64, TargetsPerStatus> = rollouts
+        .iter()
+        .map(|r| (r.id, TargetsPerStatus::default()))
+        .collect();
+    for g in &groups {
+        if let (Some(acc), Some(c)) = (out.get_mut(&g.rollout_id), per_group.get(&g.id)) {
+            *acc += *c;
+        }
+    }
+    Ok(out)
+}
+
+/// Target counts for the groups of one rollout, keyed by rollout group id.
+pub async fn counts_for_groups(
+    st: &AppState,
+    r: &rollout::Model,
+    groups: &[rollout_group::Model],
+) -> Result<HashMap<i64, TargetsPerStatus>, AppError> {
+    let started = HashMap::from([(r.id, r.status != "ready")]);
+    counts_by_group(st, groups, &started).await
+}
+
+pub fn rollout_rest(
+    r: &rollout::Model,
+    counts: TargetsPerStatus,
+    base: &str,
+) -> raptor_api_types::RolloutRest {
     raptor_api_types::RolloutRest {
         id: r.id,
         name: r.name.clone(),
@@ -304,6 +424,7 @@ pub fn rollout_rest(r: &rollout::Model, base: &str) -> raptor_api_types::Rollout
         target_filter_query: r.target_filter.clone(),
         status: r.status.clone(),
         total_targets: r.total_targets,
+        total_targets_per_status: counts,
         created_at: r.created_at,
         last_modified_at: r.updated_at,
         links: serde_json::json!({"self": {"href": format!("{base}/rest/v1/rollouts/{}", r.id)}}),
@@ -313,6 +434,7 @@ pub fn rollout_rest(r: &rollout::Model, base: &str) -> raptor_api_types::Rollout
 pub fn rollout_group_rest(
     g: &rollout_group::Model,
     rollout_id: i64,
+    counts: TargetsPerStatus,
     base: &str,
 ) -> raptor_api_types::RolloutGroupRest {
     raptor_api_types::RolloutGroupRest {
@@ -320,6 +442,7 @@ pub fn rollout_group_rest(
         name: g.name.clone(),
         status: g.status.clone(),
         total_targets: g.total_targets,
+        total_targets_per_status: counts,
         success_condition: raptor_api_types::RolloutCondition {
             condition: "THRESHOLD".into(),
             expression: g.success_threshold.to_string(),

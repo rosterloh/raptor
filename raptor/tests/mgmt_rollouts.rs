@@ -418,3 +418,143 @@ async fn pause_resume_and_delete() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+/// `totalTargetsPerStatus` with the zero-valued keys dropped, so assertions
+/// only have to name the buckets that matter.
+fn per_status(v: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    v["totalTargetsPerStatus"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .filter(|(_, n)| n.as_i64() != Some(0))
+        .map(|(k, n)| (k.clone(), n.clone()))
+        .collect()
+}
+
+async fn get_json(app: &axum::Router, path: &str) -> serde_json::Value {
+    common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", path, None))
+            .await
+            .unwrap(),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn targets_per_status_tracks_group_progress() {
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 4).await;
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(create_body(ds, 2, "100", None)),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+
+    // not started: every target is notstarted, on the rollout and its groups
+    assert_eq!(
+        per_status(&r),
+        json!({"notstarted": 4}).as_object().cloned().unwrap()
+    );
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    assert_eq!(
+        per_status(&groups["content"][0]),
+        json!({"notstarted": 2}).as_object().cloned().unwrap()
+    );
+    assert_eq!(
+        per_status(&groups["content"][1]),
+        json!({"notstarted": 2}).as_object().cloned().unwrap()
+    );
+
+    // started: group 0 is deploying, group 1 waits its turn
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                &format!("/rest/v1/rollouts/{id}/start"),
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        per_status(&r),
+        json!({"running": 2, "scheduled": 2})
+            .as_object()
+            .cloned()
+            .unwrap()
+    );
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    assert_eq!(
+        per_status(&groups["content"][0]),
+        json!({"running": 2}).as_object().cloned().unwrap()
+    );
+    assert_eq!(
+        per_status(&groups["content"][1]),
+        json!({"scheduled": 2}).as_object().cloned().unwrap()
+    );
+    let g0 = groups["content"][0]["id"].as_i64().unwrap();
+    let g1 = groups["content"][1]["id"].as_i64().unwrap();
+
+    // group 0 succeeds, which schedules group 1
+    finish_group_actions(&st, g0, false).await;
+    evaluate_rollouts(&st).await.unwrap();
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(
+        per_status(&r),
+        json!({"finished": 2, "running": 2})
+            .as_object()
+            .cloned()
+            .unwrap()
+    );
+    let g = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups/{g0}")).await;
+    assert_eq!(
+        per_status(&g),
+        json!({"finished": 2}).as_object().cloned().unwrap()
+    );
+
+    // group 1 fails
+    finish_group_actions(&st, g1, true).await;
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(
+        per_status(&r),
+        json!({"finished": 2, "error": 2})
+            .as_object()
+            .cloned()
+            .unwrap()
+    );
+    let g = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups/{g1}")).await;
+    assert_eq!(
+        per_status(&g),
+        json!({"error": 2}).as_object().cloned().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn rollout_list_reports_targets_per_status() {
+    let (app, _) = common::setup().await;
+    let ds = fixture(&app, 3).await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/rollouts",
+            Some(create_body(ds, 1, "100", None)),
+        ))
+        .await
+        .unwrap();
+
+    let list = get_json(&app, "/rest/v1/rollouts").await;
+    assert_eq!(list["total"], 1);
+    assert_eq!(
+        per_status(&list["content"][0]),
+        json!({"notstarted": 3}).as_object().cloned().unwrap()
+    );
+}

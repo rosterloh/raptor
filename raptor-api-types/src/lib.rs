@@ -425,6 +425,31 @@ pub struct RolloutCreate {
     pub error_condition: Option<RolloutCondition>,
 }
 
+/// Targets of a rollout (or one of its groups) counted by deployment outcome,
+/// hawkBit's `totalTargetsPerStatus`. `notstarted` are targets of a rollout that
+/// has not been started, `scheduled` targets of a group awaiting its turn.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutTargetsPerStatus {
+    pub notstarted: i64,
+    pub scheduled: i64,
+    pub running: i64,
+    pub error: i64,
+    pub finished: i64,
+    pub cancelled: i64,
+}
+
+impl std::ops::AddAssign for RolloutTargetsPerStatus {
+    fn add_assign(&mut self, o: Self) {
+        self.notstarted += o.notstarted;
+        self.scheduled += o.scheduled;
+        self.running += o.running;
+        self.error += o.error;
+        self.finished += o.finished;
+        self.cancelled += o.cancelled;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RolloutRest {
@@ -435,6 +460,8 @@ pub struct RolloutRest {
     pub target_filter_query: String,
     pub status: String,
     pub total_targets: i64,
+    #[serde(default)]
+    pub total_targets_per_status: RolloutTargetsPerStatus,
     pub created_at: i64,
     pub last_modified_at: i64,
     #[serde(rename = "_links", default)]
@@ -448,6 +475,8 @@ pub struct RolloutGroupRest {
     pub name: String,
     pub status: String,
     pub total_targets: i64,
+    #[serde(default)]
+    pub total_targets_per_status: RolloutTargetsPerStatus,
     pub success_condition: RolloutCondition,
     pub error_condition: RolloutCondition,
     #[serde(rename = "_links", default)]
@@ -633,6 +662,10 @@ mod tests {
         round_trip::<RolloutRest>(json!({
             "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
             "targetFilterQuery": "name==*", "status": "running", "totalTargets": 10,
+            "totalTargetsPerStatus": {
+                "notstarted": 0, "scheduled": 5, "running": 3,
+                "error": 1, "finished": 1, "cancelled": 0
+            },
             "createdAt": 1, "lastModifiedAt": 2,
             "_links": {"self": {"href": "http://x/rest/v1/rollouts/1"}}
         }));
@@ -642,10 +675,52 @@ mod tests {
     fn rollout_group_shape() {
         round_trip::<RolloutGroupRest>(json!({
             "id": 6, "name": "group-1", "status": "running", "totalTargets": 5,
+            "totalTargetsPerStatus": {
+                "notstarted": 0, "scheduled": 0, "running": 3,
+                "error": 1, "finished": 1, "cancelled": 0
+            },
             "successCondition": {"condition": "THRESHOLD", "expression": "50"},
             "errorCondition": {"condition": "THRESHOLD", "expression": "50"},
             "_links": {"self": {"href": "http://x/rest/v1/rollouts/1/deploygroups/6"}}
         }));
+    }
+
+    #[test]
+    fn rollout_targets_per_status_defaults_when_absent() {
+        let r: RolloutRest = serde_json::from_value(json!({
+            "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
+            "targetFilterQuery": "name==*", "status": "ready", "totalTargets": 10,
+            "createdAt": 1, "lastModifiedAt": 2
+        }))
+        .unwrap();
+        assert_eq!(
+            r.total_targets_per_status,
+            RolloutTargetsPerStatus::default()
+        );
+    }
+
+    #[test]
+    fn rollout_targets_per_status_sums() {
+        let mut acc = RolloutTargetsPerStatus::default();
+        acc += RolloutTargetsPerStatus {
+            finished: 2,
+            running: 1,
+            ..Default::default()
+        };
+        acc += RolloutTargetsPerStatus {
+            finished: 3,
+            error: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            acc,
+            RolloutTargetsPerStatus {
+                finished: 5,
+                running: 1,
+                error: 1,
+                ..Default::default()
+            }
+        );
     }
 
     #[test]

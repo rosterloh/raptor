@@ -127,6 +127,10 @@ already-tagged entity succeeds without creating a duplicate.
 | `GET` | `/rest/v1/rollouts/{id}/deploygroups/{gid}` | one group |
 | `GET` | `/rest/v1/rollouts/{id}/deploygroups/{gid}/targets` | controllerIds in a group |
 
+Rollout and group payloads carry `totalTargetsPerStatus` (notstarted, scheduled,
+running, error, finished, cancelled) — see the
+[Rollouts guide](../guides/rollouts.md#tracking-progress).
+
 ## Target filters
 
 | Method | Path | Description |

@@ -34,6 +34,34 @@ pub fn format_ts(ms: i64) -> String {
         .unwrap_or_else(|| "-".into())
 }
 
+/// Segments of a rollout progress bar, most-advanced first: (label, bar colour
+/// class, count). Empty buckets are dropped so the bar has no zero-width slivers
+/// and the legend only names states that actually occurred.
+pub fn progress_segments(
+    c: &raptor_api_types::RolloutTargetsPerStatus,
+) -> Vec<(&'static str, &'static str, i64)> {
+    [
+        ("finished", "bg-emerald-500", c.finished),
+        ("running", "bg-sky-500", c.running),
+        ("error", "bg-red-500", c.error),
+        ("cancelled", "bg-zinc-500", c.cancelled),
+        ("scheduled", "bg-zinc-600", c.scheduled),
+        ("not started", "bg-zinc-700", c.notstarted),
+    ]
+    .into_iter()
+    .filter(|(_, _, n)| *n > 0)
+    .collect()
+}
+
+/// `n` as a percentage of `total`, clamped to 0–100 (0 when `total` is 0) —
+/// used as a CSS width, where a NaN or out-of-range value would break layout.
+pub fn percent(n: i64, total: i64) -> f64 {
+    if total <= 0 {
+        return 0.0;
+    }
+    (n as f64 * 100.0 / total as f64).clamp(0.0, 100.0)
+}
+
 /// (label, badge classes) for a target updateStatus.
 pub fn status_style(update_status: &str) -> (&'static str, &'static str) {
     match update_status {
@@ -119,6 +147,30 @@ mod tests {
     #[test]
     fn timestamps_render() {
         assert_eq!(format_ts(0), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn progress_segments_drop_empty_buckets_and_keep_order() {
+        let c = raptor_api_types::RolloutTargetsPerStatus {
+            notstarted: 0,
+            scheduled: 4,
+            running: 2,
+            error: 1,
+            finished: 3,
+            cancelled: 0,
+        };
+        let labels: Vec<_> = progress_segments(&c).iter().map(|s| s.0).collect();
+        assert_eq!(labels, ["finished", "running", "error", "scheduled"]);
+        assert_eq!(progress_segments(&c)[0].2, 3);
+        assert!(progress_segments(&Default::default()).is_empty());
+    }
+
+    #[test]
+    fn percent_is_bounded() {
+        assert_eq!(percent(3, 4), 75.0);
+        assert_eq!(percent(1, 0), 0.0);
+        assert_eq!(percent(5, -1), 0.0);
+        assert_eq!(percent(9, 4), 100.0);
     }
 
     #[test]
