@@ -245,9 +245,9 @@ impl MigrationTrait for Migration {
         )
         .await?;
         for t in [
-            TableRef::Table(RolloutTargetGroup::Table.into_iden()),
-            TableRef::Table(RolloutGroup::Table.into_iden()),
-            TableRef::Table(Rollout::Table.into_iden()),
+            TableRef::Table(RolloutTargetGroup::Table.into_iden().into(), None),
+            TableRef::Table(RolloutGroup::Table.into_iden().into(), None),
+            TableRef::Table(Rollout::Table.into_iden().into(), None),
         ] {
             m.drop_table(Table::drop().table(t).to_owned()).await?;
         }

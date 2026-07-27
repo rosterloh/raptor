@@ -186,10 +186,10 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, m: &SchemaManager) -> Result<(), DbErr> {
         for t in [
-            TableRef::Table(TargetTagAssignment::Table.into_iden()),
-            TableRef::Table(DsTagAssignment::Table.into_iden()),
-            TableRef::Table(TargetTag::Table.into_iden()),
-            TableRef::Table(DsTag::Table.into_iden()),
+            TableRef::Table(TargetTagAssignment::Table.into_iden().into(), None),
+            TableRef::Table(DsTagAssignment::Table.into_iden().into(), None),
+            TableRef::Table(TargetTag::Table.into_iden().into(), None),
+            TableRef::Table(DsTag::Table.into_iden().into(), None),
         ] {
             m.drop_table(Table::drop().table(t).to_owned()).await?;
         }

@@ -17,8 +17,8 @@ static SCHEMA_SEQ: AtomicU64 = AtomicU64::new(0);
 pub const TEST_PASSWORD: &str = "raptor-test";
 
 static TEST_HASH: LazyLock<String> = LazyLock::new(|| {
-    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
-    let salt = SaltString::generate(&mut OsRng);
+    use argon2::password_hash::{PasswordHasher, SaltString};
+    let salt = SaltString::encode_b64(&raptor::util::random_salt()).unwrap();
     argon2::Argon2::default()
         .hash_password(TEST_PASSWORD.as_bytes(), &salt)
         .unwrap()

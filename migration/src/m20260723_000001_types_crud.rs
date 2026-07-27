@@ -210,9 +210,9 @@ impl MigrationTrait for Migration {
         )
         .await?;
         for t in [
-            TableRef::Table(TargetTypeDsType::Table.into_iden()),
-            TableRef::Table(TargetType::Table.into_iden()),
-            TableRef::Table(DsTypeModule::Table.into_iden()),
+            TableRef::Table(TargetTypeDsType::Table.into_iden().into(), None),
+            TableRef::Table(TargetType::Table.into_iden().into(), None),
+            TableRef::Table(DsTypeModule::Table.into_iden().into(), None),
         ] {
             m.drop_table(Table::drop().table(t).to_owned()).await?;
         }

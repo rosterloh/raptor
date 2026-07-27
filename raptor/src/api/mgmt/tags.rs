@@ -20,7 +20,7 @@ use axum::Router;
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 use sea_orm::sea_query::{Expr as SqlExpr, Query as SqlQuery, SelectStatement, SimpleExpr};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter,
 };
 use serde_json::json;
 
