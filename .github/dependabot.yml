@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # One PR per week for the whole workspace lockfile, grouped so a busy week
+  # doesn't open twenty PRs. Majors come through individually.
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # `dioxus = "=0.7.9"` must match the dioxus-cli version installed in CI
+      # (release.yml) — bump both together by hand.
+      - dependency-name: dioxus
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ["*"]
