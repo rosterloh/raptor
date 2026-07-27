@@ -558,3 +558,65 @@ async fn rollout_list_reports_targets_per_status() {
         json!({"notstarted": 3}).as_object().cloned().unwrap()
     );
 }
+
+#[tokio::test]
+async fn rollout_action_type_is_inherited_by_the_actions_it_creates() {
+    let (app, _) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let mut body = create_body(ds, 1, "100", None);
+    body["type"] = json!("downloadonly");
+
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req("POST", "/rest/v1/rollouts", Some(body)))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(r["type"], json!("downloadonly"));
+    let id = r["id"].as_i64().unwrap();
+
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // the started group's actions carry the rollout's type, so the device is
+    // told to download and skip installing
+    let a = get_json(&app, "/rest/v1/targets/dev-1/actions").await;
+    let aid = a["content"][0]["id"].as_i64().unwrap();
+    assert_eq!(a["content"][0]["forceType"], json!("downloadonly"));
+    let dep = common::body_json(
+        app.clone()
+            .oneshot(
+                axum::http::Request::get(format!(
+                    "/DEFAULT/controller/v1/dev-1/deploymentBase/{aid}"
+                ))
+                .body(axum::body::Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(dep["deployment"]["download"], json!("forced"));
+    assert_eq!(dep["deployment"]["update"], json!("skip"));
+}
+
+#[tokio::test]
+async fn rollout_rejects_an_unknown_action_type() {
+    let (app, _) = common::setup().await;
+    let ds = fixture(&app, 1).await;
+    let mut body = create_body(ds, 1, "100", None);
+    body["type"] = json!("whenever");
+    let resp = app
+        .clone()
+        .oneshot(common::req("POST", "/rest/v1/rollouts", Some(body)))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}

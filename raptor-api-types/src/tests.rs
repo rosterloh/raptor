@@ -104,7 +104,8 @@ fn action_status_shape() {
 fn rollout_shape() {
     round_trip::<RolloutRest>(json!({
         "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
-        "targetFilterQuery": "name==*", "status": "running", "totalTargets": 10,
+        "targetFilterQuery": "name==*", "status": "running",
+        "type": "downloadonly", "totalTargets": 10,
         "totalTargetsPerStatus": {
             "notstarted": 0, "scheduled": 5, "running": 3,
             "error": 1, "finished": 1, "cancelled": 0
@@ -129,11 +130,21 @@ fn rollout_group_shape() {
 }
 
 #[test]
+fn rollout_forcetime_is_lowercase_on_request_and_response() {
+    round_trip::<RolloutCreate>(json!({
+        "name": "r1", "distributionSetId": 5, "targetFilterQuery": "name==*",
+        "amountGroups": 2,
+        "successCondition": {"condition": "THRESHOLD", "expression": "80"},
+        "type": "timeforced", "forcetime": 1_700_000_000_000_i64
+    }));
+}
+
+#[test]
 fn rollout_targets_per_status_defaults_when_absent() {
     let r: RolloutRest = serde_json::from_value(json!({
         "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
-        "targetFilterQuery": "name==*", "status": "ready", "totalTargets": 10,
-        "createdAt": 1, "lastModifiedAt": 2
+        "targetFilterQuery": "name==*", "status": "ready", "type": "forced",
+        "totalTargets": 10, "createdAt": 1, "lastModifiedAt": 2
     }))
     .unwrap();
     assert_eq!(
