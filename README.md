@@ -179,5 +179,9 @@ group thresholds); approval workflow and dynamic rollouts are follow-ups. Saved
 target filters (`/rest/v1/targetfilters`) can carry an auto-assign distribution
 set that is applied to matching targets — on registration, attribute change, and
 via a periodic sweep. The DDI confirmation flow (`confirmationBase`, opt-in via
-`[ddi] confirmation_flow`, with per-target auto-confirm) is supported. Not yet:
-tags, AMQP/DMF. Design docs in `docs/superpowers/specs/`.
+`[ddi] confirmation_flow`, with per-target auto-confirm) is supported — note that
+it requires a client implementing `confirmationBase`; use `[ddi]
+auto_confirm_default` for clients that don't (the mainline Zephyr one, for
+example). raptor is **single-tenant**: DDI clients should be configured with
+tenant `DEFAULT`. Not yet: tags, AMQP/DMF. Design docs in
+`docs/superpowers/specs/`.

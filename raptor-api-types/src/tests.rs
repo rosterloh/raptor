@@ -16,8 +16,17 @@ fn target_shape() {
         "createdAt": 1, "lastModifiedAt": 2, "address": null, "ipAddress": null,
         "lastControllerRequestAt": 3,
         "pollStatus": {"lastRequestAt": 3, "nextExpectedRequestAt": 4, "overdue": false},
+        "requestAttributes": false,
         "_links": {"self": {"href": "http://x/rest/v1/targets/d1"}}
     }));
+}
+
+#[test]
+fn target_update_carries_request_attributes() {
+    round_trip::<TargetUpdate>(json!({"requestAttributes": true}));
+    // omitted stays omitted, so a PUT that doesn't mention it leaves it alone
+    let u: TargetUpdate = serde_json::from_value(json!({"name": "d1"})).unwrap();
+    assert_eq!(u.request_attributes, None);
 }
 
 #[test]
@@ -253,6 +262,7 @@ fn target_type_field_omitted_when_none() {
         last_controller_request_at: None,
         poll_status: None,
         target_type: None,
+        request_attributes: true,
         links: serde_json::Value::Null,
     };
     let v = serde_json::to_value(&t).unwrap();

@@ -79,6 +79,13 @@ pub async fn put_config_data(
             }
         }
     }
+    // Attributes have arrived: stop advertising the configData link until an
+    // operator asks for them again (hawkBit `requestAttributes`).
+    if t.request_attributes {
+        let mut am: crate::entity::target::ActiveModel = t.clone().into();
+        am.request_attributes = Set(false);
+        am.update(&st.db).await?;
+    }
     // Attribute changes can flip a target into a saved filter's match set;
     // re-evaluate auto-assign filters against it (no-op when none apply).
     crate::domain::target_filter::auto_assign_for_target(&st, &t).await?;

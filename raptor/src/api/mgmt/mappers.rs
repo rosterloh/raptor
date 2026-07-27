@@ -44,6 +44,7 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> Ta
         last_controller_request_at: t.last_poll_at,
         poll_status,
         target_type: t.type_id,
+        request_attributes: t.request_attributes,
         links: json!({"self": {"href": format!("{base}/rest/v1/targets/{}", t.controller_id)}}),
     }
 }

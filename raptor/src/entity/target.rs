@@ -23,6 +23,11 @@ pub struct Model {
     /// DDI confirmation flow is enabled.
     #[sea_orm(default_value = false)]
     pub auto_confirm: bool,
+    /// When true, the DDI base poll advertises the `configData` link so the
+    /// device (re-)uploads its attributes. Set on registration, cleared once
+    /// attributes arrive, re-armed via the Management API.
+    #[sea_orm(default_value = true)]
+    pub request_attributes: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }

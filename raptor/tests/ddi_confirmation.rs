@@ -106,6 +106,42 @@ async fn detail_status(app: &axum::Router, action_id: i64) -> String {
         .to_string()
 }
 
+/// setup_confirm() plus `auto_confirm_default`, the escape hatch for clients
+/// that don't implement `confirmationBase`.
+async fn setup_confirm_auto() -> (axum::Router, AppState) {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.ddi.confirmation_flow = true;
+    cfg.ddi.auto_confirm_default = true;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
+#[tokio::test]
+async fn auto_confirm_default_skips_the_confirmation_wait() {
+    let (app, _) = setup_confirm_auto().await;
+    let action_id = assign_fixture(&app).await;
+
+    // no confirmationBase to strand a confirmation-unaware client on
+    let links = poll_links(&app).await;
+    assert!(links.get("confirmationBase").is_none());
+    assert_eq!(
+        links["deploymentBase"]["href"],
+        format!("http://localhost:8080/DEFAULT/controller/v1/d1/deploymentBase/{action_id}")
+    );
+    assert_eq!(detail_status(&app, action_id).await, "running");
+
+    // and the target reports auto-confirm on, without a per-target call
+    let st = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/d1/autoConfirm", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(st["active"], json!(true));
+}
+
 #[tokio::test]
 async fn flow_enabled_waits_then_confirms_to_deployment() {
     let (app, _) = setup_confirm().await;
