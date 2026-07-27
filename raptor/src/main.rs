@@ -40,6 +40,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
+            if let Some(u) = &cfg.ddi.artifact_http_url {
+                if !u.starts_with("http://") {
+                    tracing::warn!(
+                        url = %u,
+                        "[ddi] artifact_http_url is not an http:// URL; it is advertised as the \
+                         plain-HTTP artifact link (download-http), so devices will follow it as-is."
+                    );
+                }
+            }
             if cfg.ddi.confirmation_flow && !cfg.ddi.auto_confirm_default {
                 tracing::warn!(
                     "[ddi] confirmation_flow is enabled: assignments wait for a confirmationBase \

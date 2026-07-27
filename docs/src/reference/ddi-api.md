@@ -124,3 +124,30 @@ Confirmation feedback uses a different body:
 
 The artifact download endpoint honors HTTP `Range` (RFC 7233) so an interrupted
 download resumes with a `206 Partial Content` response rather than restarting.
+
+### `download-http` vs `download`
+
+Each artifact carries up to two link families, following hawkBit's convention:
+`download-http` / `md5sum-http` are the plain-HTTP URLs, `download` / `md5sum`
+the HTTPS ones. Clients pick one and take the scheme from the href itself — the
+Zephyr hawkbit client uses `download-http`.
+
+raptor only advertises a genuinely different plain-HTTP URL when you have told it
+one is reachable, via `[ddi] artifact_http_url`:
+
+```toml
+url = "https://ota.example.com"
+[ddi]
+artifact_http_url = "http://dl.example.com:8080"
+```
+
+| Config | `download-http` | `download` |
+|---|---|---|
+| `url` http, no `artifact_http_url` | the `url` (http) | *(absent)* |
+| `url` https, no `artifact_http_url` | the `url` (https) | the `url` (https) |
+| `url` https + `artifact_http_url` | `artifact_http_url` (http) | the `url` (https) |
+
+The middle row is why `download-http` can carry an `https://` href: on a TLS-only
+deployment there is no plain-HTTP port to point at, and emitting one anyway would
+break every client that follows the link. Set `artifact_http_url` when you want
+device downloads to bypass TLS.

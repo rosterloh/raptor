@@ -25,6 +25,7 @@ environment variable; nested tables use a `__` separator (e.g.
 | `polling_interval` | string `HH:MM:SS` | `00:05:00` | poll sleep advertised to devices |
 | `confirmation_flow` | bool | `false` | require confirmation before a deployment starts |
 | `auto_confirm_default` | bool | `false` | give newly created targets `autoConfirm`, so `confirmation_flow` can't strand confirmation-unaware clients |
+| `artifact_http_url` | string | *(unset)* | plain-HTTP base advertised in the DDI `download-http` links; unset means they reuse `url` |
 
 ## `[mgmt]` — Management API / web console
 

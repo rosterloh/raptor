@@ -78,6 +78,13 @@ pub struct DdiConfig {
     /// understand and would otherwise poll forever without installing.
     #[serde(default)]
     pub auto_confirm_default: bool,
+    /// Plain-HTTP base URL to advertise in the DDI `download-http` /
+    /// `md5sum-http` artifact links, e.g. `http://ota.example.com`. Set this
+    /// only when plain HTTP really is reachable — devices that use
+    /// `download-http` (the Zephyr hawkbit client does) will follow it. When
+    /// unset, those links reuse the normal base `url`, whatever its scheme.
+    #[serde(default)]
+    pub artifact_http_url: Option<String>,
 }
 
 impl Default for DdiConfig {
@@ -88,6 +95,7 @@ impl Default for DdiConfig {
             polling_interval: default_polling(),
             confirmation_flow: false,
             auto_confirm_default: false,
+            artifact_http_url: None,
         }
     }
 }

@@ -71,6 +71,104 @@ async fn deploy_fixture(app: &axum::Router) -> (i64, i64) {
     (sm, r["assignedActions"][0]["id"].as_i64().unwrap())
 }
 
+/// TLS-only deployment: `download-http` has no plain-HTTP address to point at,
+/// so it reuses the https base rather than advertising a closed port.
+#[tokio::test]
+async fn tls_only_keeps_both_link_families_on_https() {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.url = Some("https://ota.example.com".into());
+    let state = raptor::state::AppState::new(state.db.clone(), cfg, state.store.clone());
+    let app = raptor::app::build_app(state);
+    let (sm, action_id) = deploy_fixture(&app).await;
+
+    let body = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let l = &body["deployment"]["chunks"][0]["artifacts"][0]["_links"];
+    let https = format!(
+        "https://ota.example.com/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin"
+    );
+    assert_eq!(l["download"]["href"], https);
+    assert_eq!(l["download-http"]["href"], https);
+}
+
+/// With a plain-HTTP address configured, `download-http` becomes the http
+/// variant and `download` stays https — hawkBit's convention, and what lets an
+/// operator hand device downloads to a plain-HTTP frontend.
+#[tokio::test]
+async fn artifact_http_url_splits_the_download_links_by_scheme() {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.url = Some("https://ota.example.com".into());
+    cfg.ddi.artifact_http_url = Some("http://dl.example.com:8080/".into());
+    let state = raptor::state::AppState::new(state.db.clone(), cfg, state.store.clone());
+    let app = raptor::app::build_app(state);
+    let (sm, action_id) = deploy_fixture(&app).await;
+
+    let body = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let l = &body["deployment"]["chunks"][0]["artifacts"][0]["_links"];
+    let path = format!("DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+    // trailing slash on the configured URL must not double up
+    assert_eq!(
+        l["download-http"]["href"],
+        format!("http://dl.example.com:8080/{path}")
+    );
+    assert_eq!(
+        l["md5sum-http"]["href"],
+        format!("http://dl.example.com:8080/{path}.MD5SUM")
+    );
+    assert_eq!(
+        l["download"]["href"],
+        format!("https://ota.example.com/{path}")
+    );
+    assert_eq!(
+        l["md5sum"]["href"],
+        format!("https://ota.example.com/{path}.MD5SUM")
+    );
+
+    // the artifact listing endpoint agrees with deploymentBase
+    let listed = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        listed[0]["_links"]["download-http"]["href"],
+        format!("http://dl.example.com:8080/{path}")
+    );
+}
+
 #[tokio::test]
 async fn deployment_base_matches_hawkbit_shape() {
     let (app, _) = common::setup().await;

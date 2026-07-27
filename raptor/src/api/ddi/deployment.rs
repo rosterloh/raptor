@@ -26,14 +26,27 @@ fn part_for(type_key: &str) -> &str {
     }
 }
 
-pub fn ddi_artifact_json(ar: &artifact::Model, ddi: &str, module_id: i64, https: bool) -> Value {
-    let dl = format!(
-        "{ddi}/softwaremodules/{module_id}/artifacts/{}",
-        ar.filename
-    );
+/// Builds one artifact entry. `http_ddi` is the plain-HTTP base for the
+/// `download-http`/`md5sum-http` links: by hawkBit convention those are the
+/// plain-HTTP variants and `download`/`md5sum` the HTTPS ones. Without a
+/// configured plain-HTTP address we can't know that scheme is reachable, so
+/// they fall back to `ddi` rather than advertising a port that may be closed.
+pub fn ddi_artifact_json(
+    ar: &artifact::Model,
+    ddi: &str,
+    module_id: i64,
+    https: bool,
+    http_ddi: Option<&str>,
+) -> Value {
+    let path = format!("softwaremodules/{module_id}/artifacts/{}", ar.filename);
+    let dl = format!("{ddi}/{path}");
+    let dl_http = match http_ddi {
+        Some(h) => format!("{h}/{path}"),
+        None => dl.clone(),
+    };
     let mut l = json!({
-        "download-http": {"href": dl},
-        "md5sum-http": {"href": format!("{dl}.MD5SUM")}
+        "download-http": {"href": dl_http},
+        "md5sum-http": {"href": format!("{dl_http}.MD5SUM")}
     });
     if https {
         l["download"] = json!({"href": dl});
@@ -68,6 +81,7 @@ pub async fn deployment_json_keyed(
 ) -> Result<Value, AppError> {
     let ddi = super::ddi_base(base, cid);
     let https = base.starts_with("https://");
+    let http_ddi = super::ddi_http_base(&st.cfg, cid);
     let keys = crate::api::mgmt::software_modules::type_keys(&st.db).await?;
 
     let links = ds_module::Entity::find()
@@ -92,7 +106,7 @@ pub async fn deployment_json_keyed(
             .await?;
         let artifacts: Vec<Value> = arts
             .iter()
-            .map(|ar| ddi_artifact_json(ar, &ddi, m.id, https))
+            .map(|ar| ddi_artifact_json(ar, &ddi, m.id, https, http_ddi.as_deref()))
             .collect();
         let key = keys.get(&m.type_id).map(String::as_str).unwrap_or("os");
         let mut chunk = json!({
