@@ -71,6 +71,230 @@ async fn deploy_fixture(app: &axum::Router) -> (i64, i64) {
     (sm, r["assignedActions"][0]["id"].as_i64().unwrap())
 }
 
+/// The exact response shape the mainline Zephyr hawkbit client parses
+/// (`subsys/mgmt/hawkbit`). Its JSON descriptors are strict and it fails quietly:
+/// a renamed key or a changed type drops the update with no error anywhere, so
+/// the contract is pinned here rather than left implicit across other tests.
+#[tokio::test]
+async fn zephyr_client_json_contract() {
+    let (app, _) = common::setup().await;
+    let (sm, action_id) = deploy_fixture(&app).await;
+
+    // --- base poll: sleep must parse as HH:MM:SS, deploymentBase absolute
+    let poll = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get("/DEFAULT/controller/v1/d1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let sleep = poll["config"]["polling"]["sleep"].as_str().unwrap();
+    assert_eq!(sleep.len(), 8, "sleep must be HH:MM:SS, got {sleep}");
+    assert!(sleep
+        .split(':')
+        .all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_digit())));
+    assert!(poll["_links"]["deploymentBase"]["href"]
+        .as_str()
+        .unwrap()
+        .starts_with("http"));
+
+    // --- deploymentBase: id is a *string*, modes are the three DDI verbs
+    let dep = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(dep["id"], json!(action_id.to_string()));
+    for mode in ["download", "update"] {
+        let v = dep["deployment"][mode].as_str().unwrap();
+        assert!(
+            ["forced", "attempt", "skip"].contains(&v),
+            "unexpected {mode} mode {v}"
+        );
+    }
+    let art = &dep["deployment"]["chunks"][0]["artifacts"][0];
+    assert_eq!(art["filename"], json!("fw.bin"));
+    assert!(art["size"].is_i64());
+    // sha256 is checked against the flashed image, so it must be hex-64
+    let sha = art["hashes"]["sha256"].as_str().unwrap();
+    assert_eq!(sha.len(), 64);
+    assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    // the client downloads from download-http, not download
+    assert!(art["_links"]["download-http"]["href"]
+        .as_str()
+        .unwrap()
+        .ends_with(&format!("/softwaremodules/{sm}/artifacts/fw.bin")));
+
+    // --- configData: the client always sends mode "merge"
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::put("/DEFAULT/controller/v1/d1/configData")
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({"mode": "merge", "data": {"hw": "rev1"}}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // --- feedback: execution "closed" + result "success" closes the action
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}/feedback"
+            ))
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "id": action_id.to_string(),
+                    "status": {
+                        "execution": "closed",
+                        "result": {"finished": "success"}
+                    }
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let t = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/d1", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(t["updateStatus"], json!("in_sync"));
+
+    // lowercase tenant (Zephyr's CONFIG_HAWKBIT_TENANT default) is accepted
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get("/default/controller/v1/d1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// TLS-only deployment: `download-http` has no plain-HTTP address to point at,
+/// so it reuses the https base rather than advertising a closed port.
+#[tokio::test]
+async fn tls_only_keeps_both_link_families_on_https() {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.url = Some("https://ota.example.com".into());
+    let state = raptor::state::AppState::new(state.db.clone(), cfg, state.store.clone());
+    let app = raptor::app::build_app(state);
+    let (sm, action_id) = deploy_fixture(&app).await;
+
+    let body = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let l = &body["deployment"]["chunks"][0]["artifacts"][0]["_links"];
+    let https = format!(
+        "https://ota.example.com/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin"
+    );
+    assert_eq!(l["download"]["href"], https);
+    assert_eq!(l["download-http"]["href"], https);
+}
+
+/// With a plain-HTTP address configured, `download-http` becomes the http
+/// variant and `download` stays https — hawkBit's convention, and what lets an
+/// operator hand device downloads to a plain-HTTP frontend.
+#[tokio::test]
+async fn artifact_http_url_splits_the_download_links_by_scheme() {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.url = Some("https://ota.example.com".into());
+    cfg.ddi.artifact_http_url = Some("http://dl.example.com:8080/".into());
+    let state = raptor::state::AppState::new(state.db.clone(), cfg, state.store.clone());
+    let app = raptor::app::build_app(state);
+    let (sm, action_id) = deploy_fixture(&app).await;
+
+    let body = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let l = &body["deployment"]["chunks"][0]["artifacts"][0]["_links"];
+    let path = format!("DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+    // trailing slash on the configured URL must not double up
+    assert_eq!(
+        l["download-http"]["href"],
+        format!("http://dl.example.com:8080/{path}")
+    );
+    assert_eq!(
+        l["md5sum-http"]["href"],
+        format!("http://dl.example.com:8080/{path}.MD5SUM")
+    );
+    assert_eq!(
+        l["download"]["href"],
+        format!("https://ota.example.com/{path}")
+    );
+    assert_eq!(
+        l["md5sum"]["href"],
+        format!("https://ota.example.com/{path}.MD5SUM")
+    );
+
+    // the artifact listing endpoint agrees with deploymentBase
+    let listed = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!(
+                    "/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        listed[0]["_links"]["download-http"]["href"],
+        format!("http://dl.example.com:8080/{path}")
+    );
+}
+
 #[tokio::test]
 async fn deployment_base_matches_hawkbit_shape() {
     let (app, _) = common::setup().await;

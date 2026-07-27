@@ -24,13 +24,22 @@ pub async fn list(
     let base = base_url(&st.cfg, &headers);
     let ddi = super::ddi_base(&base, &cid);
     let https = base.starts_with("https://");
+    let http_ddi = super::ddi_http_base(&st.cfg, &cid);
     let rows = artifact::Entity::find()
         .filter(artifact::Column::ModuleId.eq(module_id))
         .all(&st.db)
         .await?;
     Ok(Json(
         rows.iter()
-            .map(|ar| super::deployment::ddi_artifact_json(ar, &ddi, module_id, https))
+            .map(|ar| {
+                super::deployment::ddi_artifact_json(
+                    ar,
+                    &ddi,
+                    module_id,
+                    https,
+                    http_ddi.as_deref(),
+                )
+            })
             .collect(),
     ))
 }

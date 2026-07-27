@@ -20,6 +20,16 @@ pub fn ddi_base(base: &str, cid: &str) -> String {
     format!("{base}/DEFAULT/controller/v1/{cid}")
 }
 
+/// DDI base for the plain-HTTP artifact links (`download-http`), from
+/// `[ddi] artifact_http_url`. `None` — the default — means "reuse the normal
+/// base", which is what keeps single-scheme deployments working.
+pub fn ddi_http_base(cfg: &crate::config::Config, cid: &str) -> Option<String> {
+    cfg.ddi
+        .artifact_http_url
+        .as_deref()
+        .map(|u| ddi_base(u.trim_end_matches('/'), cid))
+}
+
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/{tenant}/controller/v1/{controllerId}", get(root::poll))

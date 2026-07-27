@@ -34,6 +34,15 @@ anonymous = false
 # gateway_token = "change-me"
 polling_interval = "00:05:00"
 # confirmation_flow = true   # require confirmation before a deployment starts
+# auto_confirm_default = true  # ...but don't strand clients lacking confirmationBase
+# Plain-HTTP base for the DDI `download-http` artifact links, if you want device
+# downloads to bypass TLS. Only set this when plain HTTP is actually reachable —
+# devices follow the link as given. Unset, `download-http` reuses `url` above.
+# artifact_http_url = "http://ota.example.com"
+# Where to read a device's address from when raptor runs behind a reverse proxy.
+# Unset, the socket peer is used -- a device can put anything in this header, so
+# only set it when a proxy you control rewrites it.
+# trusted_proxy_header = "x-forwarded-for"
 
 [mgmt]
 # Management API / web console admin credentials.

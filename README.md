@@ -6,8 +6,9 @@
 
 A [hawkBit](https://eclipse.dev/hawkbit/)-compatible OTA update server in Rust.
 One binary, one config file. Speaks hawkBit's DDI v1 API (SWUpdate, RAUC
-hawkbit-updater and other hawkBit clients work unchanged) and the core
-Management API workflow.
+hawkbit-updater and other hawkBit clients work unchanged — see the
+[Zephyr guide](docs/src/guides/zephyr.md) for a worked example and a
+per-feature compatibility matrix) and the core Management API workflow.
 
 ## Documentation
 

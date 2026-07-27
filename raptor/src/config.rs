@@ -78,6 +78,19 @@ pub struct DdiConfig {
     /// understand and would otherwise poll forever without installing.
     #[serde(default)]
     pub auto_confirm_default: bool,
+    /// Plain-HTTP base URL to advertise in the DDI `download-http` /
+    /// `md5sum-http` artifact links, e.g. `http://ota.example.com`. Set this
+    /// only when plain HTTP really is reachable — devices that use
+    /// `download-http` (the Zephyr hawkbit client does) will follow it. When
+    /// unset, those links reuse the normal base `url`, whatever its scheme.
+    #[serde(default)]
+    pub artifact_http_url: Option<String>,
+    /// Header carrying the real device address when raptor runs behind a reverse
+    /// proxy, e.g. `x-forwarded-for` or `forwarded`. Unset by default: the
+    /// header is trivially spoofable by a device, so the socket peer is used
+    /// unless an operator states that a proxy is in front and rewriting it.
+    #[serde(default)]
+    pub trusted_proxy_header: Option<String>,
 }
 
 impl Default for DdiConfig {
@@ -88,6 +101,8 @@ impl Default for DdiConfig {
             polling_interval: default_polling(),
             confirmation_flow: false,
             auto_confirm_default: false,
+            artifact_http_url: None,
+            trusted_proxy_header: None,
         }
     }
 }
