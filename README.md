@@ -135,6 +135,12 @@ Without the `[otel]` section (or without the `otel` feature) behaviour and log
 output are **identical to before** — the stdout `fmt` layer is always kept, even
 when export is on, so local `docker logs`/`journalctl` never goes dark.
 
+`packaging/grafana-dashboard.json` is an importable Grafana dashboard for the
+exported metrics (HTTP volume/latency, action lifecycle, fleet state, artifact
+throughput). It expects a Prometheus-compatible datasource fed by a collector,
+which is where the `raptor.http.requests` → `raptor_http_requests_total` name
+translation comes from.
+
 What you get with export enabled:
 
 - **Traces** — each HTTP request is a span (route/method/status via

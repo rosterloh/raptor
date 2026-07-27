@@ -1,0 +1,247 @@
+{
+  "title": "raptor — OTA update server",
+  "uid": "raptor-overview",
+  "tags": ["raptor", "ota", "hawkbit"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "ds",
+        "label": "Datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "job",
+        "label": "Job",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${ds}" },
+        "query": "label_values(raptor_http_requests_total, job)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests/s",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "decimals": 1, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "expr": "sum(rate(raptor_http_requests_total{job=~\"$job\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "p95 latency",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 2 }] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(raptor_http_request_duration_seconds_bucket{job=~\"$job\"}[$__rate_interval])))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Active actions",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "editorMode": "code", "expr": "sum(raptor_actions_active{job=~\"$job\"})" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Targets",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "none" },
+      "targets": [
+        { "refId": "A", "editorMode": "code", "expr": "sum(raptor_targets{job=~\"$job\"})" }
+      ]
+    },
+
+    { "type": "row", "title": "HTTP", "collapsed": false, "gridPos": { "x": 0, "y": 4, "w": 24, "h": 1 }, "panels": [] },
+    {
+      "type": "timeseries",
+      "title": "Request rate by API zone",
+      "description": "DDI polling volume is the capacity signal.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 5, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "legendFormat": "{{api}}",
+          "expr": "sum by (api) (rate(raptor_http_requests_total{job=~\"$job\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request duration",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 8, "y": 5, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 0, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "editorMode": "code", "legendFormat": "p50", "expr": "histogram_quantile(0.5, sum by (le) (rate(raptor_http_request_duration_seconds_bucket{job=~\"$job\"}[$__rate_interval])))" },
+        { "refId": "B", "editorMode": "code", "legendFormat": "p95", "expr": "histogram_quantile(0.95, sum by (le) (rate(raptor_http_request_duration_seconds_bucket{job=~\"$job\"}[$__rate_interval])))" },
+        { "refId": "C", "editorMode": "code", "legendFormat": "p99", "expr": "histogram_quantile(0.99, sum by (le) (rate(raptor_http_request_duration_seconds_bucket{job=~\"$job\"}[$__rate_interval])))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Responses by status",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 16, "y": 5, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "legendFormat": "{{status}}",
+          "expr": "sum by (status) (rate(raptor_http_requests_total{job=~\"$job\", status=~\"4..|5..\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Busiest routes",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "Value", "desc": true }] },
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true, "job": true, "instance": true, "api": true } } }],
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "instant": true,
+          "format": "table",
+          "expr": "topk(15, sum by (route, method) (rate(raptor_http_requests_total{job=~\"$job\"}[$__rate_interval])))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth failures by zone",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "legendFormat": "{{zone}}",
+          "expr": "sum by (zone) (rate(raptor_auth_failures_total{job=~\"$job\"}[$__rate_interval]))"
+        }
+      ]
+    },
+
+    { "type": "row", "title": "Fleet & deployments", "collapsed": false, "gridPos": { "x": 0, "y": 21, "w": 24, "h": 1 }, "panels": [] },
+    {
+      "type": "timeseries",
+      "title": "Targets by update status",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "custom": { "fillOpacity": 30, "showPoints": "never", "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "legendFormat": "{{update_status}}",
+          "expr": "sum by (update_status) (raptor_targets{job=~\"$job\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Action lifecycle",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 0, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "editorMode": "code", "legendFormat": "created", "expr": "sum(rate(raptor_actions_created_total{job=~\"$job\"}[$__rate_interval]))" },
+        { "refId": "B", "editorMode": "code", "legendFormat": "finished", "expr": "sum(rate(raptor_actions_finished_total{job=~\"$job\"}[$__rate_interval]))" },
+        { "refId": "C", "editorMode": "code", "legendFormat": "failed", "expr": "sum(rate(raptor_actions_failed_total{job=~\"$job\"}[$__rate_interval]))" },
+        { "refId": "D", "editorMode": "code", "legendFormat": "canceled", "expr": "sum(rate(raptor_actions_canceled_total{job=~\"$job\"}[$__rate_interval]))" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Action failure ratio (selected range)",
+      "description": "failed / (finished + failed) over the dashboard time range.",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 0, "y": 30, "w": 8, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.05 }, { "color": "red", "value": 0.2 }] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "expr": "sum(increase(raptor_actions_failed_total{job=~\"$job\"}[$__range])) / clamp_min(sum(increase(raptor_actions_failed_total{job=~\"$job\"}[$__range])) + sum(increase(raptor_actions_finished_total{job=~\"$job\"}[$__range])), 1)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Artifact throughput",
+      "datasource": { "type": "prometheus", "uid": "${ds}" },
+      "gridPos": { "x": 8, "y": 30, "w": 16, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "editorMode": "code", "legendFormat": "downloaded (to devices)", "expr": "sum(rate(raptor_artifact_bytes_downloaded_bytes_total{job=~\"$job\"}[$__rate_interval]))" },
+        { "refId": "B", "editorMode": "code", "legendFormat": "uploaded (via mgmt API)", "expr": "sum(rate(raptor_artifact_bytes_uploaded_bytes_total{job=~\"$job\"}[$__rate_interval]))" }
+      ]
+    }
+  ]
+}

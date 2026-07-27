@@ -2751,7 +2751,7 @@ dependencies = [
 
 [[package]]
 name = "migration"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "sea-orm-migration",
 ]
@@ -3586,7 +3586,7 @@ dependencies = [
 
 [[package]]
 name = "raptor"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "argon2",
  "axum",
@@ -3630,7 +3630,7 @@ dependencies = [
 
 [[package]]
 name = "raptor-api-types"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3638,7 +3638,7 @@ dependencies = [
 
 [[package]]
 name = "raptor-ui"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
