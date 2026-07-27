@@ -23,10 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: cargo-bins/cargo-binstall@v1.20.1
+      - uses: cargo-bins/cargo-binstall@v1.21.1
       - run: cargo binstall mdbook --no-confirm --force --disable-strategies compile
       - run: mdbook build docs
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/book
 
@@ -40,4 +40,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

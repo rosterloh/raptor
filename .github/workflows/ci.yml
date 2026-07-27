@@ -34,7 +34,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: wasm32-unknown-unknown, components: clippy }
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@v1.20.1
+      - uses: cargo-bins/cargo-binstall@v1.21.1
       # pinned to match the crate's `dioxus = "=0.7.9"`; --force works around
       # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
       # which makes binstall skip a reinstall and leaves `dx` missing on PATH
