@@ -188,6 +188,52 @@ async fn config_data_link_only_advertised_while_attributes_are_wanted() {
     );
 }
 
+/// A forwarded-for header is only believed when an operator has named it as
+/// coming from a trusted proxy — otherwise any device could claim any address.
+#[tokio::test]
+async fn poll_records_address_only_from_a_trusted_proxy_header() {
+    let poll_with_xff = |app: axum::Router, cid: &str| {
+        let uri = format!("/DEFAULT/controller/v1/{cid}");
+        async move {
+            app.oneshot(
+                Request::get(uri)
+                    .header("x-forwarded-for", "203.0.113.9, 10.0.0.5")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let address_of = |app: axum::Router, cid: &str| {
+        let uri = format!("/rest/v1/targets/{cid}");
+        async move {
+            common::body_json(app.oneshot(common::req("GET", &uri, None)).await.unwrap()).await
+        }
+    };
+
+    // untrusted (default): header ignored, and oneshot has no socket peer
+    let (app, state) = common::setup().await;
+    poll_with_xff(app.clone(), "untrusted-dev").await;
+    let t = address_of(app.clone(), "untrusted-dev").await;
+    assert_eq!(t["address"], json!(null));
+    assert_eq!(t["ipAddress"], json!(null));
+
+    // trusted: the proxy-appended (rightmost) hop is recorded, not the
+    // device-supplied one to its left
+    let mut cfg = state.cfg.clone();
+    cfg.ddi.trusted_proxy_header = Some("x-forwarded-for".into());
+    let trusted = raptor::app::build_app(raptor::state::AppState::new(
+        state.db.clone(),
+        cfg,
+        state.store.clone(),
+    ));
+    poll_with_xff(trusted.clone(), "proxied-dev").await;
+    let t = address_of(trusted.clone(), "proxied-dev").await;
+    assert_eq!(t["address"], json!("10.0.0.5"));
+    assert_eq!(t["ipAddress"], json!("10.0.0.5"));
+}
+
 #[tokio::test]
 async fn poll_with_foreign_tenant_still_serves_default_links() {
     let (app, _) = common::setup().await;

@@ -85,6 +85,12 @@ pub struct DdiConfig {
     /// unset, those links reuse the normal base `url`, whatever its scheme.
     #[serde(default)]
     pub artifact_http_url: Option<String>,
+    /// Header carrying the real device address when raptor runs behind a reverse
+    /// proxy, e.g. `x-forwarded-for` or `forwarded`. Unset by default: the
+    /// header is trivially spoofable by a device, so the socket peer is used
+    /// unless an operator states that a proxy is in front and rewriting it.
+    #[serde(default)]
+    pub trusted_proxy_header: Option<String>,
 }
 
 impl Default for DdiConfig {
@@ -96,6 +102,7 @@ impl Default for DdiConfig {
             confirmation_flow: false,
             auto_confirm_default: false,
             artifact_http_url: None,
+            trusted_proxy_header: None,
         }
     }
 }

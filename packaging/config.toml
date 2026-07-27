@@ -39,6 +39,10 @@ polling_interval = "00:05:00"
 # downloads to bypass TLS. Only set this when plain HTTP is actually reachable —
 # devices follow the link as given. Unset, `download-http` reuses `url` above.
 # artifact_http_url = "http://ota.example.com"
+# Where to read a device's address from when raptor runs behind a reverse proxy.
+# Unset, the socket peer is used -- a device can put anything in this header, so
+# only set it when a proxy you control rewrites it.
+# trusted_proxy_header = "x-forwarded-for"
 
 [mgmt]
 # Management API / web console admin credentials.

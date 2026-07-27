@@ -49,6 +49,27 @@ Filterable fields include `controllerId` (alias `id`), `name`, `description`,
 `updateStatus`, `lastControllerRequestAt`, and `address`. See
 [Filtering with FIQL](./fiql.md).
 
+## Last-seen address
+
+A target's `address` / `ipAddress` is recorded from its DDI polls, so a device
+that self-registers shows one without any Management API call. By default it's
+the socket peer address.
+
+Behind a reverse proxy the socket peer is the proxy, so point raptor at the
+header carrying the real address:
+
+```toml
+[ddi]
+trusted_proxy_header = "x-forwarded-for"
+```
+
+This is unset by default because a device can put whatever it likes in that
+header — only set it when a proxy you control is rewriting it. raptor reads the
+**rightmost** entry, the hop appended by the proxy directly in front of it;
+entries to the left are caller-supplied and so spoofable. Values that don't parse
+as an IP are ignored. Both `X-Forwarded-For` lists and RFC 7239 `Forwarded`
+(`for=…`) syntax are understood, with or without a port.
+
 ## Attributes
 
 Devices report key/value **attributes** (hardware revision, OS version, …) via

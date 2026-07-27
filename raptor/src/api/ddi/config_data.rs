@@ -29,10 +29,17 @@ fn default_mode() -> String {
 pub async fn put_config_data(
     State(st): State<AppState>,
     Extension(auth): Extension<AuthKind>,
+    peer: Option<Extension<axum::extract::ConnectInfo<std::net::SocketAddr>>>,
+    headers: axum::http::HeaderMap,
     Path((_tenant, cid)): Path<(String, String)>,
     Json(body): Json<ConfigData>,
 ) -> Result<StatusCode, AppError> {
-    let t = super::root::get_or_register(&st, &cid, auth).await?;
+    let addr = crate::util::client_address(
+        &st.cfg,
+        &headers,
+        peer.map(|Extension(axum::extract::ConnectInfo(p))| p),
+    );
+    let t = super::root::get_or_register(&st, &cid, auth, addr.as_deref()).await?;
     match body.mode.as_str() {
         "replace" => {
             target_attribute::Entity::delete_many()

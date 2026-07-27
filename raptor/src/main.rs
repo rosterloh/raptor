@@ -90,9 +90,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app = raptor::app::build_app(state);
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");
-            axum::serve(listener, app)
-                .with_graceful_shutdown(shutdown_signal())
-                .await?;
+            // with_connect_info so DDI handlers can record the device's source
+            // address (see util::client_address).
+            axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
             tracing::info!("shutting down; flushing telemetry");
             telemetry.shutdown();
         }

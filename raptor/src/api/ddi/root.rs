@@ -9,14 +9,15 @@ use crate::domain::deployment::active_action;
 use crate::entity::{action, target};
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::{base_url, now_ms, random_token};
-use axum::extract::{Path, State};
+use crate::util::{base_url, client_address, now_ms, random_token};
+use axum::extract::{ConnectInfo, Path, State};
 use axum::http::HeaderMap;
 use axum::{Extension, Json};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
 };
 use serde_json::{json, Map, Value};
+use std::net::SocketAddr;
 
 /// raptor is single-tenant and always emits tenant `DEFAULT` in its links, so a
 /// device polling `/{other}/controller/v1/...` still works — it just follows
@@ -38,10 +39,14 @@ fn warn_foreign_tenant(tenant: &str, cid: &str) {
     }
 }
 
+/// Looks up (or auto-registers) the polling target and stamps `last_poll_at`.
+/// `address` is the device's source address, recorded so a DDI-registered target
+/// shows a last-seen address without an operator setting one by hand.
 pub async fn get_or_register(
     st: &AppState,
     cid: &str,
     auth: AuthKind,
+    address: Option<&str>,
 ) -> Result<target::Model, AppError> {
     let existing = target::Entity::find()
         .filter(target::Column::ControllerId.eq(cid))
@@ -60,6 +65,7 @@ pub async fn get_or_register(
                 security_token: Set(random_token()),
                 update_status: Set("registered".into()),
                 auto_confirm: Set(st.cfg.ddi.auto_confirm_default),
+                address: Set(address.map(str::to_string)),
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
@@ -78,17 +84,30 @@ pub async fn get_or_register(
     };
     let mut am: target::ActiveModel = t.clone().into();
     am.last_poll_at = Set(Some(now_ms()));
+    // Only touch address/updated_at when it actually moved, so a stable fleet
+    // doesn't rewrite updated_at on every poll.
+    if let Some(a) = address {
+        if t.address.as_deref() != Some(a) {
+            am.address = Set(Some(a.to_string()));
+            am.updated_at = Set(now_ms());
+        }
+    }
     Ok(am.update(&st.db).await?)
 }
 
 pub async fn poll(
     State(st): State<AppState>,
     Extension(auth): Extension<AuthKind>,
+    // Option<Extension<..>> rather than Option<ConnectInfo<..>>: axum 0.8 has no
+    // optional impl for ConnectInfo, and `into_make_service_with_connect_info`
+    // puts the same value in extensions. Absent under `Router::oneshot` in tests.
+    peer: Option<Extension<ConnectInfo<SocketAddr>>>,
     headers: HeaderMap,
     Path((tenant, cid)): Path<(String, String)>,
 ) -> Result<Json<Value>, AppError> {
     warn_foreign_tenant(&tenant, &cid);
-    let t = get_or_register(&st, &cid, auth).await?;
+    let addr = client_address(&st.cfg, &headers, peer.map(|Extension(ConnectInfo(p))| p));
+    let t = get_or_register(&st, &cid, auth, addr.as_deref()).await?;
     let base = super::ddi_base(&base_url(&st.cfg, &headers), &cid);
 
     let mut links = Map::new();
