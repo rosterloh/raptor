@@ -32,6 +32,10 @@ pub struct TargetRest {
     /// Assigned target type id, if any (hawkBit `targetType`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub target_type: Option<i64>,
+    /// Whether the DDI base poll is currently asking this device to (re-)send
+    /// its attributes (hawkBit `requestAttributes`).
+    #[serde(default)]
+    pub request_attributes: bool,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }
@@ -61,6 +65,11 @@ pub struct TargetUpdate {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub security_token: Option<String>,
+    /// Set to `true` to make the next DDI base poll re-advertise `configData`,
+    /// asking the device to re-send its attributes (hawkBit
+    /// `MgmtTargetRequestBody.requestAttributes`).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub request_attributes: Option<bool>,
 }
 
 /// Body of `POST /rest/v1/targettypes` (hawkBit

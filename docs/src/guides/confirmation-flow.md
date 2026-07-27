@@ -8,6 +8,14 @@ either by the device over DDI, or by an operator activating auto-confirm.
 This mirrors hawkBit's confirmation flow (`confirmationBase`), which clients like
 the RAUC hawkbit-updater support.
 
+> **The client has to implement `confirmationBase`.** With the flow on, a waiting
+> target's poll offers `confirmationBase` and *no* `deploymentBase`. A client that
+> doesn't parse that link — the mainline Zephyr hawkbit client
+> (`subsys/mgmt/hawkbit`) ignores it entirely, as do older SWUpdate/RAUC setups —
+> sees nothing it understands, so it polls forever and never installs, with no
+> error reported anywhere. raptor logs a warning at startup when the flow is on.
+> Use `auto_confirm_default` (below) or per-target auto-confirm for those devices.
+
 ## Enabling the flow
 
 It's a server-wide toggle in the config:
@@ -72,6 +80,22 @@ curl -X POST localhost:8080/DEFAULT/controller/v1/device-42/confirmationBase/dea
 **Activating auto-confirm releases any already-pending actions** on that target —
 they transition straight to `running`. New assignments to an auto-confirm target
 never enter the wait state.
+
+### Auto-confirm by default
+
+To run the flow only for the devices that actually support it, have every new
+target start out auto-confirming and deactivate it on the ones you want to
+confirm explicitly:
+
+```toml
+[ddi]
+confirmation_flow = true
+auto_confirm_default = true
+```
+
+This applies to targets created either way — DDI self-registration or
+`POST /rest/v1/targets`. It only affects *new* targets; existing ones keep
+whatever auto-confirm state they have.
 
 ## Operator confirm/deny
 

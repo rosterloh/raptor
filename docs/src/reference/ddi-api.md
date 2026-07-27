@@ -1,9 +1,15 @@
 # DDI API Reference
 
-The device-facing API, under `/{tenant}/controller/v1/{controllerId}`. The
-`tenant` segment is accepted and ignored (raptor is single-tenant; links use
-`DEFAULT`). Requests are authenticated by target token, gateway token, or
-anonymous mode — see [Authentication](../guides/authentication.md).
+The device-facing API, under `/{tenant}/controller/v1/{controllerId}`. Requests
+are authenticated by target token, gateway token, or anonymous mode — see
+[Authentication](../guides/authentication.md).
+
+> **Configure clients with tenant `DEFAULT`.** raptor is single-tenant: the
+> `tenant` path segment is accepted and ignored, and every emitted link says
+> `DEFAULT`. A device configured with anything else (Zephyr:
+> `CONFIG_HAWKBIT_TENANT`) still works — it just follows hrefs that disagree with
+> its own config, and it would break if multi-tenancy landed later. raptor logs a
+> warning the first time it sees a non-`DEFAULT` poll.
 
 Response JSON matches the hawkBit DDI v1 schemas field-for-field.
 
@@ -46,7 +52,14 @@ in `root.rs`, deployment/installed base in `deployment.rs`, feedback/cancel in
 Which `_links` appear depends on the target's state: `deploymentBase` when an
 action is `running`, `confirmationBase` when it's `wait_for_confirmation`,
 `cancelAction` when it's `canceling`, and `installedBase` once something has been
-installed. `configData` is always present.
+installed.
+
+`configData` appears only while raptor actually wants attributes — a freshly
+registered target, or one an operator has re-armed with `requestAttributes` (see
+[Management API](management-api.md#targets)). It disappears as soon as a
+`configData` PUT arrives. This matters because some clients (the Zephyr hawkbit
+client among them) re-upload their entire attribute set on *every* poll that
+carries the link, which is wasted uplink on a large or cellular fleet.
 
 ## deploymentBase
 

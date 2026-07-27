@@ -72,6 +72,12 @@ pub struct DdiConfig {
     /// hawkBit's `user.confirmation.flow.enabled` tenant flag. Off by default.
     #[serde(default)]
     pub confirmation_flow: bool,
+    /// `auto_confirm` applied to newly created targets. Escape hatch for
+    /// `confirmation_flow`: clients that don't implement `confirmationBase`
+    /// (the mainline Zephyr hawkbit client, for one) never see a link they
+    /// understand and would otherwise poll forever without installing.
+    #[serde(default)]
+    pub auto_confirm_default: bool,
 }
 
 impl Default for DdiConfig {
@@ -81,6 +87,7 @@ impl Default for DdiConfig {
             gateway_token: None,
             polling_interval: default_polling(),
             confirmation_flow: false,
+            auto_confirm_default: false,
         }
     }
 }

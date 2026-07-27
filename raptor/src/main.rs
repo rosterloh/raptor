@@ -40,6 +40,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
+            if cfg.ddi.confirmation_flow && !cfg.ddi.auto_confirm_default {
+                tracing::warn!(
+                    "[ddi] confirmation_flow is enabled: assignments wait for a confirmationBase \
+                     call. Clients that don't implement confirmationBase (including the mainline \
+                     Zephyr hawkbit client) will poll forever without installing. Set [ddi] \
+                     auto_confirm_default = true, or activate autoConfirm per target."
+                );
+            }
 
             let db = sea_orm::Database::connect(&cfg.database_url).await?;
             migration::Migrator::up(&db, None).await?;

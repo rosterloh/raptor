@@ -118,6 +118,7 @@ pub async fn create(
             security_token: Set(c.security_token.unwrap_or_else(random_token)),
             update_status: Set("unknown".into()),
             type_id: Set(c.target_type),
+            auto_confirm: Set(st.cfg.ddi.auto_confirm_default),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -179,6 +180,9 @@ pub async fn update(
     }
     if let Some(v) = u.security_token {
         am.security_token = Set(v);
+    }
+    if let Some(v) = u.request_attributes {
+        am.request_attributes = Set(v);
     }
     am.updated_at = Set(now_ms());
     let t = am.update(&st.db).await?;

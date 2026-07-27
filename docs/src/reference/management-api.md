@@ -26,7 +26,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `POST` | `/rest/v1/targets` | create targets (JSON array) |
 | `GET` | `/rest/v1/targets` | list (paging/sort/FIQL) |
 | `GET` | `/rest/v1/targets/{cid}` | get one |
-| `PUT` | `/rest/v1/targets/{cid}` | update name/description/token |
+| `PUT` | `/rest/v1/targets/{cid}` | update name/description/token/`requestAttributes` |
 | `DELETE` | `/rest/v1/targets/{cid}` | delete |
 | `GET` | `/rest/v1/targets/{cid}/attributes` | device-reported attributes |
 | `POST` / `DELETE` | `/rest/v1/targets/{cid}/targettype` | assign / unassign the target type |
@@ -42,6 +42,15 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `GET` | `/rest/v1/targets/{cid}/autoConfirm` | auto-confirm state |
 | `POST` | `/rest/v1/targets/{cid}/autoConfirm/activate` | enable auto-confirm |
 | `POST` | `/rest/v1/targets/{cid}/autoConfirm/deactivate` | disable auto-confirm |
+
+A target's `requestAttributes` flag controls whether its DDI poll advertises the
+`configData` link. It is set when the target is created and cleared once the
+device uploads its attributes; re-arm it to ask for a fresh upload:
+
+```bash
+curl -u admin:pw -X PUT localhost:8080/rest/v1/targets/device-42 \
+  -H 'Content-Type: application/json' -d '{"requestAttributes": true}'
+```
 
 ## Software modules & artifacts
 

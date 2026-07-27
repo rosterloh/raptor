@@ -127,6 +127,85 @@ async fn poll_shows_deployment_link_when_assigned() {
 }
 
 #[tokio::test]
+async fn config_data_link_only_advertised_while_attributes_are_wanted() {
+    let (app, _) = common::setup().await;
+    let poll = || async {
+        common::body_json(
+            app.clone()
+                .oneshot(ddi_get("/DEFAULT/controller/v1/attr-gate"))
+                .await
+                .unwrap(),
+        )
+        .await
+    };
+
+    // fresh registration: attributes wanted
+    assert_eq!(
+        poll().await["_links"]["configData"]["href"],
+        "http://localhost:8080/DEFAULT/controller/v1/attr-gate/configData"
+    );
+    assert_eq!(
+        common::body_json(
+            app.clone()
+                .oneshot(common::req("GET", "/rest/v1/targets/attr-gate", None))
+                .await
+                .unwrap()
+        )
+        .await["requestAttributes"],
+        json!(true)
+    );
+
+    // attributes uploaded: link goes away, so the device stops re-uploading
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::put("/DEFAULT/controller/v1/attr-gate/configData")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({"data": {"hw": "rev2"}}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(poll().await["_links"].get("configData").is_none());
+
+    // operator re-arms it via the hawkBit requestAttributes flag
+    let t = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "PUT",
+                "/rest/v1/targets/attr-gate",
+                Some(json!({"requestAttributes": true})),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(t["requestAttributes"], json!(true));
+    assert_eq!(
+        poll().await["_links"]["configData"]["href"],
+        "http://localhost:8080/DEFAULT/controller/v1/attr-gate/configData"
+    );
+}
+
+#[tokio::test]
+async fn poll_with_foreign_tenant_still_serves_default_links() {
+    let (app, _) = common::setup().await;
+    let body = common::body_json(
+        app.clone()
+            .oneshot(ddi_get("/OTHER/controller/v1/wrong-tenant"))
+            .await
+            .unwrap(),
+    )
+    .await;
+    // accepted (single-tenant server), but every emitted link says DEFAULT
+    assert_eq!(
+        body["_links"]["configData"]["href"],
+        "http://localhost:8080/DEFAULT/controller/v1/wrong-tenant/configData"
+    );
+}
+
+#[tokio::test]
 async fn config_data_modes() {
     let (app, _) = common::setup().await;
     app.clone()
