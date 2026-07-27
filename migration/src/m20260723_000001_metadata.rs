@@ -154,9 +154,9 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, m: &SchemaManager) -> Result<(), DbErr> {
         for t in [
-            TableRef::Table(TargetMetadata::Table.into_iden()),
-            TableRef::Table(SmMetadata::Table.into_iden()),
-            TableRef::Table(DsMetadata::Table.into_iden()),
+            TableRef::Table(TargetMetadata::Table.into_iden().into(), None),
+            TableRef::Table(SmMetadata::Table.into_iden().into(), None),
+            TableRef::Table(DsMetadata::Table.into_iden().into(), None),
         ] {
             m.drop_table(Table::drop().table(t).to_owned()).await?;
         }

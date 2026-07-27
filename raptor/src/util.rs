@@ -15,6 +15,20 @@ pub fn random_token() -> String {
     hex::encode(b)
 }
 
+/// 16 random bytes for a password-hash salt (argon2's recommended length).
+///
+/// Deliberately uses raptor's own `rand` rather than `SaltString::generate` with
+/// argon2's re-exported `rand_core::OsRng`: that `OsRng` only exists when some
+/// crate elsewhere in the tree happens to enable `rand_core/getrandom`, which is
+/// not something raptor ever asked for and which a dependency bump can silently
+/// take away.
+pub fn random_salt() -> [u8; 16] {
+    use rand::Rng;
+    let mut b = [0u8; 16];
+    rand::rng().fill_bytes(&mut b);
+    b
+}
+
 /// The device's source address, for `target.address`. Uses the configured
 /// trusted proxy header when raptor sits behind a proxy, else the socket peer.
 pub fn client_address(

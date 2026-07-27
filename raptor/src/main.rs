@@ -26,10 +26,11 @@ enum Cmd {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match Cmd::parse() {
         Cmd::HashPassword => {
-            use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
+            use argon2::password_hash::{PasswordHasher, SaltString};
             let mut pw = String::new();
             std::io::stdin().read_line(&mut pw)?;
-            let salt = SaltString::generate(&mut OsRng);
+            let salt = SaltString::encode_b64(&raptor::util::random_salt())
+                .map_err(|e| format!("salt encode error: {e}"))?;
             match argon2::Argon2::default().hash_password(pw.trim_end().as_bytes(), &salt) {
                 Ok(hash) => println!("{hash}"),
                 Err(e) => return Err(format!("hash password error: {}", e).into()),

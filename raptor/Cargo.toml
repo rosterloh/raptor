@@ -68,7 +68,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["trace", "limit"] }
-sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+sea-orm = { version = "2.0", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 migration = { path = "../migration" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -84,7 +84,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rand = "0.10"
-base64 = "0.22"
+base64 = "0.23"
 tempfile = "3"
 futures = "0.3"
 bytes = "1"

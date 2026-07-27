@@ -462,17 +462,17 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, m: &SchemaManager) -> Result<(), DbErr> {
         for t in [
-            TableRef::Table(ActionStatusMessage::Table.into_iden()),
-            TableRef::Table(ActionStatus::Table.into_iden()),
-            TableRef::Table(Action::Table.into_iden()),
-            TableRef::Table(TargetAttribute::Table.into_iden()),
-            TableRef::Table(Target::Table.into_iden()),
-            TableRef::Table(DsModule::Table.into_iden()),
-            TableRef::Table(DistributionSet::Table.into_iden()),
-            TableRef::Table(Artifact::Table.into_iden()),
-            TableRef::Table(SoftwareModule::Table.into_iden()),
-            TableRef::Table(DistributionSetType::Table.into_iden()),
-            TableRef::Table(SoftwareModuleType::Table.into_iden()),
+            TableRef::Table(ActionStatusMessage::Table.into_iden().into(), None),
+            TableRef::Table(ActionStatus::Table.into_iden().into(), None),
+            TableRef::Table(Action::Table.into_iden().into(), None),
+            TableRef::Table(TargetAttribute::Table.into_iden().into(), None),
+            TableRef::Table(Target::Table.into_iden().into(), None),
+            TableRef::Table(DsModule::Table.into_iden().into(), None),
+            TableRef::Table(DistributionSet::Table.into_iden().into(), None),
+            TableRef::Table(Artifact::Table.into_iden().into(), None),
+            TableRef::Table(SoftwareModule::Table.into_iden().into(), None),
+            TableRef::Table(DistributionSetType::Table.into_iden().into(), None),
+            TableRef::Table(SoftwareModuleType::Table.into_iden().into(), None),
         ] {
             m.drop_table(Table::drop().table(t).to_owned()).await?;
         }
