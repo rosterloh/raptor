@@ -26,7 +26,10 @@ use std::net::SocketAddr;
 /// than on every poll of every device in the fleet.
 fn warn_foreign_tenant(tenant: &str, cid: &str) {
     static WARNED: std::sync::Once = std::sync::Once::new();
-    if tenant != "DEFAULT" {
+    // Case-insensitive: Zephyr's CONFIG_HAWKBIT_TENANT defaults to "default",
+    // which is the same tenant, so warning about it would be noise on the most
+    // common stock client.
+    if !tenant.eq_ignore_ascii_case("DEFAULT") {
         WARNED.call_once(|| {
             tracing::warn!(
                 tenant,
