@@ -37,6 +37,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/actions` | actions for this target |
 | `GET` | `/rest/v1/targets/{cid}/actions/{aid}` | one action |
+| `PUT` | `/rest/v1/targets/{cid}/actions/{aid}` | escalate the force type, `{"forceType":"forced"}` |
 | `GET` | `/rest/v1/targets/{cid}/actions/{aid}/status` | action status history (paging/sort) |
 | `DELETE` | `/rest/v1/targets/{cid}/actions/{aid}` | cancel (`?force=true` to force) |
 | `GET` | `/rest/v1/targets/{cid}/autoConfirm` | auto-confirm state |

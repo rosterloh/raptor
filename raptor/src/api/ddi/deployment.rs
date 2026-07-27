@@ -156,12 +156,12 @@ pub async fn deployment_json_keyed(
         .map(|s| s.status.to_uppercase())
         .unwrap_or_else(|| "RUNNING".into());
 
-    let mode = if a.forced { "forced" } else { "attempt" };
+    let (download, update) = crate::domain::deployment::ddi_modes(a, crate::util::now_ms());
     let mut out = serde_json::Map::new();
     out.insert("id".into(), json!(a.id.to_string()));
     out.insert(
         top_key.to_string(),
-        json!({"download": mode, "update": mode, "chunks": chunks}),
+        json!({"download": download, "update": update, "chunks": chunks}),
     );
     out.insert(
         "actionHistory".into(),

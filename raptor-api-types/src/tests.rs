@@ -66,7 +66,8 @@ fn artifact_shape() {
 fn action_shape() {
     round_trip::<ActionRest>(json!({
         "id": 1, "type": "update", "status": "pending", "detailStatus": "running",
-        "forceType": "forced", "createdAt": 1, "lastModifiedAt": 2,
+        "forceType": "timeforced", "forceTime": 1_700_000_000_000_i64,
+        "createdAt": 1, "lastModifiedAt": 2,
         "target": "d1",
         "_links": {"self": {"href": "http://x/rest/v1/actions/1"}}
     }));
@@ -80,6 +81,7 @@ fn action_target_field_omitted_when_none() {
         status: "pending".into(),
         detail_status: "running".into(),
         force_type: "forced".into(),
+        force_time: None,
         created_at: 1,
         last_modified_at: 2,
         target: None,
@@ -336,11 +338,22 @@ fn assignment_request_shape() {
     let a = DsAssignment {
         id: 5,
         assign_type: Some("forced".into()),
+        forcetime: None,
     };
     assert_eq!(
         serde_json::to_value(&a).unwrap(),
         json!({"id": 5, "type": "forced"})
     );
+}
+
+#[test]
+fn timeforced_assignment_uses_lowercase_forcetime() {
+    // hawkBit spells it `forcetime` on the request body and `forceTime` on the
+    // action response; both are asserted so neither drifts to match the other.
+    round_trip::<DsAssignment>(json!({
+        "id": 5, "type": "timeforced", "forcetime": 1_700_000_000_000_i64
+    }));
+    round_trip::<ActionUpdate>(json!({"forceType": "forced"}));
 }
 
 #[test]

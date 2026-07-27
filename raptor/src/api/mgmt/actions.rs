@@ -31,7 +31,7 @@ pub fn routes() -> Router<AppState> {
         .route("/rest/v1/targets/{cid}/actions", get(target_actions))
         .route(
             "/rest/v1/targets/{cid}/actions/{aid}",
-            get(target_action).delete(cancel_action),
+            get(target_action).put(update_action).delete(cancel_action),
         )
         .route(
             "/rest/v1/targets/{cid}/actions/{aid}/status",
@@ -73,10 +73,16 @@ pub async fn assign(
         assigned_actions: Vec::new(),
     };
     for item in items {
-        let forced = item.assign_type.as_deref() != Some("soft");
         // refetch target each round: assign_ds mutates it
         let t = super::targets::find_by_cid(&st.db, &t.controller_id).await?;
-        let r = assign_ds(&st, &t, item.id, forced).await?;
+        let r = assign_ds(
+            &st,
+            &t,
+            item.id,
+            item.assign_type.as_deref(),
+            item.forcetime,
+        )
+        .await?;
         match r.action_id {
             Some(id) => {
                 result.assigned += 1;
@@ -240,6 +246,56 @@ pub async fn action_status_history(
         })
         .collect();
     Ok(Json(Paged::new(content, total)))
+}
+
+/// `PUT /rest/v1/targets/{cid}/actions/{aid}` — escalate a running action's
+/// force type, e.g. pushing a soft update through now with
+/// `{"forceType": "forced"}`. Only the force type is mutable; hawkBit's request
+/// body carries nothing else.
+pub async fn update_action(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path((cid, aid)): Path<(String, i64)>,
+    Json(u): Json<raptor_api_types::ActionUpdate>,
+) -> Result<Json<raptor_api_types::ActionRest>, AppError> {
+    let t = super::targets::find_by_cid(&st.db, &cid).await?;
+    let a = action::Entity::find_by_id(aid)
+        .one(&st.db)
+        .await?
+        .filter(|a| a.target_id == t.id)
+        .ok_or(AppError::NotFound("action"))?;
+    if !a.active {
+        return Err(AppError::Gone);
+    }
+    let mut am: action::ActiveModel = a.clone().into();
+    if let Some(ft) = &u.force_type {
+        let parsed = crate::domain::deployment::parse_action_type(Some(ft))?;
+        am.action_type = Set(parsed.into());
+        // A now-forced action has no deadline left to wait for; leaving a stale
+        // forced_time behind would make it read as timeforced again.
+        if parsed != "timeforced" {
+            am.forced_time = Set(None);
+        }
+        am.updated_at = Set(now_ms());
+        let a = am.update(&st.db).await?;
+        crate::domain::deployment::add_action_status(
+            &st.db,
+            a.id,
+            "forced",
+            &[format!("force type set to {parsed} by operator")],
+        )
+        .await?;
+        return Ok(Json(action_rest(
+            &a,
+            Some(&t.controller_id),
+            &base_url(&st.cfg, &headers),
+        )));
+    }
+    Ok(Json(action_rest(
+        &a,
+        Some(&t.controller_id),
+        &base_url(&st.cfg, &headers),
+    )))
 }
 
 #[derive(Deserialize)]

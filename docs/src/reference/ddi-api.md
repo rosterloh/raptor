@@ -84,9 +84,21 @@ carries the link, which is wasted uplink on a large or cellular fleet.
 }
 ```
 
-`download`/`update` are `forced` for a forced action and `attempt` for a soft
-one. The `confirmationBase` response is identical but keyed `confirmation`
-instead of `deployment`.
+`download`/`update` follow the action's type, matching hawkBit's
+`calculateDownloadType`/`calculateUpdateType`:
+
+| Action type | `download` | `update` |
+|---|---|---|
+| `forced` | `forced` | `forced` |
+| `soft` | `attempt` | `attempt` |
+| `timeforced`, before `forcetime` | `attempt` | `attempt` |
+| `timeforced`, after `forcetime` | `forced` | `forced` |
+| `downloadonly` | `forced` | `skip` |
+
+The modes are computed per request, so a `timeforced` action flips on its own
+once the deadline passes. See [Assignments & Actions](../guides/actions.md) for
+the operator side. The `confirmationBase` response is identical but keyed
+`confirmation` instead of `deployment`.
 
 A chunk's `metadata` array carries any software-module metadata marked
 `targetVisible` (see the Management API). The key is omitted entirely when a
@@ -102,8 +114,11 @@ module has no visible metadata.
   `downloaded`, `canceled`, `rejected`, `closed`.
 - `result.finished` ∈ `none`, `success`, `failure`.
 
-Only `closed` is terminal. Posting feedback to a non-active action returns
-`410 Gone`.
+`closed` is terminal for every action type. For a `downloadonly` action
+`downloaded` is *also* terminal — that is the whole job, so the action closes
+with `detailStatus: downloaded` and the target's installed DS is left unchanged.
+For all other types `downloaded` is recorded as progress only. Posting feedback
+to a non-active action returns `410 Gone`.
 
 Confirmation feedback uses a different body:
 

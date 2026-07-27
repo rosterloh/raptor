@@ -121,7 +121,8 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
-        let res = crate::domain::deployment::assign_ds(st, &t, r.ds_id, true).await?;
+        let res =
+            crate::domain::deployment::assign_ds(st, &t, r.ds_id, Some("forced"), None).await?;
         if let Some(action_id) = res.action_id {
             let a = action::Entity::find_by_id(action_id)
                 .one(&st.db)

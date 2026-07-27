@@ -88,8 +88,14 @@ pub struct DsInvalidate {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DsAssignment {
     pub id: i64,
+    /// `forced` (default), `soft`, `timeforced` or `downloadonly`.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none", default)]
     pub assign_type: Option<String>,
+    /// For `timeforced`: epoch millis after which the action becomes forced.
+    /// hawkBit spells this all-lowercase on the request body while the action
+    /// response uses `forceTime` — mirrored deliberately, don't "fix" it.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub forcetime: Option<i64>,
 }
 
 /// Body of `POST /rest/v1/distributionsettypes` (hawkBit

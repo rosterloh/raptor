@@ -15,7 +15,14 @@ pub struct ActionRest {
     pub action_type: String,
     pub status: String,
     pub detail_status: String,
+    /// `forced`, `soft`, `timeforced` or `downloadonly`. A `timeforced` action
+    /// reports `forced` once its `forceTime` has passed.
     pub force_type: String,
+    /// Epoch millis after which a `timeforced` action becomes forced. Note the
+    /// camelCase here against the lowercase `forcetime` on the assignment body —
+    /// that asymmetry is hawkBit's.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub force_time: Option<i64>,
     pub created_at: i64,
     pub last_modified_at: i64,
     /// raptor extension (additive, not in hawkBit): target controllerId.
@@ -23,6 +30,16 @@ pub struct ActionRest {
     pub target: Option<String>,
     #[serde(rename = "_links", default)]
     pub links: Value,
+}
+
+/// Body of `PUT /rest/v1/targets/{cid}/actions/{aid}` (hawkBit
+/// `MgmtActionRequestBodyPut`): escalates a running action's force type, e.g.
+/// `{"forceType": "forced"}` to push a soft update through now.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionUpdate {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub force_type: Option<String>,
 }
 
 /// Bare `{ "id": N }` reference to an action, returned in [`AssignResult`].

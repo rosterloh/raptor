@@ -13,6 +13,7 @@ mod m20260723_000001_metadata;
 mod m20260723_000001_types_crud;
 mod m20260726_000001_tags;
 mod m20260727_000001_request_attributes;
+mod m20260727_000002_action_type;
 
 pub struct Migrator;
 
@@ -29,6 +30,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260723_000001_types_crud::Migration),
             Box::new(m20260726_000001_tags::Migration),
             Box::new(m20260727_000001_request_attributes::Migration),
+            Box::new(m20260727_000002_action_type::Migration),
         ]
     }
 }
