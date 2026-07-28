@@ -55,6 +55,15 @@ jobs:
       # silently made the tag chips' colour dots invisible (fixed in #49).
       - name: committed tailwind.css is up to date
         run: |
+          # dx discards the tailwind step's result (`_ = TailwindCli::run_once(..)`,
+          # dioxus-cli 0.7.9 src/build/request.rs), so a failed download leaves the
+          # asset untouched and the diff below passes having checked nothing. Prove
+          # the generator was there before trusting a green result.
+          if ! find "${XDG_DATA_HOME:-$HOME/.local/share}/.dx/tools" -name 'tailwindcss*' -type f 2>/dev/null | grep -q . \
+             && ! command -v tailwindcss >/dev/null; then
+            echo "::error::dx never installed the tailwindcss binary, so assets/tailwind.css was not regenerated and this check proves nothing."
+            exit 1
+          fi
           git diff --exit-code -- raptor-ui/assets/tailwind.css || {
             echo "::error file=raptor-ui/assets/tailwind.css::Stale stylesheet: the classes used in raptor-ui/src no longer match the committed CSS. Run 'dx build --package raptor-ui' from the repo root and commit the regenerated asset."
             exit 1
