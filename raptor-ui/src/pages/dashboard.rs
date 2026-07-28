@@ -2,22 +2,26 @@ use crate::components::ui::Card;
 use crate::components::*;
 use crate::{api, logic, Route};
 use dioxus::prelude::*;
+use raptor_api_types::TenantConfigValue;
+use std::collections::BTreeMap;
 
 #[component]
 pub fn Dashboard() -> Element {
     let mut data = use_resource(|| async {
-        let targets = api::list_targets(0, 500, None).await?;
+        let stats = api::system_statistics().await?;
         let recent = api::all_actions(0, 15, None).await?;
         let rollouts = api::list_rollouts(0, 50, None).await?;
-        Ok::<_, api::ApiError>((targets, recent, rollouts))
+        Ok::<_, api::ApiError>((stats, recent, rollouts))
     });
     use_polling(data);
+    // Config is file-driven and can't change under a running server, so this
+    // one is read once rather than polled with the rest.
+    let configs = use_resource(|| async { api::system_configs().await });
     rsx! {
         h1 { class: HEADING, "Dashboard" }
         match &*data.read_unchecked() {
-            Some(Ok((targets, recent, rollouts))) => {
-                let count = |s: &str| targets.content.iter().filter(|t| t.update_status == s).count();
-                let running = recent.content.iter().filter(|a| a.status == "pending").count();
+            Some(Ok((stats, recent, rollouts))) => {
+                let count = |s: &str| stats.targets_by_status.get(s).copied().unwrap_or(0);
                 let active_rollouts: Vec<_> = rollouts
                     .content
                     .iter()
@@ -26,11 +30,11 @@ pub fn Dashboard() -> Element {
                     .collect();
                 rsx! {
                     div { class: "mb-6 grid grid-cols-5 gap-4",
-                        Tile { label: "Targets", value: targets.total.to_string(), accent: "text-zinc-100" }
+                        Tile { label: "Targets", value: stats.total_targets.to_string(), accent: "text-zinc-100" }
                         Tile { label: "In sync", value: count("in_sync").to_string(), accent: "text-emerald-400" }
                         Tile { label: "Pending", value: count("pending").to_string(), accent: "text-amber-400" }
                         Tile { label: "Error", value: count("error").to_string(), accent: "text-red-400" }
-                        Tile { label: "Running actions", value: running.to_string(), accent: "text-sky-400" }
+                        Tile { label: "Running actions", value: stats.active_actions.to_string(), accent: "text-sky-400" }
                     }
                     if !active_rollouts.is_empty() {
                         Card { class: "mb-6",
@@ -58,7 +62,7 @@ pub fn Dashboard() -> Element {
                             }
                         }
                     }
-                    Card {
+                    Card { class: "mb-6",
                         h2 { class: "mb-2 font-semibold text-zinc-100", "Recent actions" }
                         if recent.content.is_empty() {
                             p { class: "text-sm text-zinc-500", "No actions yet." }
@@ -82,6 +86,41 @@ pub fn Dashboard() -> Element {
             }
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| data.restart() } },
             None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+        }
+        SystemCard { configs }
+    }
+}
+
+/// The server's tenant configuration as the devices see it. Purely
+/// informational: raptor takes its config from the file, and the API answers
+/// writes with 403, so there is nothing to edit here.
+#[component]
+fn SystemCard(configs: Resource<api::ApiResult<BTreeMap<String, TenantConfigValue>>>) -> Element {
+    rsx! {
+        Card {
+            div { class: "mb-2 flex items-center justify-between",
+                h2 { class: "font-semibold text-zinc-100", "System configuration" }
+                span { class: "text-xs text-zinc-500", "read-only — set in raptor.toml" }
+            }
+            match &*configs.read_unchecked() {
+                Some(Ok(cfg)) => {
+                    let keys: Vec<&str> = cfg.keys().map(String::as_str).collect();
+                    rsx! {
+                        dl { class: "grid grid-cols-2 gap-4 text-sm",
+                            for k in logic::ordered_config_keys(&keys) {
+                                div { key: "{k}", class: "flex gap-2",
+                                    dt { class: "w-40 shrink-0 text-zinc-500", {logic::config_label(&k)} }
+                                    dd { class: "break-all text-zinc-300",
+                                        {cfg.get(&k).map(|c| logic::format_config_value(&c.value)).unwrap_or_default()}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
+                None => rsx! { p { class: "text-sm text-zinc-500", "Loading…" } },
+            }
         }
     }
 }
