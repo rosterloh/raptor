@@ -49,6 +49,9 @@ pub async fn assign_ds(cid: &str, ds_id: i64, forced: bool) -> ApiResult<AssignR
         &DsAssignment {
             id: ds_id,
             assign_type: Some(if forced { "forced" } else { "soft" }.into()),
+            // the console only offers forced/soft; timeforced/downloadonly are
+            // Management-API only for now
+            forcetime: None,
         },
     )
     .await

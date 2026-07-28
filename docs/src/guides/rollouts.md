@@ -36,6 +36,11 @@ curl -u admin:pw -X POST localhost:8080/rest/v1/rollouts \
 - `amountGroups` splits matching targets into that many groups.
 - `successCondition.expression` / `errorCondition.expression` are percentages
   (0–100). If `errorCondition` is omitted, the error threshold never trips.
+- `type` is the [action type](./actions.md) every action the rollout creates
+  inherits — `forced` (default), `soft`, `timeforced` or `downloadonly` — with
+  `forcetime` alongside it for `timeforced`. A staged download-then-install is
+  therefore a `downloadonly` rollout followed by a `forced` one over the same
+  filter. An unknown type is rejected with `400`.
 
 The rollout starts in `ready`.
 

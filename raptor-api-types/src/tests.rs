@@ -66,7 +66,8 @@ fn artifact_shape() {
 fn action_shape() {
     round_trip::<ActionRest>(json!({
         "id": 1, "type": "update", "status": "pending", "detailStatus": "running",
-        "forceType": "forced", "createdAt": 1, "lastModifiedAt": 2,
+        "forceType": "timeforced", "forceTime": 1_700_000_000_000_i64,
+        "createdAt": 1, "lastModifiedAt": 2,
         "target": "d1",
         "_links": {"self": {"href": "http://x/rest/v1/actions/1"}}
     }));
@@ -80,6 +81,7 @@ fn action_target_field_omitted_when_none() {
         status: "pending".into(),
         detail_status: "running".into(),
         force_type: "forced".into(),
+        force_time: None,
         created_at: 1,
         last_modified_at: 2,
         target: None,
@@ -102,7 +104,8 @@ fn action_status_shape() {
 fn rollout_shape() {
     round_trip::<RolloutRest>(json!({
         "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
-        "targetFilterQuery": "name==*", "status": "running", "totalTargets": 10,
+        "targetFilterQuery": "name==*", "status": "running",
+        "type": "downloadonly", "totalTargets": 10,
         "totalTargetsPerStatus": {
             "notstarted": 0, "scheduled": 5, "running": 3,
             "error": 1, "finished": 1, "cancelled": 0
@@ -127,11 +130,21 @@ fn rollout_group_shape() {
 }
 
 #[test]
+fn rollout_forcetime_is_lowercase_on_request_and_response() {
+    round_trip::<RolloutCreate>(json!({
+        "name": "r1", "distributionSetId": 5, "targetFilterQuery": "name==*",
+        "amountGroups": 2,
+        "successCondition": {"condition": "THRESHOLD", "expression": "80"},
+        "type": "timeforced", "forcetime": 1_700_000_000_000_i64
+    }));
+}
+
+#[test]
 fn rollout_targets_per_status_defaults_when_absent() {
     let r: RolloutRest = serde_json::from_value(json!({
         "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
-        "targetFilterQuery": "name==*", "status": "ready", "totalTargets": 10,
-        "createdAt": 1, "lastModifiedAt": 2
+        "targetFilterQuery": "name==*", "status": "ready", "type": "forced",
+        "totalTargets": 10, "createdAt": 1, "lastModifiedAt": 2
     }))
     .unwrap();
     assert_eq!(
@@ -336,11 +349,22 @@ fn assignment_request_shape() {
     let a = DsAssignment {
         id: 5,
         assign_type: Some("forced".into()),
+        forcetime: None,
     };
     assert_eq!(
         serde_json::to_value(&a).unwrap(),
         json!({"id": 5, "type": "forced"})
     );
+}
+
+#[test]
+fn timeforced_assignment_uses_lowercase_forcetime() {
+    // hawkBit spells it `forcetime` on the request body and `forceTime` on the
+    // action response; both are asserted so neither drifts to match the other.
+    round_trip::<DsAssignment>(json!({
+        "id": 5, "type": "timeforced", "forcetime": 1_700_000_000_000_i64
+    }));
+    round_trip::<ActionUpdate>(json!({"forceType": "forced"}));
 }
 
 #[test]

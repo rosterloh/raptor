@@ -19,6 +19,64 @@ pub struct AssignResult {
     pub already_assigned: bool,
 }
 
+/// The four hawkBit assignment types (`MgmtActionType` JSON names).
+pub const ACTION_TYPES: [&str; 4] = ["forced", "soft", "timeforced", "downloadonly"];
+
+/// Normalises an assignment `type` from the wire. `None` means forced, matching
+/// raptor's previous behaviour of treating anything but `soft` as forced.
+pub fn parse_action_type(t: Option<&str>) -> Result<&'static str, AppError> {
+    match t {
+        None => Ok("forced"),
+        Some(v) => ACTION_TYPES
+            .iter()
+            .find(|k| **k == v)
+            .copied()
+            .ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "unknown action type {v:?}; expected one of {}",
+                    ACTION_TYPES.join(", ")
+                ))
+            }),
+    }
+}
+
+/// Whether a `timeforced` action's deadline has passed — and therefore whether
+/// it now behaves as forced. A missing `forced_time` counts as reached, which is
+/// what hawkBit's default of 0 amounts to.
+fn time_forced_hit(a: &action::Model, now: i64) -> bool {
+    a.forced_time.is_none_or(|t| now >= t)
+}
+
+/// The DDI `deployment.download` / `deployment.update` handling types for an
+/// action, mirroring hawkBit's `calculateDownloadType`/`calculateUpdateType`:
+/// download is forced for `downloadonly` and for forced-or-time-forced actions,
+/// attempt otherwise; update is skipped entirely for `downloadonly`.
+pub fn ddi_modes(a: &action::Model, now: i64) -> (&'static str, &'static str) {
+    let download = match a.action_type.as_str() {
+        "forced" | "downloadonly" => "forced",
+        "timeforced" if time_forced_hit(a, now) => "forced",
+        _ => "attempt",
+    };
+    let update = if a.action_type == "downloadonly" {
+        "skip"
+    } else {
+        download
+    };
+    (download, update)
+}
+
+/// The `forceType` reported to operators. `timeforced` keeps its own name until
+/// its deadline passes, after which it reads as `forced` — the same collapse the
+/// DDI modes do, so the Management API and the device agree.
+pub fn effective_force_type(a: &action::Model, now: i64) -> &'static str {
+    match a.action_type.as_str() {
+        "soft" => "soft",
+        "downloadonly" => "downloadonly",
+        "timeforced" if !time_forced_hit(a, now) => "timeforced",
+        _ => "forced",
+    }
+}
+
 pub async fn add_action_status(
     db: &DatabaseConnection,
     action_id: i64,
@@ -56,13 +114,17 @@ pub async fn active_action(
         .await?)
 }
 
-#[tracing::instrument(skip_all, fields(target_id = target.id, ds_id, forced))]
+/// `action_type` is validated here rather than at each call site, so no caller
+/// (mgmt assignment, rollout, filter auto-assign) can write an unknown type.
+#[tracing::instrument(skip_all, fields(target_id = target.id, ds_id, action_type))]
 pub async fn assign_ds(
     st: &AppState,
     target: &target::Model,
     ds_id: i64,
-    forced: bool,
+    action_type: Option<&str>,
+    forced_time: Option<i64>,
 ) -> Result<AssignResult, AppError> {
+    let action_type = parse_action_type(action_type)?;
     let ds = distribution_set::Entity::find_by_id(ds_id)
         .one(&st.db)
         .await?
@@ -124,7 +186,8 @@ pub async fn assign_ds(
         ds_id: Set(ds.id),
         status: Set(initial.into()),
         active: Set(true),
-        forced: Set(forced),
+        action_type: Set(action_type.into()),
+        forced_time: Set(forced_time),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -176,6 +239,16 @@ pub async fn apply_feedback(
             };
             set_target_status(st, t, None, status).await?;
             st.metrics.action_canceled();
+        }
+        // A downloadonly action is complete once the bytes are down: nothing is
+        // installed, so the action closes as `downloaded` and `installed_ds_id`
+        // is deliberately left alone (hawkBit only realigns the *assigned* DS,
+        // which assign_ds already did). The target still reads as in_sync
+        // because there is no pending work left for it.
+        ("downloaded", _) if a.action_type == "downloadonly" => {
+            set_action(st, a, "downloaded", false).await?;
+            set_target_status(st, t, None, "in_sync").await?;
+            st.metrics.action_finished();
         }
         _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
     }
@@ -302,7 +375,8 @@ pub fn action_rest(
         action_type: if is_cancel { "cancel" } else { "update" }.to_string(),
         status: if a.active { "pending" } else { "finished" }.to_string(),
         detail_status: a.status.clone(),
-        force_type: if a.forced { "forced" } else { "soft" }.to_string(),
+        force_type: effective_force_type(a, now_ms()).to_string(),
+        force_time: a.forced_time,
         created_at: a.created_at,
         last_modified_at: a.updated_at,
         target: target_cid.map(str::to_string),

@@ -11,13 +11,51 @@ curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/assignedDS \
   -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 ```
 
-The `type` is the action type. raptor supports:
+The `type` is the action type. All four of hawkBit's are supported, and each maps
+to the `download`/`update` handling modes the device is given in
+`deploymentBase`:
 
-- **`forced`** (default) — the device should install as soon as it can.
-- **`soft`** — the device may defer according to its own policy.
+| `type` | `download` | `update` | Meaning |
+|---|---|---|---|
+| `forced` (default) | `forced` | `forced` | install as soon as possible |
+| `soft` | `attempt` | `attempt` | the device may defer per its own policy |
+| `timeforced` | `attempt` → `forced` | `attempt` → `forced` | soft until `forcetime`, forced after |
+| `downloadonly` | `forced` | `skip` | fetch the artifacts, do not install |
 
-> **Note:** hawkBit's `downloadonly` and `timeforced` action types are not yet
-> implemented. Any type other than `soft` is treated as `forced`.
+An unknown type is rejected with `400`.
+
+`timeforced` takes a `forcetime` (epoch millis) alongside the type:
+
+```bash
+curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/assignedDS \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1,"type":"timeforced","forcetime":1767225600000}'
+```
+
+Before that instant the device sees `attempt`; after it, `forced` — no server-side
+job is involved, the mode is computed per request. Omitting `forcetime` means
+"already reached", so the action behaves as `forced` immediately (matching
+hawkBit's default of `0`). Note the request body spells it all-lowercase
+`forcetime` while the action response uses `forceTime`; that asymmetry is
+hawkBit's and raptor mirrors it.
+
+A **`downloadonly`** action completes when the device reports `downloaded`
+feedback rather than `closed`. Because nothing was installed, the target's
+`installedDS` is deliberately left untouched — only `assignedDS` reflects the
+distribution set. The action ends with `status: finished` and
+`detailStatus: downloaded`.
+
+### Escalating a running action
+
+A soft or timeforced action can be pushed through immediately:
+
+```bash
+curl -u admin:pw -X PUT localhost:8080/rest/v1/targets/device-42/actions/7 \
+  -H 'Content-Type: application/json' -d '{"forceType":"forced"}'
+```
+
+The next `deploymentBase` the device fetches carries `forced`. Escalating an
+action that is no longer active returns `410 Gone`.
 
 ## One active action per target
 

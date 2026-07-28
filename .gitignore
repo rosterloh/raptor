@@ -2,5 +2,9 @@
 *.db
 raptor.toml
 
+# local artifact store from a dev run: content-addressed firmware blobs, easily
+# gigabytes, and nothing git should ever see
+/artifacts/
+
 # mdbook build output
 /docs/book/

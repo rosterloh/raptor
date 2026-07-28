@@ -14,6 +14,12 @@ pub struct Model {
     pub ds_id: i64,
     pub target_filter: String,
     pub status: String,
+    /// Action type inherited by every action this rollout creates — one of
+    /// hawkBit's `forced`, `soft`, `timeforced`, `downloadonly`.
+    #[sea_orm(default_value = "forced")]
+    pub action_type: String,
+    /// `timeforced` deadline passed on to the created actions.
+    pub forced_time: Option<i64>,
     pub total_targets: i64,
     pub group_count: i64,
     pub success_threshold: i64,

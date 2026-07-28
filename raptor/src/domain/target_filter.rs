@@ -18,7 +18,7 @@ async fn maybe_assign(
     st: &AppState,
     target: &target::Model,
     ds_id: i64,
-    forced: bool,
+    action_type: Option<&str>,
 ) -> Result<(), AppError> {
     if target.assigned_ds_id == Some(ds_id) {
         return Ok(());
@@ -26,12 +26,8 @@ async fn maybe_assign(
     if active_action(&st.db, target.id).await?.is_some() {
         return Ok(());
     }
-    assign_ds(st, target, ds_id, forced).await?;
+    assign_ds(st, target, ds_id, action_type, None).await?;
     Ok(())
-}
-
-fn forced_from(action_type: &Option<String>) -> bool {
-    action_type.as_deref() != Some("soft")
 }
 
 /// Loads the auto-assign DS for a filter, returning it only if it is complete
@@ -60,9 +56,9 @@ pub async fn run_auto_assign(st: &AppState, filter: &target_filter::Model) -> Re
         .order_by_asc(target::Column::Id)
         .all(&st.db)
         .await?;
-    let forced = forced_from(&filter.auto_assign_action_type);
+    let action_type = filter.auto_assign_action_type.as_deref();
     for t in targets {
-        maybe_assign(st, &t, ds_id, forced).await?;
+        maybe_assign(st, &t, ds_id, action_type).await?;
     }
     Ok(())
 }
@@ -106,7 +102,7 @@ pub async fn auto_assign_for_target(st: &AppState, target: &target::Model) -> Re
             .await?
             .is_some();
         if matched && assignable_ds(st, ds_id).await?.is_some() {
-            maybe_assign(st, target, ds_id, forced_from(&f.auto_assign_action_type)).await?;
+            maybe_assign(st, target, ds_id, f.auto_assign_action_type.as_deref()).await?;
         }
     }
     Ok(())

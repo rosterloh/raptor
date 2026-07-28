@@ -27,6 +27,14 @@ pub struct RolloutCreate {
     pub success_condition: RolloutCondition,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error_condition: Option<RolloutCondition>,
+    /// Action type for every action this rollout creates: `forced` (default),
+    /// `soft`, `timeforced` or `downloadonly`.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none", default)]
+    pub rollout_type: Option<String>,
+    /// `timeforced` deadline in epoch millis. Lowercase on both request and
+    /// response for rollouts, unlike the action resource's `forceTime`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub forcetime: Option<i64>,
 }
 
 /// Targets of a rollout (or one of its groups) counted by deployment outcome,
@@ -65,6 +73,13 @@ pub struct RolloutRest {
     pub distribution_set_id: i64,
     pub target_filter_query: String,
     pub status: String,
+    /// The action type actions created by this rollout inherit.
+    #[serde(rename = "type")]
+    pub rollout_type: String,
+    /// `timeforced` deadline in epoch millis. Lowercase on both request and
+    /// response for rollouts, unlike the action resource's `forceTime`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub forcetime: Option<i64>,
     pub total_targets: i64,
     #[serde(default)]
     pub total_targets_per_status: RolloutTargetsPerStatus,

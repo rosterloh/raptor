@@ -52,6 +52,7 @@ pub async fn create_rollout(
         ));
     }
 
+    let action_type = crate::domain::deployment::parse_action_type(req.rollout_type.as_deref())?;
     let success_threshold = parse_percent(&req.success_condition.expression)?;
     let error_threshold = match &req.error_condition {
         Some(c) => parse_percent(&c.expression)?,
@@ -66,6 +67,8 @@ pub async fn create_rollout(
         ds_id: Set(ds.id),
         target_filter: Set(req.target_filter_query.clone()),
         status: Set("ready".into()),
+        action_type: Set(action_type.into()),
+        forced_time: Set(req.forcetime),
         total_targets: Set(targets.len() as i64),
         group_count: Set(req.amount_groups),
         success_threshold: Set(success_threshold),
@@ -121,7 +124,14 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
-        let res = crate::domain::deployment::assign_ds(st, &t, r.ds_id, true).await?;
+        let res = crate::domain::deployment::assign_ds(
+            st,
+            &t,
+            r.ds_id,
+            Some(&r.action_type),
+            r.forced_time,
+        )
+        .await?;
         if let Some(action_id) = res.action_id {
             let a = action::Entity::find_by_id(action_id)
                 .one(&st.db)
@@ -428,6 +438,8 @@ pub fn rollout_rest(
         distribution_set_id: r.ds_id,
         target_filter_query: r.target_filter.clone(),
         status: r.status.clone(),
+        rollout_type: r.action_type.clone(),
+        forcetime: r.forced_time,
         total_targets: r.total_targets,
         total_targets_per_status: counts,
         created_at: r.created_at,
