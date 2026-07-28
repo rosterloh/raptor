@@ -47,6 +47,18 @@ jobs:
       # last: smoke-build the bundle (debug: skips release wasm-opt; the tagged
       # release pipeline still builds --release). dx must run from workspace root.
       - run: dx build --package raptor-ui
+      # dx build runs the Tailwind CLI, which rescans the sources and rewrites
+      # assets/tailwind.css in place — so a diff here means the committed
+      # stylesheet was never regenerated for a change that added or dropped a
+      # utility class. Nothing else catches that: it compiles, it lints, and no
+      # test can see it. #48 shipped an unbuilt `rounded-full` that way, which
+      # silently made the tag chips' colour dots invisible (fixed in #49).
+      - name: committed tailwind.css is up to date
+        run: |
+          git diff --exit-code -- raptor-ui/assets/tailwind.css || {
+            echo "::error file=raptor-ui/assets/tailwind.css::Stale stylesheet: the classes used in raptor-ui/src no longer match the committed CSS. Run 'dx build --package raptor-ui' from the repo root and commit the regenerated asset."
+            exit 1
+          }
 
   test-postgres:
     runs-on: ubuntu-latest
