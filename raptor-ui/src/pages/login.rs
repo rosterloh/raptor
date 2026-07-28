@@ -12,7 +12,10 @@ pub fn Login() -> Element {
     let mut busy = use_signal(|| false);
     let nav = use_navigator();
     rsx! {
-        div { class: "flex min-h-screen items-center justify-center bg-zinc-950",
+        // Login is the one route outside `Shell`, which is where the rest of the
+        // app inherits its text colour from — without it here the inputs render
+        // the browser default (black) on the dark card.
+        div { class: "flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-200",
             form {
                 class: "w-80 rounded-lg border border-zinc-800 bg-zinc-900 p-8",
                 onsubmit: move |e: FormEvent| {
