@@ -32,7 +32,8 @@ re-enter credentials on every request.
 
 The console surfaces the core read/observe workflow and common actions:
 
-- a dashboard (polling the actions feed and active rollouts),
+- a dashboard (fleet counters, the actions feed, active rollouts, and the
+  server's configuration),
 - targets and target detail,
 - [target filters and auto-assignment](target-filters.md),
 - [tags](tags.md) — create and edit target and distribution-set tags, tag an
@@ -42,6 +43,21 @@ The console surfaces the core read/observe workflow and common actions:
 - software modules and detail,
 - rollouts and rollout detail,
 - the actions feed.
+
+### Dashboard
+
+The counter tiles — targets, in sync, pending, error, running actions — come
+from `GET /rest/v1/system/statistics`, so the server counts the whole fleet and
+the numbers stay correct however large it grows. The active-rollout and
+recent-action lists below them are feeds rather than counts and read the
+ordinary list endpoints. Everything refreshes on the console's 5s polling.
+
+The **System configuration** card at the foot of the dashboard shows the tenant
+configuration devices see (`GET /rest/v1/system/configs`): the polling interval,
+whether the confirmation flow is on, and which authentication modes are enabled.
+It is read-only — raptor takes its configuration from `raptor.toml`, and the API
+answers writes to these keys with `403`. See
+[Configuration](../reference/configuration.md) to change any of them.
 
 ### Rollouts
 

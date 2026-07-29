@@ -154,6 +154,56 @@ pub fn auto_assign_label(
     })
 }
 
+/// Tenant-configuration keys in the order the console shows them: the polling
+/// interval first, then the workflow toggles, then the auth modes.
+pub const CONFIG_ORDER: &[&str] = &[
+    "pollingTime",
+    "user.confirmation.flow.enabled",
+    "rollout.approval.enabled",
+    "multi.assignments.enabled",
+    "authentication.targettoken.enabled",
+    "authentication.gatewaytoken.enabled",
+];
+
+/// The keys to render, known ones in [`CONFIG_ORDER`] first. Keys the server
+/// grows later are appended rather than dropped — they arrive from a
+/// `BTreeMap`, so the tail stays alphabetical.
+pub fn ordered_config_keys(keys: &[&str]) -> Vec<String> {
+    let known = CONFIG_ORDER
+        .iter()
+        .filter(|k| keys.contains(k))
+        .map(|k| (*k).to_string());
+    let rest = keys
+        .iter()
+        .filter(|k| !CONFIG_ORDER.contains(k))
+        .map(|k| (*k).to_string());
+    known.chain(rest).collect()
+}
+
+/// Operator-facing label for a tenant-config key; unknown keys show verbatim.
+pub fn config_label(key: &str) -> &str {
+    match key {
+        "pollingTime" => "Polling interval",
+        "user.confirmation.flow.enabled" => "Confirmation flow",
+        "rollout.approval.enabled" => "Rollout approval",
+        "multi.assignments.enabled" => "Multi-assignment",
+        "authentication.targettoken.enabled" => "Target token auth",
+        "authentication.gatewaytoken.enabled" => "Gateway token auth",
+        other => other,
+    }
+}
+
+/// A tenant-config value as text. The flags are booleans and the polling
+/// interval a string; anything else falls back to its JSON rendering.
+pub fn format_config_value(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::Bool(true) => "enabled".into(),
+        serde_json::Value::Bool(false) => "disabled".into(),
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +330,38 @@ mod tests {
             Some("fleet 1.0".into())
         );
         assert_eq!(auto_assign_label(None, None, Some("forced")), None);
+    }
+
+    #[test]
+    fn config_keys_order_known_first_and_keep_the_rest() {
+        // as the server sends them: a BTreeMap, so alphabetical
+        let keys = [
+            "authentication.gatewaytoken.enabled",
+            "pollingTime",
+            "some.future.key",
+            "user.confirmation.flow.enabled",
+        ];
+        assert_eq!(
+            ordered_config_keys(&keys),
+            vec![
+                "pollingTime",
+                "user.confirmation.flow.enabled",
+                "authentication.gatewaytoken.enabled",
+                "some.future.key",
+            ]
+        );
+        assert!(ordered_config_keys(&[]).is_empty());
+    }
+
+    #[test]
+    fn config_values_render_as_text() {
+        use serde_json::json;
+        assert_eq!(format_config_value(&json!(true)), "enabled");
+        assert_eq!(format_config_value(&json!(false)), "disabled");
+        assert_eq!(format_config_value(&json!("30s")), "30s");
+        assert_eq!(format_config_value(&json!(5)), "5");
+        // unknown keys have no friendly label and show as sent
+        assert_eq!(config_label("pollingTime"), "Polling interval");
+        assert_eq!(config_label("some.future.key"), "some.future.key");
     }
 }

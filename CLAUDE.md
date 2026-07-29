@@ -47,6 +47,11 @@ dx build --release --package raptor-ui   # from the repo root, THEN:
 cargo build --release --features embed-ui
 ```
 
+`dx build` rescans the sources and rewrites the committed
+`raptor-ui/assets/tailwind.css`. Any change that adds or drops a Tailwind
+utility class must commit the regenerated stylesheet — CI diffs it, because a
+missing class compiles, lints, and tests clean while silently rendering wrong.
+
 Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
 (OTLP traces/metrics/logs). Both off by default; CI lints/tests both.
 
