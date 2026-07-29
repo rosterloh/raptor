@@ -37,16 +37,20 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |
 | Target / distribution-set **tags** CRUD, assign/unassign, `q=tag==x` | ✅ |
-| Metadata endpoints (targets / modules / DS) | ❌ |
+| Metadata endpoints (targets / modules / DS, `targetVisible` on module entries) | ✅ |
+| All four action types + force escalation (`PUT .../actions/{id}`) and force-quit (`DELETE ...?force=true`) | ✅ |
 | Rollout approval workflow, dynamic rollouts | ❌ |
-| Maintenance windows, `downloadonly`/`timeforced` action types | ❌ |
+| Maintenance windows | ❌ |
 | Multi-assignment / action weights | ❌ |
 
 ## Action types
 
-hawkBit has `forced`, `soft`, `downloadonly`, and `timeforced`. raptor currently
-models **`forced`** and **`soft`** (anything that is not `soft` is treated as
-forced). `downloadonly` and `timeforced` are not yet implemented.
+hawkBit has `forced`, `soft`, `downloadonly`, and `timeforced`. raptor models all
+four. `timeforced` starts out soft and escalates once its deadline passes;
+`downloadonly` forces the download and never asks the device to install. An
+operator can escalate a running action to `forced` with
+`PUT /rest/v1/targets/{controllerId}/actions/{actionId}`, and force-quit one that
+the device is not acknowledging with `DELETE …/actions/{actionId}?force=true`.
 
 ## Auth
 

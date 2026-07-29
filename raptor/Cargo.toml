@@ -1,6 +1,6 @@
 [package]
 name = "raptor"
-version = "0.9.0"
+version = "1.0.0"
 edition = "2021"
 description = "A hawkBit-compatible OTA update server in Rust"
 license = "MIT"
