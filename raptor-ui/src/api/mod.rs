@@ -93,101 +93,80 @@ async fn check(resp: reqwest::Response) -> ApiResult<reqwest::Response> {
 /// on 401s — otherwise browsers pop their native Basic-Auth dialog.
 const AJAX_HEADER: (&str, &str) = ("X-Requested-With", "XMLHttpRequest");
 
-async fn get_json<T: DeserializeOwned>(path: &str) -> ApiResult<T> {
-    let resp = reqwest::Client::new()
-        .get(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?.json().await.map_err(net)
+/// Anchors `send`'s body type parameter for requests that carry no body, so the
+/// call sites below read as `send(method, path, NO_BODY)` instead of turbofishing.
+const NO_BODY: Option<&()> = None;
+
+/// The one place a request is built: prefixes [`base`], marks it SPA-originated,
+/// attaches `body` when there is one, and runs the response through [`check`] so
+/// no caller can accidentally skip the 401 redirect. Everything below is a thin
+/// adapter that only decides the method and the response shape.
+async fn send<B: Serialize + ?Sized>(
+    method: reqwest::Method,
+    path: &str,
+    body: Option<&B>,
+) -> ApiResult<reqwest::Response> {
+    let mut req = reqwest::Client::new()
+        .request(method, format!("{}{path}", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1);
+    if let Some(body) = body {
+        req = req.json(body);
+    }
+    check(req.send().await.map_err(net)?).await
 }
 
+async fn json<T: DeserializeOwned>(resp: reqwest::Response) -> ApiResult<T> {
+    resp.json().await.map_err(net)
+}
+
+async fn get_json<T: DeserializeOwned>(path: &str) -> ApiResult<T> {
+    json(send(reqwest::Method::GET, path, NO_BODY).await?).await
+}
+
+/// GET where the server answers 204 for "nothing assigned" (assigned/installed
+/// DS). 204 is not an error, so it passes [`check`] untouched and is mapped here.
 async fn get_opt<T: DeserializeOwned>(path: &str) -> ApiResult<Option<T>> {
-    let resp = reqwest::Client::new()
-        .get(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
-        .await
-        .map_err(net)?;
+    let resp = send(reqwest::Method::GET, path, NO_BODY).await?;
     if resp.status().as_u16() == 204 {
         return Ok(None);
     }
-    check(resp).await?.json().await.map(Some).map_err(net)
+    json(resp).await.map(Some)
 }
 
 async fn post_json<B: Serialize + ?Sized, T: DeserializeOwned>(
     path: &str,
     body: &B,
 ) -> ApiResult<T> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .json(body)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?.json().await.map_err(net)
+    json(send(reqwest::Method::POST, path, Some(body)).await?).await
 }
 
 async fn put_json<B: Serialize + ?Sized, T: DeserializeOwned>(
     path: &str,
     body: &B,
 ) -> ApiResult<T> {
-    let resp = reqwest::Client::new()
-        .put(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .json(body)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?.json().await.map_err(net)
+    json(send(reqwest::Method::PUT, path, Some(body)).await?).await
 }
 
 /// POST with no request body, decoding a JSON response (start/pause/resume).
 async fn post_empty<T: DeserializeOwned>(path: &str) -> ApiResult<T> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?.json().await.map_err(net)
+    json(send(reqwest::Method::POST, path, NO_BODY).await?).await
 }
 
 /// POST with neither request nor response body of interest (tag assignment).
 async fn post_nothing(path: &str) -> ApiResult<()> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?;
-    Ok(())
+    send(reqwest::Method::POST, path, NO_BODY).await.map(|_| ())
 }
 
 async fn post_no_content<B: Serialize + ?Sized>(path: &str, body: &B) -> ApiResult<()> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .json(body)
-        .send()
+    send(reqwest::Method::POST, path, Some(body))
         .await
-        .map_err(net)?;
-    check(resp).await?;
-    Ok(())
+        .map(|_| ())
 }
 
 async fn delete(path: &str) -> ApiResult<()> {
-    let resp = reqwest::Client::new()
-        .delete(format!("{}{path}", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
+    send(reqwest::Method::DELETE, path, NO_BODY)
         .await
-        .map_err(net)?;
-    check(resp).await?;
-    Ok(())
+        .map(|_| ())
 }
 
 fn list_path(prefix: &str, offset: u64, limit: u64, q: Option<&str>) -> String {
@@ -226,12 +205,5 @@ pub async fn login(username: &str, password: &str) -> ApiResult<()> {
 }
 
 pub async fn logout() -> ApiResult<()> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}/rest/v1/logout", base()))
-        .header(AJAX_HEADER.0, AJAX_HEADER.1)
-        .send()
-        .await
-        .map_err(net)?;
-    check(resp).await?;
-    Ok(())
+    post_nothing("/rest/v1/logout").await
 }
