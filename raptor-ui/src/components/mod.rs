@@ -44,11 +44,33 @@ pub const ROW: &str = "hover:bg-card";
 pub const LINK_CELL: &str = "block text-emerald-400 hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
+///
+/// Skips the restart while the tab is hidden. Without the gate, every console
+/// left open in a background tab keeps polling the API every 5s indefinitely —
+/// on the dashboard that is the most expensive read the app makes. Data is up to
+/// one interval stale when the tab comes back, which the next tick clears.
 pub fn use_polling<T: 'static>(mut res: Resource<T>) {
     use_future(move || async move {
         loop {
             gloo_timers::future::TimeoutFuture::new(5_000).await;
-            res.restart();
+            if !tab_hidden() {
+                res.restart();
+            }
         }
     });
+}
+
+/// Whether the document is currently hidden — a backgrounded tab or a minimised
+/// window. Always false off-wasm, where there is no document to ask.
+fn tab_hidden() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()
+            .and_then(|w| w.document())
+            .is_some_and(|d| d.hidden())
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        false
+    }
 }
