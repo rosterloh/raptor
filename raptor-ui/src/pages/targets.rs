@@ -17,7 +17,6 @@ pub fn Targets() -> Element {
         ]);
         api::list_targets(offset(), LIMIT, q.as_deref()).await
     });
-    let nav = use_navigator();
     rsx! {
         h1 { class: HEADING, "Targets" }
         div { class: "mb-3 flex items-center gap-3",
@@ -49,16 +48,14 @@ pub fn Targets() -> Element {
                     }
                     tbody {
                         for t in page.content.clone() {
-                            tr {
-                                key: "{t.controller_id}",
-                                class: ROW,
-                                onclick: {
-                                    let cid = t.controller_id.clone();
-                                    move |_| {
-                                        nav.push(Route::TargetDetail { cid: cid.clone() });
+                            tr { key: "{t.controller_id}", class: ROW,
+                                td { class: TD,
+                                    Link {
+                                        to: Route::TargetDetail { cid: t.controller_id.clone() },
+                                        class: LINK_CELL,
+                                        "{t.name}"
                                     }
-                                },
-                                td { class: TD, "{t.name}" }
+                                }
                                 td { class: "{TD} font-mono text-xs", "{t.controller_id}" }
                                 td { class: TD, StatusBadge { status: t.update_status.clone() } }
                                 td { class: TD,

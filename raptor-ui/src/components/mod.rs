@@ -34,7 +34,14 @@ pub const TABLE: &str = "w-full border-collapse text-sm";
 pub const TH: &str =
     "border-b border-border-soft px-3 py-2 text-left font-medium text-muted-foreground";
 pub const TD: &str = "border-b border-border-subtle px-3 py-2";
-pub const ROW: &str = "cursor-pointer hover:bg-card";
+/// Table row: a hover affordance, not a click target. A `<tr>` can't take
+/// keyboard focus, so rows don't handle clicks — the first cell carries a real
+/// `Link` ([`LINK_CELL`]) that keyboard nav, middle-click and "copy link
+/// address" all understand.
+pub const ROW: &str = "hover:bg-card";
+/// The `Link` filling a list table's first cell, standing in for a row click.
+/// `block` stretches it across the cell so the whole width stays clickable.
+pub const LINK_CELL: &str = "block text-emerald-400 hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
 pub fn use_polling<T: 'static>(mut res: Resource<T>) {

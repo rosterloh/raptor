@@ -15,7 +15,6 @@ pub fn Modules() -> Element {
         api::list_modules(offset(), LIMIT, q.as_deref()).await
     });
     let mut show_create = use_signal(|| false);
-    let nav = use_navigator();
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-zinc-100", "Modules" }
@@ -44,13 +43,10 @@ pub fn Modules() -> Element {
                     }
                     tbody {
                         for m in page.content.clone() {
-                            tr {
-                                key: "{m.id}",
-                                class: ROW,
-                                onclick: move |_| {
-                                    nav.push(Route::ModuleDetail { id: m.id });
-                                },
-                                td { class: TD, "{m.name}" }
+                            tr { key: "{m.id}", class: ROW,
+                                td { class: TD,
+                                    Link { to: Route::ModuleDetail { id: m.id }, class: LINK_CELL, "{m.name}" }
+                                }
                                 td { class: TD, "{m.version}" }
                                 td { class: TD, "{m.module_type}" }
                                 td { class: TD, {m.vendor.clone().unwrap_or_else(|| "-".into())} }

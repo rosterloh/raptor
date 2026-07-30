@@ -20,7 +20,6 @@ pub fn Distributions() -> Element {
         api::list_ds(offset(), LIMIT, q.as_deref()).await
     });
     let mut show_create = use_signal(|| false);
-    let nav = use_navigator();
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-zinc-100", "Distributions" }
@@ -52,13 +51,10 @@ pub fn Distributions() -> Element {
                     }
                     tbody {
                         for ds in page.content.clone() {
-                            tr {
-                                key: "{ds.id}",
-                                class: ROW,
-                                onclick: move |_| {
-                                    nav.push(Route::DsDetail { id: ds.id });
-                                },
-                                td { class: TD, "{ds.name}" }
+                            tr { key: "{ds.id}", class: ROW,
+                                td { class: TD,
+                                    Link { to: Route::DsDetail { id: ds.id }, class: LINK_CELL, "{ds.name}" }
+                                }
                                 td { class: TD, "{ds.version}" }
                                 td { class: TD, "{ds.ds_type}" }
                                 td { class: TD, if ds.complete { "yes" } else { "no" } }

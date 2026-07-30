@@ -13,7 +13,6 @@ pub fn Rollouts() -> Element {
         api::list_rollouts(offset(), LIMIT, q.as_deref()).await
     });
     use_polling(rollouts);
-    let nav = use_navigator();
     rsx! {
         h1 { class: HEADING, "Rollouts" }
         div { class: "mb-3",
@@ -42,13 +41,10 @@ pub fn Rollouts() -> Element {
                     }
                     tbody {
                         for r in page.content.clone() {
-                            tr {
-                                key: "{r.id}",
-                                class: ROW,
-                                onclick: move |_| {
-                                    nav.push(Route::RolloutDetail { id: r.id });
-                                },
-                                td { class: TD, "{r.name}" }
+                            tr { key: "{r.id}", class: ROW,
+                                td { class: TD,
+                                    Link { to: Route::RolloutDetail { id: r.id }, class: LINK_CELL, "{r.name}" }
+                                }
                                 td { class: TD, StatusBadge { status: r.status.clone() } }
                                 td { class: TD, "{r.total_targets}" }
                                 td { class: TD,
