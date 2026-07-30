@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 pub fn TagChip(name: String, colour: Option<String>) -> Element {
     let dot = crate::logic::tag_colour(colour.as_deref());
     rsx! {
-        span { class: "inline-flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200",
+        span { class: "inline-flex items-center gap-1.5 rounded border border-border bg-accent px-2 py-0.5 text-xs text-foreground",
             if let Some(c) = dot {
                 span {
                     class: "inline-block h-2 w-2 shrink-0 rounded-full",

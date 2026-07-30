@@ -25,6 +25,33 @@ pub use toast::{toast_error, toast_ok, ToastStack};
 
 use dioxus::prelude::*;
 
+use crate::logic::Tone;
+
+/// Badge classes for a [`Tone`] — tinted surface, readable label, visible edge.
+/// This is the only place a tone becomes colour, so `logic.rs` stays free of
+/// presentation and a palette change stays inside `tailwind.css`.
+pub fn tone_badge(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Ok => "bg-ok-bg text-ok-fg border-ok-border",
+        Tone::Pending => "bg-pend-bg text-pend-fg border-pend-border",
+        Tone::Error => "bg-err-bg text-err-fg border-err-border",
+        Tone::Info => "bg-info-bg text-info-fg border-info-border",
+        Tone::Neutral => "bg-neutral-bg text-neutral-fg border-neutral-border",
+    }
+}
+
+/// Solid fill for a [`Tone`] — progress-bar segments and status dots, where the
+/// colour is the whole encoding and needs full saturation.
+pub fn tone_fill(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Ok => "bg-ok",
+        Tone::Pending => "bg-pend",
+        Tone::Error => "bg-err",
+        Tone::Info => "bg-info",
+        Tone::Neutral => "bg-neutral",
+    }
+}
+
 /// A `<select>` matching [`ui::Input`]'s border, height and focus ring — the two
 /// sit side by side in the create dialogs. Selects can't reuse the `Input`
 /// component itself (that renders an `<input>`), so the class list lives here.
@@ -41,7 +68,7 @@ pub const TD: &str = "border-b border-border-subtle px-3 py-2";
 pub const ROW: &str = "hover:bg-card";
 /// The `Link` filling a list table's first cell, standing in for a row click.
 /// `block` stretches it across the cell so the whole width stays clickable.
-pub const LINK_CELL: &str = "block text-emerald-400 hover:underline";
+pub const LINK_CELL: &str = "block text-primary hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
 ///

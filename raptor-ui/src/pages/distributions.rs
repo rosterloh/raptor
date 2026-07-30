@@ -22,7 +22,7 @@ pub fn Distributions() -> Element {
     let mut show_create = use_signal(|| false);
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-zinc-100", "Distributions" }
+            h1 { class: "text-xl font-bold text-foreground", "Distributions" }
             Button { onclick: move |_| show_create.set(true), "New distribution set" }
         }
         div { class: "mb-3 flex items-center gap-3",
@@ -71,7 +71,7 @@ pub fn Distributions() -> Element {
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| sets.restart() } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         CreateDsDialog { open: show_create, on_created: move |_| sets.restart() }
     }
@@ -108,7 +108,7 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                         }
                     });
                 },
-                h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "New distribution set" }
+                h3 { class: "mb-3 text-lg font-semibold text-foreground", "New distribution set" }
                 Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
                     oninput: move |e: FormEvent| name.set(e.value()) }
                 Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
@@ -123,7 +123,7 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                 }
                 div { class: "flex justify-end gap-2",
                     button {
-                        class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                         r#type: "button",
                         onclick: move |_| open.set(false),
                         "Cancel"

@@ -26,7 +26,7 @@ pub fn Rollouts() -> Element {
         }
         match &*rollouts.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                p { class: "text-sm text-zinc-500", "No rollouts yet. Create one via the Management API." }
+                p { class: "text-sm text-muted-foreground", "No rollouts yet. Create one via the Management API." }
             },
             Some(Ok(page)) => rsx! {
                 table { class: TABLE,
@@ -53,7 +53,7 @@ pub fn Rollouts() -> Element {
                                             counts: r.total_targets_per_status,
                                             total: r.total_targets,
                                         }
-                                        p { class: "mt-1 text-xs text-zinc-500",
+                                        p { class: "mt-1 text-xs text-muted-foreground",
                                             "{r.total_targets_per_status.finished} of {r.total_targets} finished"
                                         }
                                     }
@@ -74,7 +74,7 @@ pub fn Rollouts() -> Element {
                 ErrorPane { message: e.to_string(), on_retry: move |_| rollouts.restart() }
             },
             None => rsx! {
-                p { class: "text-zinc-500", "Loading…" }
+                p { class: "text-muted-foreground", "Loading…" }
             },
         }
     }

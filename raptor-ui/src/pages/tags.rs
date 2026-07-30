@@ -93,7 +93,7 @@ pub fn Tags() -> Element {
 
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-zinc-100", "Tags" }
+            h1 { class: "text-xl font-bold text-foreground", "Tags" }
             Button {
                 onclick: move |_| {
                     form_for.set(None);
@@ -106,7 +106,7 @@ pub fn Tags() -> Element {
             for k in [TagKind::Target, TagKind::Ds] {
                 button {
                     key: "{k.tab()}",
-                    class: if kind() == k { "rounded px-3 py-1.5 text-sm bg-zinc-800 text-emerald-400" } else { "rounded px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800" },
+                    class: if kind() == k { "rounded px-3 py-1.5 text-sm bg-accent text-foreground border-b-2 border-primary" } else { "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent" },
                     onclick: move |_| {
                         kind.set(k);
                         offset.set(0);
@@ -126,7 +126,7 @@ pub fn Tags() -> Element {
         }
         match &*tags.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                p { class: "text-sm text-zinc-500", "{kind().empty_hint()}" }
+                p { class: "text-sm text-muted-foreground", "{kind().empty_hint()}" }
             },
             Some(Ok(page)) => rsx! {
                 table { class: TABLE,
@@ -141,19 +141,19 @@ pub fn Tags() -> Element {
                     }
                     tbody {
                         for t in page.content.clone() {
-                            tr { key: "{t.id}", class: "hover:bg-zinc-900",
+                            tr { key: "{t.id}", class: "hover:bg-card",
                                 td { class: TD,
                                     TagChip { name: t.name.clone(), colour: t.colour.clone() }
                                 }
-                                td { class: "{TD} text-zinc-400",
+                                td { class: "{TD} text-fg-dim",
                                     {t.description.clone().unwrap_or_else(|| "-".into())}
                                 }
-                                td { class: "{TD} tabular-nums text-zinc-400", {count_of(t.id)} }
+                                td { class: "{TD} tabular-nums text-fg-dim", {count_of(t.id)} }
                                 td { class: TD, {logic::format_ts(t.last_modified_at)} }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
                                         button {
-                                            class: "rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800",
+                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                                             onclick: {
                                                 let t = t.clone();
                                                 move |_| {
@@ -164,7 +164,7 @@ pub fn Tags() -> Element {
                                             "Edit"
                                         }
                                         button {
-                                            class: "rounded px-2 py-1 text-xs text-red-400 hover:bg-zinc-800",
+                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
                                                 let t = t.clone();
                                                 move |_| {
@@ -191,7 +191,7 @@ pub fn Tags() -> Element {
                 ErrorPane { message: e.to_string(), on_retry: move |_| tags.restart() }
             },
             None => rsx! {
-                p { class: "text-zinc-500", "Loading…" }
+                p { class: "text-muted-foreground", "Loading…" }
             },
         }
         if show_form() {
@@ -232,7 +232,7 @@ pub fn Tags() -> Element {
 fn FieldError(message: Option<String>) -> Element {
     match message {
         Some(m) => rsx! {
-            p { class: "mb-3 text-xs text-red-400", "{m}" }
+            p { class: "mb-3 text-xs text-err", "{m}" }
         },
         None => rsx! {},
     }
@@ -334,7 +334,7 @@ fn TagFormDialog(
                         }
                     });
                 },
-                h3 { class: "mb-3 text-lg font-semibold text-zinc-100",
+                h3 { class: "mb-3 text-lg font-semibold text-foreground",
                     if editing_id.is_some() {
                         "Edit tag"
                     } else {
@@ -372,7 +372,7 @@ fn TagFormDialog(
                 }
                 div { class: "flex justify-end gap-2",
                     button {
-                        class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                         r#type: "button",
                         onclick: move |_| open.set(false),
                         "Cancel"
@@ -397,7 +397,7 @@ pub fn TagFilter(kind: TagKind, selected: Signal<String>, on_change: EventHandle
             Some(Ok(page)) if page.content.is_empty() => rsx! {},
             Some(Ok(page)) => rsx! {
                 select {
-                    class: "rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 focus:border-emerald-600 focus:outline-none",
+                    class: "rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none",
                     value: "{selected}",
                     onchange: move |e| {
                         selected.set(e.value());
@@ -426,16 +426,16 @@ pub fn EntityTags(
     let mut show_manage = use_signal(|| false);
     rsx! {
         div { class: "mb-2 flex items-center justify-between",
-            h2 { class: "font-semibold text-zinc-100", "Tags" }
+            h2 { class: "font-semibold text-foreground", "Tags" }
             button {
-                class: "rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800",
+                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                 onclick: move |_| show_manage.set(true),
                 "Manage…"
             }
         }
         match &*tags.read_unchecked() {
             Some(Ok(list)) if list.is_empty() => rsx! {
-                p { class: "text-sm text-zinc-500", "none" }
+                p { class: "text-sm text-muted-foreground", "none" }
             },
             Some(Ok(list)) => rsx! {
                 div { class: "flex flex-wrap gap-1.5",
@@ -445,10 +445,10 @@ pub fn EntityTags(
                 }
             },
             Some(Err(e)) => rsx! {
-                p { class: "text-sm text-red-400", "{e}" }
+                p { class: "text-sm text-err", "{e}" }
             },
             None => rsx! {
-                p { class: "text-zinc-500", "Loading…" }
+                p { class: "text-muted-foreground", "Loading…" }
             },
         }
         if show_manage() {
@@ -484,10 +484,10 @@ fn ManageTagsDialog(
 
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
-            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Tags" }
+            h3 { class: "mb-3 text-lg font-semibold text-foreground", "Tags" }
             match &*all.read_unchecked() {
                 Some(Ok(page)) if page.content.is_empty() => rsx! {
-                    p { class: "mb-3 text-sm text-zinc-500",
+                    p { class: "mb-3 text-sm text-muted-foreground",
                         "No tags defined yet — create one on the Tags page first."
                     }
                 },
@@ -495,7 +495,7 @@ fn ManageTagsDialog(
                     ul { class: "mb-4 space-y-1",
                         for t in page.content.clone() {
                             li { key: "{t.id}",
-                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "checkbox",
                                         checked: current().contains(&t.id),
@@ -532,7 +532,7 @@ fn ManageTagsDialog(
                                     }
                                     TagChip { name: t.name.clone(), colour: t.colour.clone() }
                                     if let Some(d) = t.description.clone() {
-                                        span { class: "text-xs text-zinc-500", "{d}" }
+                                        span { class: "text-xs text-muted-foreground", "{d}" }
                                     }
                                 }
                             }
@@ -540,10 +540,10 @@ fn ManageTagsDialog(
                     }
                 },
                 Some(Err(e)) => rsx! {
-                    p { class: "mb-3 text-sm text-red-400", "{e}" }
+                    p { class: "mb-3 text-sm text-err", "{e}" }
                 },
                 None => rsx! {
-                    p { class: "text-zinc-500", "Loading…" }
+                    p { class: "text-muted-foreground", "Loading…" }
                 },
             }
             div { class: "flex justify-end",

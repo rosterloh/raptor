@@ -17,7 +17,7 @@ pub fn Modules() -> Element {
     let mut show_create = use_signal(|| false);
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-zinc-100", "Modules" }
+            h1 { class: "text-xl font-bold text-foreground", "Modules" }
             Button { onclick: move |_| show_create.set(true), "New module" }
         }
         div { class: "mb-3",
@@ -63,7 +63,7 @@ pub fn Modules() -> Element {
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| modules.restart() } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         CreateModuleDialog { open: show_create, on_created: move |_| modules.restart() }
     }
@@ -99,7 +99,7 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                         }
                     });
                 },
-                h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "New software module" }
+                h3 { class: "mb-3 text-lg font-semibold text-foreground", "New software module" }
                 Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
                     oninput: move |e: FormEvent| name.set(e.value()) }
                 Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
@@ -115,7 +115,7 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                 }
                 div { class: "flex justify-end gap-2",
                     button {
-                        class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                         r#type: "button",
                         onclick: move |_| open.set(false),
                         "Cancel"

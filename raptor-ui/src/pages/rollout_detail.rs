@@ -53,7 +53,7 @@ pub fn RolloutDetail(id: i64) -> Element {
                 Card {
                     div { class: "mb-3 flex items-center gap-3",
                         StatusBadge { status: r.status.clone() }
-                        span { class: "text-sm text-zinc-400", "{r.total_targets} targets" }
+                        span { class: "text-sm text-fg-dim", "{r.total_targets} targets" }
                     }
                     div { class: "mb-4 space-y-2",
                         ProgressBar { counts: r.total_targets_per_status, total: r.total_targets }
@@ -64,11 +64,11 @@ pub fn RolloutDetail(id: i64) -> Element {
                             Row { k: "Description", v: d }
                         }
                         div { class: "flex gap-2",
-                            dt { class: "w-40 shrink-0 text-zinc-500", "Distribution set" }
+                            dt { class: "w-40 shrink-0 text-muted-foreground", "Distribution set" }
                             dd {
                                 Link {
                                     to: Route::DsDetail { id: r.distribution_set_id },
-                                    class: "text-emerald-400 hover:underline",
+                                    class: "text-primary hover:underline",
                                     "#{r.distribution_set_id}"
                                 }
                             }
@@ -81,7 +81,7 @@ pub fn RolloutDetail(id: i64) -> Element {
                 Groups { groups }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| rollout.restart() } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         ConfirmDialog {
             title: "Delete rollout".to_string(),
@@ -117,8 +117,8 @@ fn Groups(
                     rsx! {
                         Card {
                             div { class: "mb-3 flex items-center justify-between",
-                                h2 { class: "font-semibold text-zinc-100", "Groups" }
-                                span { class: "text-sm text-zinc-400", "{finished} / {total} groups finished" }
+                                h2 { class: "font-semibold text-foreground", "Groups" }
+                                span { class: "text-sm text-fg-dim", "{finished} / {total} groups finished" }
                             }
                             table { class: TABLE,
                                 thead {
@@ -151,8 +151,8 @@ fn Groups(
                         }
                     }
                 }
-                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                None => rsx! { p { class: "text-zinc-500", "Loading groups…" } },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading groups…" } },
             }
         }
     }
@@ -162,7 +162,7 @@ fn Groups(
 fn Row(k: String, v: String) -> Element {
     rsx! {
         div { class: "flex gap-2",
-            dt { class: "w-40 shrink-0 text-zinc-500", "{k}" }
+            dt { class: "w-40 shrink-0 text-muted-foreground", "{k}" }
             dd { class: "break-all", "{v}" }
         }
     }

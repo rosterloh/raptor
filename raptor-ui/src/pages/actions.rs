@@ -19,9 +19,9 @@ pub fn Actions() -> Element {
     use_polling(actions);
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-zinc-100", "Actions" }
+            h1 { class: "text-xl font-bold text-foreground", "Actions" }
             select {
-                class: "rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm",
+                class: "rounded border border-border bg-card px-3 py-1.5 text-sm",
                 value: "{filter}",
                 onchange: move |e| {
                     filter.set(e.value());
@@ -52,9 +52,9 @@ pub fn Actions() -> Element {
                                 td { class: TD, "#{a.id}" }
                                 td { class: TD,
                                     if let Some(cid) = a.target.clone() {
-                                        Link { to: Route::TargetDetail { cid: cid.clone() }, class: "text-emerald-400 hover:underline", "{cid}" }
+                                        Link { to: Route::TargetDetail { cid: cid.clone() }, class: "text-primary hover:underline", "{cid}" }
                                     } else {
-                                        span { class: "text-zinc-600", "-" }
+                                        span { class: "text-muted-foreground", "-" }
                                     }
                                 }
                                 td { class: TD, "{a.action_type}" }
@@ -65,7 +65,7 @@ pub fn Actions() -> Element {
                                     if a.status == "pending" {
                                         if let Some(cid) = a.target.clone() {
                                             button {
-                                                class: "text-xs text-red-400 hover:underline",
+                                                class: "text-xs text-err hover:underline",
                                                 onclick: move |_| {
                                                     let cid = cid.clone();
                                                     let aid = a.id;
@@ -94,7 +94,7 @@ pub fn Actions() -> Element {
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| actions.restart() } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
     }
 }

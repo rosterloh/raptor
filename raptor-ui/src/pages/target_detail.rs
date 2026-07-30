@@ -38,13 +38,13 @@ pub fn TargetDetail(cid: String) -> Element {
         }
         div { class: "grid grid-cols-2 gap-4",
             Card {
-                h2 { class: "mb-2 font-semibold text-zinc-100", "Status" }
+                h2 { class: "mb-2 font-semibold text-foreground", "Status" }
                 match &*target.read_unchecked() {
                     Some(Ok(t)) => rsx! {
                         dl { class: "space-y-1 text-sm",
                             Row { k: "Name", v: t.name.clone() }
                             div { class: "flex gap-2",
-                                dt { class: "w-32 text-zinc-500", "Update status" }
+                                dt { class: "w-32 text-muted-foreground", "Update status" }
                                 dd { StatusBadge { status: t.update_status.clone() } }
                             }
                             Row { k: "Last poll", v: t.last_controller_request_at.map(logic::format_ts).unwrap_or_else(|| "never".into()) }
@@ -53,11 +53,11 @@ pub fn TargetDetail(cid: String) -> Element {
                         }
                     },
                     Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| target.restart() } },
-                    None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
                 }
             }
             Card {
-                h2 { class: "mb-2 font-semibold text-zinc-100", "Distribution sets" }
+                h2 { class: "mb-2 font-semibold text-foreground", "Distribution sets" }
                 DsSummary { label: "Assigned", res: assigned }
                 DsSummary { label: "Installed", res: installed }
             }
@@ -65,9 +65,9 @@ pub fn TargetDetail(cid: String) -> Element {
                 EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
             }
             Card {
-                h2 { class: "mb-2 font-semibold text-zinc-100", "Attributes" }
+                h2 { class: "mb-2 font-semibold text-foreground", "Attributes" }
                 match &*attributes.read_unchecked() {
-                    Some(Ok(attrs)) if attrs.is_empty() => rsx! { p { class: "text-sm text-zinc-500", "none reported" } },
+                    Some(Ok(attrs)) if attrs.is_empty() => rsx! { p { class: "text-sm text-muted-foreground", "none reported" } },
                     Some(Ok(attrs)) => rsx! {
                         dl { class: "space-y-1 text-sm",
                             for (k , v) in attrs.clone() {
@@ -75,12 +75,12 @@ pub fn TargetDetail(cid: String) -> Element {
                             }
                         }
                     },
-                    Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                    None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                    Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
                 }
             }
             Card {
-                h2 { class: "mb-2 font-semibold text-zinc-100", "Recent actions" }
+                h2 { class: "mb-2 font-semibold text-foreground", "Recent actions" }
                 match &*actions.read_unchecked() {
                     Some(Ok(page)) => rsx! {
                         ul { class: "space-y-2 text-sm",
@@ -89,7 +89,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                     span { "#{a.id} {a.action_type} — {a.detail_status} ({logic::format_ts(a.last_modified_at)})" }
                                     if a.status == "pending" {
                                         button {
-                                            class: "text-xs text-red-400 hover:underline",
+                                            class: "text-xs text-err hover:underline",
                                             onclick: move |_| {
                                                 let cid = cid_s();
                                                 let aid = a.id;
@@ -108,8 +108,8 @@ pub fn TargetDetail(cid: String) -> Element {
                             }
                         }
                     },
-                    Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                    None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                    Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
                 }
             }
         }
@@ -138,7 +138,7 @@ pub fn TargetDetail(cid: String) -> Element {
 fn Row(k: String, v: String) -> Element {
     rsx! {
         div { class: "flex gap-2",
-            dt { class: "w-32 shrink-0 text-zinc-500", "{k}" }
+            dt { class: "w-32 shrink-0 text-muted-foreground", "{k}" }
             dd { class: "break-all", "{v}" }
         }
     }
@@ -151,16 +151,16 @@ fn DsSummary(
 ) -> Element {
     rsx! {
         div { class: "mb-2 text-sm",
-            span { class: "text-zinc-500", "{label}: " }
+            span { class: "text-muted-foreground", "{label}: " }
             match &*res.read_unchecked() {
                 Some(Ok(Some(ds))) => rsx! {
-                    Link { to: crate::Route::DsDetail { id: ds.id }, class: "text-emerald-400 hover:underline",
+                    Link { to: crate::Route::DsDetail { id: ds.id }, class: "text-primary hover:underline",
                         "{ds.name} {ds.version}"
                     }
                 },
-                Some(Ok(None)) => rsx! { span { class: "text-zinc-600", "none" } },
-                Some(Err(e)) => rsx! { span { class: "text-red-400", "{e}" } },
-                None => rsx! { span { class: "text-zinc-600", "…" } },
+                Some(Ok(None)) => rsx! { span { class: "text-muted-foreground", "none" } },
+                Some(Err(e)) => rsx! { span { class: "text-err", "{e}" } },
+                None => rsx! { span { class: "text-muted-foreground", "…" } },
             }
         }
     }
@@ -184,16 +184,16 @@ pub fn AssignDsDialog(
     let mut forced = use_signal(|| true);
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
-            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign distribution set" }
+            h3 { class: "mb-3 text-lg font-semibold text-foreground", "Assign distribution set" }
             match &*sets.read_unchecked() {
                 Some(Ok(page)) if page.content.is_empty() => rsx! {
-                    p { class: "text-sm text-zinc-500", "No distribution sets yet." }
+                    p { class: "text-sm text-muted-foreground", "No distribution sets yet." }
                 },
                 Some(Ok(page)) => rsx! {
                     ul { class: "mb-3 space-y-1",
                         for ds in page.content.clone() {
                             li { key: "{ds.id}",
-                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "radio",
                                         name: "ds",
@@ -202,15 +202,15 @@ pub fn AssignDsDialog(
                                     }
                                     span { "{ds.name} {ds.version}" }
                                     if !ds.complete {
-                                        span { class: "text-xs text-amber-400", "(incomplete)" }
+                                        span { class: "text-xs text-pend", "(incomplete)" }
                                     }
                                 }
                             }
                         }
                     }
                 },
-                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
             }
             label { class: "mb-4 flex items-center gap-2 text-sm",
                 input {
@@ -222,7 +222,7 @@ pub fn AssignDsDialog(
             }
             div { class: "flex justify-end gap-2",
                 button {
-                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }

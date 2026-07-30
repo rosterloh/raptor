@@ -19,11 +19,11 @@ pub fn Shell() -> Element {
         return rsx! {};
     }
     rsx! {
-        div { class: "flex min-h-screen bg-zinc-950 text-zinc-200",
-            aside { class: "flex w-52 flex-col border-r border-zinc-800 bg-zinc-900",
+        div { class: "flex min-h-screen bg-background text-foreground",
+            aside { class: "flex w-52 flex-col border-r border-border-soft bg-card",
                 div { class: "flex items-center gap-2 px-4 py-5",
                     img { src: LOGO, class: "h-8 w-8", alt: "" }
-                    span { class: "text-lg font-bold tracking-wide text-emerald-400", "raptor" }
+                    span { class: "text-lg font-bold tracking-wide text-primary", "raptor" }
                 }
                 nav { class: "flex flex-1 flex-col gap-1 px-2",
                     NavLink { to: Route::Dashboard {}, label: "Dashboard" }
@@ -36,7 +36,7 @@ pub fn Shell() -> Element {
                     NavLink { to: Route::Tags {}, label: "Tags" }
                 }
                 button {
-                    class: "m-2 rounded px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-800",
+                    class: "m-2 rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| async move {
                         let _ = crate::api::logout().await;
                         nav.push(Route::Login {});
@@ -57,8 +57,11 @@ fn NavLink(to: Route, label: String) -> Element {
     rsx! {
         Link {
             to,
-            class: "rounded px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800",
-            active_class: "bg-zinc-800 text-emerald-400",
+            class: "rounded px-3 py-2 text-sm text-fg-dim hover:bg-accent",
+            // The current page is marked by an accent edge plus full-strength
+            // text, not by accent-coloured text: the accent is capped at about
+            // two visible uses per screen and the brand mark already spends one.
+            active_class: "bg-accent text-foreground shadow-[inset_2px_0_0_var(--color-primary)]",
             "{label}"
         }
     }

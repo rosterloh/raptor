@@ -1,29 +1,113 @@
 @import "tailwindcss";
 
-/* The app's colour vocabulary. Semantic names on top of the zinc/emerald dark
-   palette: the vendored shadcn components (src/components/ui/*) and the shared
-   class constants (src/components/mod.rs) both resolve their colours here, so a
-   palette change is an edit to this block rather than a grep across components.
-   Individual pages still carry some raw zinc/emerald classes — those are being
-   migrated onto these tokens. */
+/* ─── Typefaces ─────────────────────────────────────────────────────────
+ * Vendored, not linked: the server embeds `dx build`'s output with
+ * `rust-embed`, so a CDN reference would break every offline and air-gapped
+ * install — which is most of them for an OTA server sitting inside a factory
+ * network. Latin subsets only, 8 files, ~110KB total.
+ *
+ * Barlow Condensed carries display type and big numerals (condensed buys the
+ * width to keep a 40px fleet count on one line); Barlow carries UI text,
+ * because condensed body copy is measurably harder to read at 13px; IBM Plex
+ * Mono carries anything a machine produced — controller IDs, versions,
+ * timestamps, FIQL.
+ * ─────────────────────────────────────────────────────────────────────── */
+@import "./tailwind-fonts.css";
+
+/* ─── Design tokens ─────────────────────────────────────────────────────
+ * The single source of colour and type for the console. Both the vendored
+ * shadcn-style components under src/components/ui/ and the shared class
+ * constants in src/components/mod.rs resolve through these names, so a
+ * palette change is an edit here rather than a grep across components.
+ *
+ * Deep navy canvas so saturated status separates from the background instead
+ * of sitting flat on it — the old zinc-950 + emerald-400 pairing was Tailwind's
+ * dark default and read as a generic dashboard.
+ *
+ * ACCENT RULE, worth keeping: `--color-primary` is the PRIMARY ACTION colour,
+ * capped at roughly two visible uses per screen. It is not a data colour and
+ * not a link colour in dense tables. Status is carried only by --color-ok /
+ * -pend / -err / -info / -neutral. An accent that also means "this is a number"
+ * stops meaning anything.
+ *
+ * Token names are kept from the previous shadcn binding (`card`, `accent`,
+ * `secondary`, `border-soft`…) rather than renamed, so the vendored components
+ * keep working and this commit stays a re-pointing rather than a rewrite. The
+ * three border weights keep their old ordering: `border` strongest (control
+ * edges), `border-soft` (container edges, table header rules), `border-subtle`
+ * (row separators inside a table).
+ * ─────────────────────────────────────────────────────────────────────── */
 @theme {
-  --color-background: var(--color-zinc-950);
-  --color-foreground: var(--color-zinc-100);
-  /* Raised surface: cards, dialogs, table row hover. */
-  --color-card: var(--color-zinc-900);
-  --color-primary: var(--color-emerald-700);
-  --color-primary-foreground: white;
-  --color-secondary: var(--color-zinc-800);
-  --color-secondary-foreground: var(--color-zinc-100);
-  --color-destructive: var(--color-red-800);
-  --color-accent: var(--color-zinc-800);
-  --color-accent-foreground: var(--color-zinc-100);
-  --color-muted-foreground: var(--color-zinc-500);
-  /* Three border weights, strongest first: control edges, container edges and
-     table header rules, then row separators inside a table. */
-  --color-border: var(--color-zinc-700);
-  --color-border-soft: var(--color-zinc-800);
-  --color-border-subtle: var(--color-zinc-900);
-  --color-input: var(--color-zinc-700);
-  --color-ring: var(--color-emerald-600);
+  /* Canvas and surfaces, darkest first */
+  --color-background: #06090f;
+  --color-card: #0e141c;
+  --color-accent: #131b26;
+  --color-secondary: #18222f;
+
+  /* Foreground ramp */
+  --color-foreground: #eef3f8;
+  --color-fg-dim: #b8c4d2;
+  --color-muted-foreground: #7d8b9c;
+  --color-accent-foreground: #eef3f8;
+  --color-secondary-foreground: #eef3f8;
+
+  /* Rules */
+  --color-border: #263544;
+  --color-border-soft: #1a2430;
+  --color-border-subtle: #131b26;
+  --color-input: #263544;
+
+  /* Primary action */
+  --color-primary: #3ddbd9;
+  --color-primary-foreground: #04231f;
+  --color-primary-hover: #5fe5e3;
+  --color-ring: #3ddbd9;
+  --color-destructive: #ef5350;
+
+  /* Status. Never used for chrome, never used for actions. */
+  --color-ok: #21c08b;
+  --color-pend: #f0b429;
+  --color-err: #ef5350;
+  --color-info: #4f9cf9;
+  --color-neutral: #55677a;
+
+  /* Status badge triplets: a tinted surface, a readable label, a visible edge.
+     Status is always a lamp plus a word — never colour alone — so these carry
+     the badge and the dot, not the meaning. */
+  --color-ok-bg: #08241c;
+  --color-ok-border: #14624a;
+  --color-ok-fg: #6ee7b7;
+  --color-pend-bg: #2a1e05;
+  --color-pend-border: #7a5a12;
+  --color-pend-fg: #fcd34d;
+  --color-err-bg: #2b0f10;
+  --color-err-border: #7f2426;
+  --color-err-fg: #fca5a5;
+  --color-info-bg: #0b1c33;
+  --color-info-border: #1e4a80;
+  --color-info-fg: #93c5fd;
+  --color-neutral-bg: #131b26;
+  --color-neutral-border: #263544;
+  --color-neutral-fg: #b8c4d2;
+
+  /* Type. --font-sans also drives Tailwind's default body font. */
+  --font-sans: "Barlow", "Helvetica Neue", system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Tabular numerals everywhere a figure can change under a poll: a count that
+   shifts width while you are reading it is the fastest way to make a live
+   dashboard feel unstable. */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-background);
+    color: var(--color-fg-dim);
+  }
+  .tabular,
+  th,
+  td {
+    font-variant-numeric: tabular-nums;
+  }
 }

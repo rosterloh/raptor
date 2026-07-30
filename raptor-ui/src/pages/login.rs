@@ -15,9 +15,9 @@ pub fn Login() -> Element {
         // Login is the one route outside `Shell`, which is where the rest of the
         // app inherits its text colour from — without it here the inputs render
         // the browser default (black) on the dark card.
-        div { class: "flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-200",
+        div { class: "flex min-h-screen items-center justify-center bg-background text-foreground",
             form {
-                class: "w-80 rounded-lg border border-zinc-800 bg-zinc-900 p-8",
+                class: "w-80 rounded-lg border border-border-soft bg-card p-8",
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
                     busy.set(true);
@@ -33,7 +33,7 @@ pub fn Login() -> Element {
                     });
                 },
                 img { src: LOGO, class: "mx-auto mb-3 h-16 w-16", alt: "" }
-                h1 { class: "mb-6 text-center text-xl font-bold text-emerald-400", "raptor" }
+                h1 { class: "mb-6 text-center text-xl font-bold text-primary", "raptor" }
                 Input {
                     class: "mb-3",
                     placeholder: "Username",
@@ -48,7 +48,7 @@ pub fn Login() -> Element {
                     oninput: move |e: FormEvent| password.set(e.value()),
                 }
                 if let Some(e) = error() {
-                    p { class: "mb-3 text-sm text-red-400", "{e}" }
+                    p { class: "mb-3 text-sm text-err", "{e}" }
                 }
                 Button {
                     class: "w-full py-2",

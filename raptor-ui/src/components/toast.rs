@@ -53,9 +53,9 @@ pub fn ToastStack() -> Element {
                 div {
                     key: "{t.id}",
                     class: if t.error {
-                        "flex items-start gap-3 rounded border border-red-800 bg-red-950 px-4 py-2 text-sm text-red-200 shadow-lg"
+                        "flex items-start gap-3 rounded border border-err-border bg-err-bg px-4 py-2 text-sm text-err-fg shadow-lg"
                     } else {
-                        "flex items-start gap-3 rounded border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm text-emerald-200 shadow-lg"
+                        "flex items-start gap-3 rounded border border-ok-border bg-ok-bg px-4 py-2 text-sm text-ok-fg shadow-lg"
                     },
                     span { "{t.text}" }
                     button {

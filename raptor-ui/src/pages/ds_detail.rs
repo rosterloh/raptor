@@ -26,19 +26,19 @@ pub fn DsDetail(id: i64) -> Element {
                     }
                 }
                 Card {
-                    p { class: "mb-2 text-sm text-zinc-400",
+                    p { class: "mb-2 text-sm text-fg-dim",
                         "type {d.ds_type} · "
                         if d.complete { "complete" } else { "incomplete" }
                         " · created {logic::format_ts(d.created_at)}"
                     }
-                    h2 { class: "mb-2 font-semibold text-zinc-100", "Modules" }
+                    h2 { class: "mb-2 font-semibold text-foreground", "Modules" }
                     if d.modules.is_empty() {
-                        p { class: "text-sm text-zinc-500", "No modules assigned — the set is not deployable yet." }
+                        p { class: "text-sm text-muted-foreground", "No modules assigned — the set is not deployable yet." }
                     } else {
                         ul { class: "space-y-1 text-sm",
                             for m in d.modules.clone() {
                                 li { key: "{m.id}",
-                                    Link { to: Route::ModuleDetail { id: m.id }, class: "text-emerald-400 hover:underline",
+                                    Link { to: Route::ModuleDetail { id: m.id }, class: "text-primary hover:underline",
                                         "{m.name} {m.version} ({m.module_type})"
                                     }
                                 }
@@ -51,7 +51,7 @@ pub fn DsDetail(id: i64) -> Element {
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| ds.restart() } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         AssignModulesDialog { open: show_modules, ds_id: id, on_done: move |_| ds.restart() }
         DeployDialog { open: show_deploy, ds_id: id }
@@ -86,13 +86,13 @@ fn AssignModulesDialog(open: Signal<bool>, ds_id: i64, on_done: EventHandler<()>
     let mut selected = use_signal(Vec::<i64>::new);
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
-            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Assign software modules" }
+            h3 { class: "mb-3 text-lg font-semibold text-foreground", "Assign software modules" }
             match &*modules.read_unchecked() {
                 Some(Ok(page)) => rsx! {
                     ul { class: "mb-4 space-y-1",
                         for m in page.content.clone() {
                             li { key: "{m.id}",
-                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "checkbox",
                                         checked: selected().contains(&m.id),
@@ -108,12 +108,12 @@ fn AssignModulesDialog(open: Signal<bool>, ds_id: i64, on_done: EventHandler<()>
                         }
                     }
                 },
-                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
             }
             div { class: "flex justify-end gap-2",
                 button {
-                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }
@@ -154,7 +154,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
     let mut forced = use_signal(|| true);
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
-            h3 { class: "mb-3 text-lg font-semibold text-zinc-100", "Deploy to target" }
+            h3 { class: "mb-3 text-lg font-semibold text-foreground", "Deploy to target" }
             div { class: "mb-3",
                 SearchBox { placeholder: "Search targets…", on_search: move |s| query.set(s) }
             }
@@ -163,7 +163,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                     ul { class: "mb-3 space-y-1",
                         for t in page.content.clone() {
                             li { key: "{t.controller_id}",
-                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "radio",
                                         name: "deploy-target",
@@ -180,8 +180,8 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                         }
                     }
                 },
-                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
             }
             label { class: "mb-4 flex items-center gap-2 text-sm",
                 input {
@@ -193,7 +193,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
             }
             div { class: "flex justify-end gap-2",
                 button {
-                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }

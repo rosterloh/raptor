@@ -76,7 +76,7 @@ pub fn Targets() -> Element {
                 ErrorPane { message: e.to_string(), on_retry: move |_| targets.restart() }
             },
             None => rsx! {
-                p { class: "text-zinc-500", "Loading…" }
+                p { class: "text-muted-foreground", "Loading…" }
             },
         }
     }

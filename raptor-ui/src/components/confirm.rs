@@ -10,11 +10,11 @@ pub fn ConfirmDialog(
 ) -> Element {
     rsx! {
         Dialog { open,
-            h3 { class: "mb-2 text-lg font-semibold text-zinc-100", "{title}" }
-            p { class: "mb-4 text-sm text-zinc-400", "{message}" }
+            h3 { class: "mb-2 text-lg font-semibold text-foreground", "{title}" }
+            p { class: "mb-4 text-sm text-fg-dim", "{message}" }
             div { class: "flex justify-end gap-2",
                 button {
-                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }

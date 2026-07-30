@@ -68,10 +68,10 @@ pub fn ModuleDetail(id: i64) -> Element {
         match &*module.read_unchecked() {
             Some(Ok(m)) => rsx! {
                 h1 { class: HEADING, "{m.name} {m.version}" }
-                p { class: "mb-4 text-sm text-zinc-400", "type {m.module_type}" }
+                p { class: "mb-4 text-sm text-fg-dim", "type {m.module_type}" }
             },
-            Some(Err(e)) => rsx! { p { class: "text-red-400", "{e}" } },
-            None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+            Some(Err(e)) => rsx! { p { class: "text-err", "{e}" } },
+            None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         div { class: "mb-4 flex gap-2",
             Button {
@@ -81,10 +81,10 @@ pub fn ModuleDetail(id: i64) -> Element {
             }
         }
         Card {
-            h2 { class: "mb-2 font-semibold text-zinc-100", "Artifacts" }
+            h2 { class: "mb-2 font-semibold text-foreground", "Artifacts" }
             // A file input stretched over the dropzone: browsers natively accept
             // drag-and-drop onto <input type=file>, no JS drop handling needed.
-            label { class: "relative mb-4 block cursor-pointer rounded border-2 border-dashed border-zinc-700 p-6 text-center text-sm text-zinc-500 hover:border-emerald-700 hover:text-zinc-300",
+            label { class: "relative mb-4 block cursor-pointer rounded border-2 border-dashed border-border p-6 text-center text-sm text-muted-foreground hover:border-primary hover:text-foreground",
                 "Drop files here or click to browse"
                 input {
                     r#type: "file",
@@ -95,10 +95,10 @@ pub fn ModuleDetail(id: i64) -> Element {
             }
             for u in uploads() {
                 div { key: "{u.id}", class: "mb-2 text-sm",
-                    span { class: "text-zinc-400", "{u.filename} " }
-                    div { class: "mt-1 h-1.5 w-full rounded bg-zinc-800",
+                    span { class: "text-fg-dim", "{u.filename} " }
+                    div { class: "mt-1 h-1.5 w-full rounded bg-accent",
                         div {
-                            class: "h-1.5 rounded bg-emerald-600 transition-all",
+                            class: "h-1.5 rounded bg-primary transition-all",
                             style: "width: {u.progress * 100.0}%",
                         }
                     }
@@ -106,7 +106,7 @@ pub fn ModuleDetail(id: i64) -> Element {
             }
             match &*artifacts.read_unchecked() {
                 Some(Ok(list)) if list.is_empty() => rsx! {
-                    p { class: "text-sm text-zinc-500", "No artifacts yet." }
+                    p { class: "text-sm text-muted-foreground", "No artifacts yet." }
                 },
                 Some(Ok(list)) => rsx! {
                     table { class: TABLE,
@@ -123,7 +123,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                                 tr { key: "{a.id}",
                                     td { class: TD,
                                         a {
-                                            class: "text-emerald-400 hover:underline",
+                                            class: "text-primary hover:underline",
                                             href: api::artifact_download_href(id, a.id),
                                             download: "{a.provided_filename}",
                                             "{a.provided_filename}"
@@ -133,7 +133,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                                     td { class: "{TD} font-mono text-xs", "{a.hashes.sha1}" }
                                     td { class: TD,
                                         button {
-                                            class: "text-xs text-red-400 hover:underline",
+                                            class: "text-xs text-err hover:underline",
                                             onclick: move |_| {
                                                 spawn(async move {
                                                     match api::delete_artifact(id, a.id).await {
@@ -153,8 +153,8 @@ pub fn ModuleDetail(id: i64) -> Element {
                         }
                     }
                 },
-                Some(Err(e)) => rsx! { p { class: "text-sm text-red-400", "{e}" } },
-                None => rsx! { p { class: "text-zinc-500", "Loading…" } },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
             }
         }
         ConfirmDialog {

@@ -64,19 +64,39 @@ pub fn format_ts(ms: i64) -> String {
         .unwrap_or_else(|| "-".into())
 }
 
-/// Segments of a rollout progress bar, most-advanced first: (label, bar colour
-/// class, count). Empty buckets are dropped so the bar has no zero-width slivers
-/// and the legend only names states that actually occurred.
+/// What a state *means*, independent of how it is painted.
+///
+/// This module is compiled and tested on the host and holds no presentation:
+/// returning Tailwind class strings from here is what previously made a palette
+/// change a code change, and what made a light theme impossible. Components map
+/// a tone onto tokens; see `components::tone_badge` / `components::tone_fill`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tone {
+    /// Where it should be: in sync, finished.
+    Ok,
+    /// Working on it: pending, running, downloading.
+    Pending,
+    /// Needs a human: error, stopped.
+    Error,
+    /// Known but not yet acted on: registered, scheduled.
+    Info,
+    /// No signal either way: ready, canceled, unknown.
+    Neutral,
+}
+
+/// Segments of a rollout progress bar, most-advanced first: (label, tone,
+/// count). Empty buckets are dropped so the bar has no zero-width slivers and
+/// the legend only names states that actually occurred.
 pub fn progress_segments(
     c: &raptor_api_types::RolloutTargetsPerStatus,
-) -> Vec<(&'static str, &'static str, i64)> {
+) -> Vec<(&'static str, Tone, i64)> {
     [
-        ("finished", "bg-emerald-500", c.finished),
-        ("running", "bg-sky-500", c.running),
-        ("error", "bg-red-500", c.error),
-        ("cancelled", "bg-zinc-500", c.cancelled),
-        ("scheduled", "bg-zinc-600", c.scheduled),
-        ("not started", "bg-zinc-700", c.notstarted),
+        ("finished", Tone::Ok, c.finished),
+        ("running", Tone::Pending, c.running),
+        ("error", Tone::Error, c.error),
+        ("cancelled", Tone::Neutral, c.cancelled),
+        ("scheduled", Tone::Info, c.scheduled),
+        ("not started", Tone::Neutral, c.notstarted),
     ]
     .into_iter()
     .filter(|(_, _, n)| *n > 0)
@@ -92,28 +112,26 @@ pub fn percent(n: i64, total: i64) -> f64 {
     (n as f64 * 100.0 / total as f64).clamp(0.0, 100.0)
 }
 
-/// (label, badge classes) for a target updateStatus.
-pub fn status_style(update_status: &str) -> (&'static str, &'static str) {
+/// (display label, tone) for a target `updateStatus` or a rollout/group state.
+///
+/// The label is deliberately not just the raw key — `in_sync` reads as
+/// "in sync" — because the badge shows a word next to its colour rather than
+/// relying on colour alone.
+pub fn status_style(update_status: &str) -> (&'static str, Tone) {
     match update_status {
-        "in_sync" => (
-            "in sync",
-            "bg-emerald-950 text-emerald-300 border-emerald-800",
-        ),
-        "pending" => ("pending", "bg-amber-950 text-amber-300 border-amber-800"),
-        "error" => ("error", "bg-red-950 text-red-300 border-red-800"),
-        "registered" => ("registered", "bg-sky-950 text-sky-300 border-sky-800"),
+        "in_sync" => ("in sync", Tone::Ok),
+        "pending" => ("pending", Tone::Pending),
+        "error" => ("error", Tone::Error),
+        "registered" => ("registered", Tone::Info),
         // rollout / rollout-group lifecycle states
-        "ready" => ("ready", "bg-zinc-800 text-zinc-300 border-zinc-700"),
-        "scheduled" => ("scheduled", "bg-sky-950 text-sky-300 border-sky-800"),
-        "running" => ("running", "bg-sky-950 text-sky-300 border-sky-800"),
-        "paused" => ("paused", "bg-amber-950 text-amber-300 border-amber-800"),
-        "finished" => (
-            "finished",
-            "bg-emerald-950 text-emerald-300 border-emerald-800",
-        ),
-        "canceled" => ("canceled", "bg-zinc-800 text-zinc-300 border-zinc-700"),
-        "stopped" => ("stopped", "bg-red-950 text-red-300 border-red-800"),
-        _ => ("unknown", "bg-zinc-800 text-zinc-300 border-zinc-700"),
+        "ready" => ("ready", Tone::Neutral),
+        "scheduled" => ("scheduled", Tone::Info),
+        "running" => ("running", Tone::Pending),
+        "paused" => ("paused", Tone::Pending),
+        "finished" => ("finished", Tone::Ok),
+        "canceled" => ("canceled", Tone::Neutral),
+        "stopped" => ("stopped", Tone::Error),
+        _ => ("unknown", Tone::Neutral),
     }
 }
 
@@ -274,6 +292,7 @@ mod tests {
         let labels: Vec<_> = progress_segments(&c).iter().map(|s| s.0).collect();
         assert_eq!(labels, ["finished", "running", "error", "scheduled"]);
         assert_eq!(progress_segments(&c)[0].2, 3);
+        assert_eq!(progress_segments(&c)[0].1, Tone::Ok);
         assert!(progress_segments(&Default::default()).is_empty());
     }
 
@@ -301,10 +320,18 @@ mod tests {
             "unknown",
             "???",
         ] {
-            let (label, classes) = status_style(s);
-            assert!(!label.is_empty());
-            assert!(classes.contains("bg-"));
+            let (label, _tone) = status_style(s);
+            assert!(!label.is_empty(), "{s} has no label");
         }
+        // The states an operator must act on must not collapse into the same
+        // tone as the states they can ignore.
+        assert_eq!(status_style("error").1, Tone::Error);
+        assert_eq!(status_style("stopped").1, Tone::Error);
+        assert_eq!(status_style("in_sync").1, Tone::Ok);
+        assert_eq!(status_style("???").1, Tone::Neutral);
+        // No Tailwind class ever leaves this module again — that is what makes a
+        // palette change an edit to tailwind.css rather than to Rust.
+        assert!(!format!("{:?}", status_style("error")).contains("bg-"));
     }
 
     #[test]

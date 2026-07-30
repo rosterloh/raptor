@@ -43,7 +43,7 @@ pub fn TargetFilters() -> Element {
 
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-zinc-100", "Target filters" }
+            h1 { class: "text-xl font-bold text-foreground", "Target filters" }
             Button {
                 onclick: move |_| {
                     form_for.set(None);
@@ -63,7 +63,7 @@ pub fn TargetFilters() -> Element {
         }
         match &*filters.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                p { class: "text-sm text-zinc-500",
+                p { class: "text-sm text-muted-foreground",
                     "No target filters yet. A filter is a saved FIQL query over targets; attach a distribution set to it and matching targets are updated automatically."
                 }
             },
@@ -80,7 +80,7 @@ pub fn TargetFilters() -> Element {
                     }
                     tbody {
                         for f in page.content.clone() {
-                            tr { key: "{f.id}", class: "hover:bg-zinc-900",
+                            tr { key: "{f.id}", class: "hover:bg-card",
                                 td { class: TD, "{f.name}" }
                                 td { class: "{TD} font-mono text-xs break-all", "{f.query}" }
                                 td { class: TD,
@@ -98,7 +98,7 @@ pub fn TargetFilters() -> Element {
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
                                         button {
-                                            class: "rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800",
+                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                                             onclick: {
                                                 let f = f.clone();
                                                 move |_| {
@@ -109,7 +109,7 @@ pub fn TargetFilters() -> Element {
                                             "Edit"
                                         }
                                         button {
-                                            class: "rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800",
+                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                                             onclick: {
                                                 let f = f.clone();
                                                 move |_| {
@@ -120,7 +120,7 @@ pub fn TargetFilters() -> Element {
                                             "Auto-assign…"
                                         }
                                         button {
-                                            class: "rounded px-2 py-1 text-xs text-red-400 hover:bg-zinc-800",
+                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
                                                 let f = f.clone();
                                                 move |_| {
@@ -147,7 +147,7 @@ pub fn TargetFilters() -> Element {
                 ErrorPane { message: e.to_string(), on_retry: move |_| filters.restart() }
             },
             None => rsx! {
-                p { class: "text-zinc-500", "Loading…" }
+                p { class: "text-muted-foreground", "Loading…" }
             },
         }
         if show_form() {
@@ -196,12 +196,12 @@ pub fn TargetFilters() -> Element {
 fn AutoAssignCell(label: Option<String>) -> Element {
     match label {
         Some(l) => rsx! {
-            span { class: "inline-block rounded border px-2 py-0.5 text-xs bg-emerald-950 text-emerald-300 border-emerald-800",
+            span { class: "inline-block rounded border px-2 py-0.5 text-xs bg-ok-bg text-ok-fg border-ok-border",
                 "{l}"
             }
         },
         None => rsx! {
-            span { class: "text-zinc-600", "none" }
+            span { class: "text-muted-foreground", "none" }
         },
     }
 }
@@ -210,7 +210,7 @@ fn AutoAssignCell(label: Option<String>) -> Element {
 fn FieldError(message: Option<String>) -> Element {
     match message {
         Some(m) => rsx! {
-            p { class: "mb-3 text-xs text-red-400", "{m}" }
+            p { class: "mb-3 text-xs text-err", "{m}" }
         },
         None => rsx! {},
     }
@@ -297,7 +297,7 @@ fn FilterFormDialog(
                         }
                     });
                 },
-                h3 { class: "mb-3 text-lg font-semibold text-zinc-100",
+                h3 { class: "mb-3 text-lg font-semibold text-foreground",
                     if editing_id.is_some() {
                         "Edit target filter"
                     } else {
@@ -328,18 +328,18 @@ fn FilterFormDialog(
                 FieldError { message: query_error() }
                 match &*preview.read_unchecked() {
                     Some(Some(Ok(total))) => rsx! {
-                        p { class: "mb-3 text-xs text-zinc-400", "matches {total} targets right now" }
+                        p { class: "mb-3 text-xs text-fg-dim", "matches {total} targets right now" }
                     },
                     Some(Some(Err(e))) => rsx! {
-                        p { class: "mb-3 text-xs text-amber-400", "{e.message()}" }
+                        p { class: "mb-3 text-xs text-pend", "{e.message()}" }
                     },
                     _ => rsx! {
-                        p { class: "mb-3 text-xs text-zinc-600", "Targets matching the query are shown here." }
+                        p { class: "mb-3 text-xs text-muted-foreground", "Targets matching the query are shown here." }
                     },
                 }
                 div { class: "flex justify-end gap-2",
                     button {
-                        class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                         r#type: "button",
                         onclick: move |_| open.set(false),
                         "Cancel"
@@ -377,19 +377,19 @@ fn AutoAssignDialog(
 
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
-            h3 { class: "mb-2 text-lg font-semibold text-zinc-100", "Auto-assign distribution set" }
-            p { class: "mb-3 text-sm text-zinc-500",
+            h3 { class: "mb-2 text-lg font-semibold text-foreground", "Auto-assign distribution set" }
+            p { class: "mb-3 text-sm text-muted-foreground",
                 "Targets matching \"{filter_name}\" are assigned this set as soon as they match."
             }
             match &*sets.read_unchecked() {
                 Some(Ok(page)) if page.content.is_empty() => rsx! {
-                    p { class: "mb-3 text-sm text-zinc-500", "No distribution sets yet." }
+                    p { class: "mb-3 text-sm text-muted-foreground", "No distribution sets yet." }
                 },
                 Some(Ok(page)) => rsx! {
                     ul { class: "mb-3 space-y-1",
                         for ds in page.content.clone() {
                             li { key: "{ds.id}",
-                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-800",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "radio",
                                         name: "auto-assign-ds",
@@ -401,7 +401,7 @@ fn AutoAssignDialog(
                                     }
                                     span { "{ds.name} {ds.version}" }
                                     if !ds.complete {
-                                        span { class: "text-xs text-amber-400", "(incomplete)" }
+                                        span { class: "text-xs text-pend", "(incomplete)" }
                                     }
                                 }
                             }
@@ -409,16 +409,16 @@ fn AutoAssignDialog(
                     }
                 },
                 Some(Err(e)) => rsx! {
-                    p { class: "mb-3 text-sm text-red-400", "{e}" }
+                    p { class: "mb-3 text-sm text-err", "{e}" }
                 },
                 None => rsx! {
-                    p { class: "text-zinc-500", "Loading…" }
+                    p { class: "text-muted-foreground", "Loading…" }
                 },
             }
-            label { class: "mb-3 flex items-center gap-2 text-sm text-zinc-300",
+            label { class: "mb-3 flex items-center gap-2 text-sm text-fg-dim",
                 "Action type"
                 select {
-                    class: "rounded border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-200 focus:border-emerald-600 focus:outline-none",
+                    class: "rounded border border-border bg-background px-3 py-1 text-sm text-foreground focus:border-ring focus:outline-none",
                     value: "{action_type}",
                     onchange: move |e| action_type.set(e.value()),
                     option { value: "forced", "forced" }
@@ -428,7 +428,7 @@ fn AutoAssignDialog(
             FieldError { message: error() }
             div { class: "flex justify-end gap-2",
                 button {
-                    class: "rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800",
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| open.set(false),
                     "Cancel"
                 }
