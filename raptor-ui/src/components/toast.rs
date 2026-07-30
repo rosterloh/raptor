@@ -19,8 +19,14 @@ fn push(text: String, error: bool) {
     TOASTS.write().push(Toast { id, text, error });
     spawn(async move {
         gloo_timers::future::TimeoutFuture::new(6_000).await;
-        TOASTS.write().retain(|t| t.id != id);
+        dismiss(id);
     });
+}
+
+/// Drop one toast, whether the 6s timer or the user's close button got there
+/// first — dismissing early just makes the pending timer a no-op.
+fn dismiss(id: u64) {
+    TOASTS.write().retain(|t| t.id != id);
 }
 
 pub fn toast_error(text: impl Into<String>) {
@@ -34,16 +40,30 @@ pub fn toast_ok(text: impl Into<String>) {
 #[component]
 pub fn ToastStack() -> Element {
     rsx! {
-        div { class: "fixed bottom-4 right-4 z-50 flex flex-col gap-2",
+        // A live region has to be in the DOM *before* its content changes for a
+        // screen reader to announce the change, so this container renders even
+        // when there are no toasts. Successes and errors share one polite
+        // region: `assertive` would cut the reader off mid-sentence on every
+        // failed request, and toasts here are never the only report of a failure.
+        div {
+            class: "fixed bottom-4 right-4 z-50 flex flex-col gap-2",
+            role: "status",
+            aria_live: "polite",
             for t in TOASTS() {
                 div {
                     key: "{t.id}",
                     class: if t.error {
-                        "rounded border border-red-800 bg-red-950 px-4 py-2 text-sm text-red-200 shadow-lg"
+                        "flex items-start gap-3 rounded border border-red-800 bg-red-950 px-4 py-2 text-sm text-red-200 shadow-lg"
                     } else {
-                        "rounded border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm text-emerald-200 shadow-lg"
+                        "flex items-start gap-3 rounded border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm text-emerald-200 shadow-lg"
                     },
-                    "{t.text}"
+                    span { "{t.text}" }
+                    button {
+                        class: "shrink-0 rounded px-1 leading-none hover:opacity-70",
+                        aria_label: "Dismiss notification",
+                        onclick: move |_| dismiss(t.id),
+                        "×"
+                    }
                 }
             }
         }
