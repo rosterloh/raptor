@@ -207,3 +207,12 @@ pub async fn login(username: &str, password: &str) -> ApiResult<()> {
 pub async fn logout() -> ApiResult<()> {
     post_nothing("/rest/v1/logout").await
 }
+
+/// Confirms the session cookie is still good. The route sits behind the server's
+/// auth layer, so a stale or absent session answers 401 — which [`check`] turns
+/// into a redirect to the login page. Used by `Shell` before it paints.
+pub async fn session() -> ApiResult<()> {
+    send(reqwest::Method::GET, "/rest/v1/session", NO_BODY)
+        .await
+        .map(|_| ())
+}

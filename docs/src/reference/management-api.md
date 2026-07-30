@@ -17,6 +17,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 |---|---|---|
 | `POST` | `/rest/v1/login` | exchange credentials for a session cookie |
 | `POST` | `/rest/v1/logout` | clear the session |
+| `GET` | `/rest/v1/session` | 204 if the request is authenticated, 401 if not |
 | `GET` | `/health` | liveness probe (returns `ok`) |
 
 ## Targets

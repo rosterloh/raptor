@@ -36,6 +36,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(target_filters::routes())
         .merge(tags::routes())
         .merge(system::routes())
+        .merge(login::gated_routes())
         .route_layer(middleware::from_fn_with_state(
             state,
             crate::auth::mgmt::mgmt_auth,

@@ -70,6 +70,28 @@ async fn logout_invalidates_session() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+/// `/rest/v1/session` is only useful if it sits behind `mgmt_auth`: the console
+/// reads the 401 as "not logged in". Moving it out of the gated router would
+/// make it answer 204 to anyone, and the UI would paint a shell it can't use.
+#[tokio::test]
+async fn session_probe_reflects_auth_state() {
+    let (app, _) = common::setup().await;
+    let probe = |cookie: Option<&str>| {
+        let mut b = Request::get("/rest/v1/session");
+        if let Some(c) = cookie {
+            b = b.header(header::COOKIE, c);
+        }
+        b.body(Body::empty()).unwrap()
+    };
+
+    let resp = app.clone().oneshot(probe(None)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    let cookie = login_cookie(&app).await;
+    let resp = app.oneshot(probe(Some(&cookie))).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
 #[tokio::test]
 async fn basic_auth_still_works() {
     let (app, _) = common::setup().await;

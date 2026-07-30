@@ -2,6 +2,9 @@
 //! NOT merged into `mgmt::router()`'s auth-gated `Router` — these two routes
 //! must stay reachable without a session, so `app::build_app` merges
 //! [`routes`] directly, ahead of the `mgmt_auth` layer.
+//!
+//! [`gated_routes`] is the exception: `/rest/v1/session` only means anything
+//! behind the auth layer, so `mgmt::router()` merges that one instead.
 
 use crate::auth::session::{session_cookie, COOKIE};
 use crate::error::AppError;
@@ -18,6 +21,19 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/rest/v1/login", post(login))
         .route("/rest/v1/logout", post(logout))
+}
+
+/// Session routes that belong *behind* `mgmt_auth`, merged by [`super::router`].
+pub fn gated_routes() -> Router<AppState> {
+    Router::new().route("/rest/v1/session", axum::routing::get(session))
+}
+
+/// "Is my session still valid?" — for the web console to ask before it paints
+/// a logged-in shell. Reaching this handler at all means `mgmt_auth` accepted
+/// the request, so it answers unconditionally; the informative response is the
+/// 401 the middleware returns in its place.
+pub async fn session() -> StatusCode {
+    StatusCode::NO_CONTENT
 }
 
 pub async fn login(

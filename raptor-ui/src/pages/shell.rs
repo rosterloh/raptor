@@ -7,6 +7,17 @@ const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
 #[component]
 pub fn Shell() -> Element {
     let nav = use_navigator();
+    // Confirm the session before painting a logged-in shell. Previously an
+    // unauthenticated visit to /ui/targets rendered the whole sidebar and a
+    // "Loading…", then jumped to the login page once the first API call came
+    // back 401. The probe runs once per mount, not per navigation, because the
+    // router keeps the layout mounted across child routes.
+    let session = use_resource(|| async { crate::api::session().await });
+    if !matches!(&*session.read_unchecked(), Some(Ok(()))) {
+        // In flight, or refused — and a refusal has already navigated to the
+        // login page from the api layer's 401 handling. Nothing to draw either way.
+        return rsx! {};
+    }
     rsx! {
         div { class: "flex min-h-screen bg-zinc-950 text-zinc-200",
             aside { class: "flex w-52 flex-col border-r border-zinc-800 bg-zinc-900",
