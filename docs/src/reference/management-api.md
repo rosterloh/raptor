@@ -84,7 +84,26 @@ curl -u admin:pw -X PUT localhost:8088/rest/v1/targets/device-42 \
 | `GET` | `/rest/v1/actions` | list all actions (paging/sort/FIQL) |
 | `GET` | `/rest/v1/system/configs` | tenant configuration (read-only; file-driven) |
 | `GET` / `PUT` / `DELETE` | `/rest/v1/system/configs/{key}` | one config key (writes → 403) |
-| `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…) |
+| `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…), optional `q=` |
+
+### Scoping statistics to a filter
+
+`/rest/v1/system/statistics` accepts an optional FIQL `q=`, the same query the
+target list and saved target filters take:
+
+```
+curl -u admin:pw 'localhost:8088/rest/v1/system/statistics?q=tag%3D%3Dlinux-gw'
+```
+
+`q` narrows the **target** counters — `totalTargets` and `targetsByStatus` — to
+the matching targets. It lets a caller read one saved filter's in-sync /
+pending / error split in a single request rather than one request per status.
+
+The catalogue and action counters (`totalDistributionSets`,
+`totalSoftwareModules`, `totalActions`, `totalRollouts`, `activeActions`) stay
+fleet-wide whether or not `q` is set: scoping "how many distribution sets exist"
+to a set of targets has no meaning, and reporting them as `0` would read as
+missing data. An unparseable or unknown-field query returns `400`.
 
 ## Types
 

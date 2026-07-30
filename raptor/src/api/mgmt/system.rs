@@ -5,12 +5,13 @@ use crate::config::Config;
 use crate::entity::{action, distribution_set, rollout, software_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::Json;
 use axum::Router;
 use raptor_api_types::{SystemStatistics, TenantConfigValue};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
@@ -73,8 +74,36 @@ pub async fn config_read_only(Path(_key): Path<String>) -> Result<Json<Value>, A
     ))
 }
 
-pub async fn statistics(State(st): State<AppState>) -> Result<Json<SystemStatistics>, AppError> {
-    let total_targets = target::Entity::find().count(&st.db).await?;
+/// Query params for [`statistics`]. `q` is the same FIQL the target list and
+/// saved target filters accept, so a console can ask for one saved filter's
+/// numbers with the query it already has.
+#[derive(Debug, Deserialize)]
+pub struct StatsParams {
+    pub q: Option<String>,
+}
+
+pub async fn statistics(
+    State(st): State<AppState>,
+    Query(p): Query<StatsParams>,
+) -> Result<Json<SystemStatistics>, AppError> {
+    // Only the target counters can be scoped by a target filter. The catalogue
+    // and action totals below keep their fleet-wide meaning whether or not `q`
+    // is set — scoping "how many distribution sets exist" to a set of targets
+    // has no meaning, and zeroing them would read as data loss. Documented in
+    // docs/src/reference/management-api.md.
+    let filter = match p.q.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
+        Some(q) => Some(super::targets::condition(q)?),
+        None => None,
+    };
+    let scoped = || {
+        let sel = target::Entity::find();
+        match &filter {
+            Some(c) => sel.filter(c.clone()),
+            None => sel,
+        }
+    };
+
+    let total_targets = scoped().count(&st.db).await?;
     let total_distribution_sets = distribution_set::Entity::find().count(&st.db).await?;
     let total_software_modules = software_module::Entity::find().count(&st.db).await?;
     let total_actions = action::Entity::find().count(&st.db).await?;
@@ -84,7 +113,7 @@ pub async fn statistics(State(st): State<AppState>) -> Result<Json<SystemStatist
         .count(&st.db)
         .await?;
 
-    let rows: Vec<(String, i64)> = target::Entity::find()
+    let rows: Vec<(String, i64)> = scoped()
         .select_only()
         .column(target::Column::UpdateStatus)
         .column_as(target::Column::Id.count(), "cnt")
