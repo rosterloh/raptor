@@ -7,7 +7,7 @@ which is useful for secrets and containers.
 ## Minimal config
 
 ```toml
-bind = "0.0.0.0:8080"
+bind = "0.0.0.0:8088"
 database_url = "sqlite://raptor.db?mode=rwc"   # or postgres://user:pass@host/db
 artifact_dir = "./artifacts"
 

@@ -4,7 +4,7 @@ This walks through a complete update cycle: create the content, assign it, and
 watch a device install it. It uses `curl` for both the operator (Management API)
 and the device (DDI API) sides.
 
-Assume raptor is running on `localhost:8080` with admin `admin:yourpassword` and
+Assume raptor is running on `localhost:8088` with admin `admin:yourpassword` and
 `ddi.anonymous = true` (so we can poll without a device token).
 
 ## 1. Create a software module
@@ -13,7 +13,7 @@ A **software module** is a named, versioned unit of a given type (`os`,
 `firmware`, `runtime`, or `application`).
 
 ```bash
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/softwaremodules \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/softwaremodules \
   -H 'Content-Type: application/json' \
   -d '[{"name":"rootfs","version":"1.0","type":"os"}]'
 # -> [{"id":1, ...}]
@@ -25,7 +25,7 @@ Artifacts are uploaded as multipart form data. raptor streams the bytes to disk
 and computes the SHA-1, MD5, and SHA-256 hashes as it goes.
 
 ```bash
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/softwaremodules/1/artifacts \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/softwaremodules/1/artifacts \
   -F 'file=@rootfs.img'
 # -> {"id":1,"providedFilename":"rootfs.img","size":..., "hashes":{...}}
 ```
@@ -36,7 +36,7 @@ A **distribution set (DS)** bundles one or more modules into a releasable unit. 
 DS is `complete` once it has the modules its type requires.
 
 ```bash
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/distributionsets \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/distributionsets \
   -H 'Content-Type: application/json' \
   -d '[{"name":"release","version":"1.0","type":"os","modules":[{"id":1}]}]'
 # -> [{"id":1,"complete":true, ...}]
@@ -49,7 +49,7 @@ auto-registered on its first poll. Assigning creates an **action** (the record o
 one deployment).
 
 ```bash
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/targets/my-device/assignedDS \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/targets/my-device/assignedDS \
   -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 # -> {"assigned":1,"alreadyAssigned":0,"total":1,"assignedActions":[{"id":1}]}
 ```
@@ -60,14 +60,14 @@ The device polls the DDI root. Because an action is pending, the response carrie
 a `deploymentBase` link.
 
 ```bash
-curl localhost:8080/DEFAULT/controller/v1/my-device
+curl localhost:8088/DEFAULT/controller/v1/my-device
 # _links.deploymentBase -> .../deploymentBase/1
 ```
 
 ## 6. Fetch the deployment
 
 ```bash
-curl localhost:8080/DEFAULT/controller/v1/my-device/deploymentBase/1
+curl localhost:8088/DEFAULT/controller/v1/my-device/deploymentBase/1
 ```
 
 The response describes the download/update modes and lists each module's
@@ -81,12 +81,12 @@ state machine.
 
 ```bash
 # progress
-curl -X POST localhost:8080/DEFAULT/controller/v1/my-device/deploymentBase/1/feedback \
+curl -X POST localhost:8088/DEFAULT/controller/v1/my-device/deploymentBase/1/feedback \
   -H 'Content-Type: application/json' \
   -d '{"status":{"execution":"proceeding","result":{"finished":"none"}}}'
 
 # success
-curl -X POST localhost:8080/DEFAULT/controller/v1/my-device/deploymentBase/1/feedback \
+curl -X POST localhost:8088/DEFAULT/controller/v1/my-device/deploymentBase/1/feedback \
   -H 'Content-Type: application/json' \
   -d '{"status":{"execution":"closed","result":{"finished":"success"}}}'
 ```
@@ -98,10 +98,10 @@ On `closed`/`success` the action becomes `finished` and the target's
 ## 8. Verify
 
 ```bash
-curl -u admin:yourpassword localhost:8080/rest/v1/targets/my-device
+curl -u admin:yourpassword localhost:8088/rest/v1/targets/my-device
 # "updateStatus": "in_sync"
 
-curl -u admin:yourpassword localhost:8080/rest/v1/targets/my-device/actions
+curl -u admin:yourpassword localhost:8088/rest/v1/targets/my-device/actions
 # the action is "finished"
 ```
 

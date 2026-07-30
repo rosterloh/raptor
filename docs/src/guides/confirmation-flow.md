@@ -34,7 +34,7 @@ With the flow on, a target's poll offers a `confirmationBase` link instead of
 `deploymentBase`:
 
 ```console
-$ curl localhost:8080/DEFAULT/controller/v1/device-42
+$ curl localhost:8088/DEFAULT/controller/v1/device-42
 # _links.confirmationBase -> .../confirmationBase/7
 ```
 
@@ -44,12 +44,12 @@ device can decide. The device then confirms or denies:
 
 ```bash
 # confirm -> action goes to running; next poll offers deploymentBase
-curl -X POST localhost:8080/DEFAULT/controller/v1/device-42/confirmationBase/7/feedback \
+curl -X POST localhost:8088/DEFAULT/controller/v1/device-42/confirmationBase/7/feedback \
   -H 'Content-Type: application/json' \
   -d '{"confirmation":"confirmed","details":["operator approved"]}'
 
 # deny -> action stays waiting (a "denied" ActionStatus row is recorded)
-curl -X POST localhost:8080/DEFAULT/controller/v1/device-42/confirmationBase/7/feedback \
+curl -X POST localhost:8088/DEFAULT/controller/v1/device-42/confirmationBase/7/feedback \
   -H 'Content-Type: application/json' \
   -d '{"confirmation":"denied","details":["not now"]}'
 ```
@@ -63,18 +63,18 @@ A target can be set to **auto-confirm**, so assignments skip the wait state
 entirely. Toggle it from the Management API:
 
 ```bash
-curl -u admin:pw localhost:8080/rest/v1/targets/device-42/autoConfirm
+curl -u admin:pw localhost:8088/rest/v1/targets/device-42/autoConfirm
 # {"active": false}
 
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/autoConfirm/activate
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/autoConfirm/deactivate
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/autoConfirm/activate
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/autoConfirm/deactivate
 ```
 
 Or by the device itself over DDI:
 
 ```bash
-curl -X POST localhost:8080/DEFAULT/controller/v1/device-42/confirmationBase/activateAutoConfirm
-curl -X POST localhost:8080/DEFAULT/controller/v1/device-42/confirmationBase/deactivateAutoConfirm
+curl -X POST localhost:8088/DEFAULT/controller/v1/device-42/confirmationBase/activateAutoConfirm
+curl -X POST localhost:8088/DEFAULT/controller/v1/device-42/confirmationBase/deactivateAutoConfirm
 ```
 
 **Activating auto-confirm releases any already-pending actions** on that target —

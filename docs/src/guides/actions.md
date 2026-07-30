@@ -7,7 +7,7 @@ it to completion.
 ## Assigning a distribution set
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/assignedDS \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/assignedDS \
   -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 ```
 
@@ -27,7 +27,7 @@ An unknown type is rejected with `400`.
 `timeforced` takes a `forcetime` (epoch millis) alongside the type:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets/device-42/assignedDS \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/assignedDS \
   -H 'Content-Type: application/json' \
   -d '{"id":1,"type":"timeforced","forcetime":1767225600000}'
 ```
@@ -50,7 +50,7 @@ distribution set. The action ends with `status: finished` and
 A soft or timeforced action can be pushed through immediately:
 
 ```bash
-curl -u admin:pw -X PUT localhost:8080/rest/v1/targets/device-42/actions/7 \
+curl -u admin:pw -X PUT localhost:8088/rest/v1/targets/device-42/actions/7 \
   -H 'Content-Type: application/json' -d '{"forceType":"forced"}'
 ```
 
@@ -82,13 +82,13 @@ history row (with optional messages).
 
 ```bash
 # all actions on one target (newest first)
-curl -u admin:pw localhost:8080/rest/v1/targets/device-42/actions
+curl -u admin:pw localhost:8088/rest/v1/targets/device-42/actions
 
 # a single action
-curl -u admin:pw localhost:8080/rest/v1/targets/device-42/actions/1
+curl -u admin:pw localhost:8088/rest/v1/targets/device-42/actions/1
 
 # fleet-wide, filterable
-curl -u admin:pw 'localhost:8080/rest/v1/actions?q=detailStatus==error'
+curl -u admin:pw 'localhost:8088/rest/v1/actions?q=detailStatus==error'
 ```
 
 The action JSON exposes `status` (`pending` while active, else `finished`) and
@@ -101,7 +101,7 @@ feedback, cancellation — is recorded as a status entry. List them with:
 
 ```bash
 # chronological (oldest first); pass ?sort=id:DESC for newest first
-curl -u admin:pw localhost:8080/rest/v1/targets/device-42/actions/1/status
+curl -u admin:pw localhost:8088/rest/v1/targets/device-42/actions/1/status
 ```
 
 Each entry has a `type` (the reported status, e.g. `running`, `finished`,
@@ -112,10 +112,10 @@ The list supports the usual `offset`/`limit`/`sort` paging.
 
 ```bash
 # request cancellation (device must acknowledge)
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targets/device-42/actions/1
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targets/device-42/actions/1
 
 # force-cancel server-side (no device acknowledgement)
-curl -u admin:pw -X DELETE 'localhost:8080/rest/v1/targets/device-42/actions/1?force=true'
+curl -u admin:pw -X DELETE 'localhost:8088/rest/v1/targets/device-42/actions/1?force=true'
 ```
 
 A normal cancel moves the action to `canceling` and offers the device a

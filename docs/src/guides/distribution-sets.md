@@ -12,7 +12,7 @@ needs to be considered **complete**.
 ## Creating a distribution set
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/distributionsets \
+curl -u admin:pw -X POST localhost:8088/rest/v1/distributionsets \
   -H 'Content-Type: application/json' \
   -d '[{"name":"release","version":"1.0","type":"os","modules":[{"id":1}]}]'
 ```
@@ -20,7 +20,7 @@ curl -u admin:pw -X POST localhost:8080/rest/v1/distributionsets \
 You can pass modules inline (as above) or add them afterward:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/distributionsets/1/assignedSM \
+curl -u admin:pw -X POST localhost:8088/rest/v1/distributionsets/1/assignedSM \
   -H 'Content-Type: application/json' -d '[{"id":2}]'
 ```
 
@@ -31,7 +31,7 @@ distribution sets can be assigned or deployed** — assigning an incomplete DS (
 attaching one as a target-filter auto-assignment) returns `400 Bad Request`.
 
 ```bash
-curl -u admin:pw localhost:8080/rest/v1/distributionsets/1
+curl -u admin:pw localhost:8088/rest/v1/distributionsets/1
 # {"id":1,"complete":true, "modules":[...], ...}
 ```
 
@@ -40,7 +40,7 @@ curl -u admin:pw localhost:8080/rest/v1/distributionsets/1
 Distribution sets support the usual paging, sorting, and FIQL query parameters:
 
 ```bash
-curl -u admin:pw 'localhost:8080/rest/v1/distributionsets?q=name==release*&sort=version:DESC'
+curl -u admin:pw 'localhost:8088/rest/v1/distributionsets?q=name==release*&sort=version:DESC'
 ```
 
 ## Lifecycle

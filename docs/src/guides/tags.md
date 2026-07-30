@@ -13,7 +13,7 @@ tag and a `beta` DS tag are unrelated tags.
 The create body is an **array**, like the other Management API create endpoints:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targettags \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targettags \
   -H 'Content-Type: application/json' \
   -d '[{"name":"beta","description":"early access","colour":"#00ff00"}]'
 ```
@@ -26,10 +26,10 @@ Fetch, update and delete follow the usual REST shape. `PUT` only changes the
 fields present in the body:
 
 ```bash
-curl -u admin:pw           localhost:8080/rest/v1/targettags/1
-curl -u admin:pw -X PUT    localhost:8080/rest/v1/targettags/1 \
+curl -u admin:pw           localhost:8088/rest/v1/targettags/1
+curl -u admin:pw -X PUT    localhost:8088/rest/v1/targettags/1 \
   -H 'Content-Type: application/json' -d '{"colour":"#ff0000"}'
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targettags/1
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targettags/1
 ```
 
 **Deleting a tag deletes its assignments, not the tagged entities.** Removing
@@ -39,7 +39,7 @@ Tag lists support the usual paging, `sort=` and `q=` parameters over `id`,
 `name`, `description` and `colour`:
 
 ```bash
-curl -u admin:pw 'localhost:8080/rest/v1/targettags?q=name==be*&sort=name:ASC'
+curl -u admin:pw 'localhost:8088/rest/v1/targettags?q=name==be*&sort=name:ASC'
 ```
 
 ## Assigning tags
@@ -47,8 +47,8 @@ curl -u admin:pw 'localhost:8080/rest/v1/targettags?q=name==be*&sort=name:ASC'
 Assign one target by controller id, or several at once with a JSON array body:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targettags/1/assigned/dev-1
-curl -u admin:pw -X POST localhost:8080/rest/v1/targettags/1/assigned \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targettags/1/assigned/dev-1
+curl -u admin:pw -X POST localhost:8088/rest/v1/targettags/1/assigned \
   -H 'Content-Type: application/json' -d '["dev-2","dev-3"]'
 ```
 
@@ -61,27 +61,27 @@ Unassign with the same paths and `DELETE`, and list what a tag holds with
 `limit`, `sort=` and `q=`):
 
 ```bash
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targettags/1/assigned/dev-1
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targettags/1/assigned \
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targettags/1/assigned/dev-1
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targettags/1/assigned \
   -H 'Content-Type: application/json' -d '["dev-2","dev-3"]'
-curl -u admin:pw 'localhost:8080/rest/v1/targettags/1/assigned?limit=100'
+curl -u admin:pw 'localhost:8088/rest/v1/targettags/1/assigned?limit=100'
 ```
 
 The reverse lookup — the tags carried by one entity — is a raptor extension,
 since hawkBit only exposes the tag-to-entity direction:
 
 ```bash
-curl -u admin:pw localhost:8080/rest/v1/targets/dev-1/tags
-curl -u admin:pw localhost:8080/rest/v1/distributionsets/7/tags
+curl -u admin:pw localhost:8088/rest/v1/targets/dev-1/tags
+curl -u admin:pw localhost:8088/rest/v1/distributionsets/7/tags
 ```
 
 Distribution-set tags work the same way, keyed by distribution set **id**:
 
 ```bash
-curl -u admin:pw -X POST   localhost:8080/rest/v1/distributionsettags/1/assigned/7
-curl -u admin:pw -X POST   localhost:8080/rest/v1/distributionsettags/1/assigned \
+curl -u admin:pw -X POST   localhost:8088/rest/v1/distributionsettags/1/assigned/7
+curl -u admin:pw -X POST   localhost:8088/rest/v1/distributionsettags/1/assigned \
   -H 'Content-Type: application/json' -d '[8,9]'
-curl -u admin:pw           localhost:8080/rest/v1/distributionsettags/1/assigned
+curl -u admin:pw           localhost:8088/rest/v1/distributionsettags/1/assigned
 ```
 
 ## In the web console
@@ -99,10 +99,10 @@ combined with whatever is in the search box.
 `/rest/v1/distributionsets`:
 
 ```bash
-curl -u admin:pw 'localhost:8080/rest/v1/targets?q=tag==beta'
-curl -u admin:pw 'localhost:8080/rest/v1/targets?q=tag!=beta'
-curl -u admin:pw 'localhost:8080/rest/v1/targets?q=tag=in=(beta,canary)'
-curl -u admin:pw 'localhost:8080/rest/v1/distributionsets?q=tag==qa'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=tag==beta'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=tag!=beta'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=tag=in=(beta,canary)'
+curl -u admin:pw 'localhost:8088/rest/v1/distributionsets?q=tag==qa'
 ```
 
 It accepts `==`, `!=`, `=in=` and `=out=` (plus `*` wildcards on the tag name);
@@ -114,7 +114,7 @@ Because saved target filters compile the same field map, `tag==` works there
 too, which makes it a natural way to scope a rollout:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targetfilters \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targetfilters \
   -H 'Content-Type: application/json' \
   -d '{"name":"beta-ring","query":"tag==beta"}'
 ```

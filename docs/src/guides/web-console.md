@@ -21,7 +21,7 @@ Without the feature the server runs identically but does not serve the UI routes
 Browse to `/ui`:
 
 ```
-http://localhost:8080/ui
+http://localhost:8088/ui
 ```
 
 Log in with the same admin credentials as the Management API. The console

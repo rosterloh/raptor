@@ -67,7 +67,7 @@ The unit ships with a broad systemd sandbox: `ProtectSystem=strict`,
 `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`,
 `MemoryDenyWriteExecute=yes`, a restricted `SystemCallFilter=@system-service`, an
 empty `CapabilityBoundingSet`, and address-family restrictions. raptor needs no
-Linux capabilities because it binds a high port (8080) by default.
+Linux capabilities because it binds a high port (8088) by default.
 
 > **Note:** If you change `bind` to a privileged port (< 1024), grant the
 > capability explicitly with `AmbientCapabilities=CAP_NET_BIND_SERVICE` via a

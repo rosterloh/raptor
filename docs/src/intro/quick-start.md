@@ -15,7 +15,7 @@ $argon2id$v=19$m=19456,t=2,p=1$...
 Put that hash into a `raptor.toml`:
 
 ```toml
-bind = "0.0.0.0:8080"
+bind = "0.0.0.0:8088"
 database_url = "sqlite://raptor.db?mode=rwc"   # or postgres://user:pass@host/db
 artifact_dir = "./artifacts"
 
@@ -35,7 +35,7 @@ password_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
 
 ```console
 $ ./target/release/raptor serve --config raptor.toml
-raptor listening bind=0.0.0.0:8080
+raptor listening bind=0.0.0.0:8088
 ```
 
 The database is created and migrated automatically on first start.
@@ -46,28 +46,28 @@ Using the Management API (HTTP Basic with the admin credentials):
 
 ```bash
 # 1. a software module
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/softwaremodules \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/softwaremodules \
   -H 'Content-Type: application/json' \
   -d '[{"name":"rootfs","version":"1.0","type":"os"}]'
 
 # 2. an artifact on module 1
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/softwaremodules/1/artifacts \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/softwaremodules/1/artifacts \
   -F 'file=@rootfs.img'
 
 # 3. a distribution set bundling module 1
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/distributionsets \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/distributionsets \
   -H 'Content-Type: application/json' \
   -d '[{"name":"release","version":"1.0","type":"os","modules":[{"id":1}]}]'
 
 # 4. assign DS 1 to a device (auto-registered on first poll)
-curl -u admin:yourpassword -X POST localhost:8080/rest/v1/targets/my-device/assignedDS \
+curl -u admin:yourpassword -X POST localhost:8088/rest/v1/targets/my-device/assignedDS \
   -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 ```
 
 ## 4. Poll as the device
 
 ```console
-$ curl localhost:8080/DEFAULT/controller/v1/my-device
+$ curl localhost:8088/DEFAULT/controller/v1/my-device
 {"config":{"polling":{"sleep":"00:05:00"}},
  "_links":{"deploymentBase":{"href":".../deploymentBase/1"},
            "configData":{"href":".../configData"}}}

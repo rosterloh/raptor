@@ -4,7 +4,7 @@ Operator-facing REST API under `/rest/v1`, authenticated with HTTP Basic (or a
 session cookie). All list endpoints accept `offset`, `limit`, `sort=field:ASC|DESC`,
 and `q=<FIQL>`, and return the hawkBit paged envelope `{content, total, size}`.
 
-Base URL examples assume `localhost:8080`.
+Base URL examples assume `localhost:8088`.
 
 Handlers live under `raptor/src/api/mgmt/`, one module per resource family,
 each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
@@ -49,7 +49,7 @@ A target's `requestAttributes` flag controls whether its DDI poll advertises the
 device uploads its attributes; re-arm it to ask for a fresh upload:
 
 ```bash
-curl -u admin:pw -X PUT localhost:8080/rest/v1/targets/device-42 \
+curl -u admin:pw -X PUT localhost:8088/rest/v1/targets/device-42 \
   -H 'Content-Type: application/json' -d '{"requestAttributes": true}'
 ```
 

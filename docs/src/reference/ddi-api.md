@@ -153,7 +153,7 @@ one is reachable, via `[ddi] artifact_http_url`:
 ```toml
 url = "https://ota.example.com"
 [ddi]
-artifact_http_url = "http://dl.example.com:8080"
+artifact_http_url = "http://dl.example.com:8088"
 ```
 
 | Config | `download-http` | `download` |

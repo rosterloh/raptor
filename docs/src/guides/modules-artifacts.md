@@ -11,7 +11,7 @@ raptor seeds four software-module types: `os`, `firmware`, `runtime`, and
 reference them by key when creating a module.
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/softwaremodules \
+curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules \
   -H 'Content-Type: application/json' \
   -d '[{"name":"rootfs","version":"1.0","type":"os","vendor":"ACME"}]'
 ```
@@ -25,7 +25,7 @@ Artifacts are uploaded as `multipart/form-data`. raptor streams the upload to
 disk while computing the SHA-1, MD5, and SHA-256 hashes in one pass:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/softwaremodules/1/artifacts \
+curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules/1/artifacts \
   -F 'file=@rootfs.img'
 ```
 
@@ -50,13 +50,13 @@ own artifact row with its own filename.
 
 ```bash
 # list a module's artifacts
-curl -u admin:pw localhost:8080/rest/v1/softwaremodules/1/artifacts
+curl -u admin:pw localhost:8088/rest/v1/softwaremodules/1/artifacts
 
 # download (operator side)
-curl -u admin:pw -O localhost:8080/rest/v1/softwaremodules/1/artifacts/1/download
+curl -u admin:pw -O localhost:8088/rest/v1/softwaremodules/1/artifacts/1/download
 
 # delete
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/softwaremodules/1/artifacts/1
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/softwaremodules/1/artifacts/1
 ```
 
 ## Device-side download

@@ -9,7 +9,7 @@ environment variable; nested tables use a `__` separator (e.g.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `bind` | socket addr | `0.0.0.0:8080` | address the HTTP server listens on |
+| `bind` | socket addr | `0.0.0.0:8088` | address the HTTP server listens on |
 | `database_url` | string | *(required)* | `sqlite://…` or `postgres://…`; selects the backend |
 | `artifact_dir` | path | *(required)* | root of the content-addressed artifact store |
 | `max_artifact_size` | integer (bytes) | `1073741824` (1 GiB) | maximum artifact upload size |
@@ -38,7 +38,7 @@ environment variable; nested tables use a `__` separator (e.g.
 ## Example
 
 ```toml
-bind = "0.0.0.0:8080"
+bind = "0.0.0.0:8088"
 database_url = "postgres://raptor:raptor@localhost/raptor"
 artifact_dir = "/var/lib/raptor/artifacts"
 max_artifact_size = 2147483648            # 2 GiB

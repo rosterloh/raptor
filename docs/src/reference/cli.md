@@ -21,7 +21,7 @@ e.g. `RUST_LOG=raptor=debug,tower_http=info`.
 
 ```console
 $ RUST_LOG=raptor=debug raptor serve --config /etc/raptor/config.toml
-raptor listening bind=0.0.0.0:8080
+raptor listening bind=0.0.0.0:8088
 ```
 
 ## `raptor hash-password`

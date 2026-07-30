@@ -14,7 +14,7 @@ Device side (`prj.conf`):
 ```kconfig
 CONFIG_HAWKBIT=y
 CONFIG_HAWKBIT_SERVER="ota.example.com"
-CONFIG_HAWKBIT_PORT=8080
+CONFIG_HAWKBIT_PORT=8088
 CONFIG_HAWKBIT_TENANT="DEFAULT"
 CONFIG_HAWKBIT_POLL_INTERVAL=5          # minutes; 1..43200
 
@@ -32,7 +32,7 @@ If `CONFIG_HAWKBIT_SERVER` is a hostname rather than an IP, the device also need
 Server side (`raptor.toml`):
 
 ```toml
-url = "http://ota.example.com:8080"
+url = "http://ota.example.com:8088"
 
 [ddi]
 gateway_token = "shared-registration-secret"
@@ -62,7 +62,7 @@ for bringing a fleet up, weaker blast radius if extracted from one device.
 token you provision into the firmware:
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets \
   -H 'Content-Type: application/json' \
   -d '[{"controllerId": "device-42", "securityToken": "per-device-secret"}]'
 ```

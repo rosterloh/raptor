@@ -8,7 +8,7 @@ and as new matching devices appear.
 ## Creating a filter
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targetfilters \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targetfilters \
   -H 'Content-Type: application/json' \
   -d '{"name":"beta-ring","query":"controllerId==beta-*"}'
 ```
@@ -18,16 +18,16 @@ FIQL expression returns `400 Bad Request`, and a duplicate name returns `409
 Conflict`. Update, fetch, list, and delete follow the usual REST shape:
 
 ```bash
-curl -u admin:pw -X PUT    localhost:8080/rest/v1/targetfilters/1 \
+curl -u admin:pw -X PUT    localhost:8088/rest/v1/targetfilters/1 \
   -H 'Content-Type: application/json' -d '{"query":"name==beta-*"}'
-curl -u admin:pw           localhost:8080/rest/v1/targetfilters
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targetfilters/1
+curl -u admin:pw           localhost:8088/rest/v1/targetfilters
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targetfilters/1
 ```
 
 ## Attaching an auto-assign distribution set
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targetfilters/1/autoAssignDS \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targetfilters/1/autoAssignDS \
   -H 'Content-Type: application/json' \
   -d '{"id":1,"type":"forced"}'
 ```
@@ -39,8 +39,8 @@ Attaching immediately assigns the DS to every currently-matching target. Read or
 detach the attachment with:
 
 ```bash
-curl -u admin:pw           localhost:8080/rest/v1/targetfilters/1/autoAssignDS   # -> the DS, or 204
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/targetfilters/1/autoAssignDS
+curl -u admin:pw           localhost:8088/rest/v1/targetfilters/1/autoAssignDS   # -> the DS, or 204
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/targetfilters/1/autoAssignDS
 ```
 
 ## From the web console

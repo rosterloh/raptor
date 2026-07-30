@@ -21,7 +21,7 @@ is caught on a small group before it reaches the whole fleet.
 ## Creating a rollout
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/rollouts \
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts \
   -H 'Content-Type: application/json' \
   -d '{
         "name": "fleet-1.1",
@@ -47,10 +47,10 @@ The rollout starts in `ready`.
 ## Lifecycle operations
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/rollouts/1/start
-curl -u admin:pw -X POST localhost:8080/rest/v1/rollouts/1/pause
-curl -u admin:pw -X POST localhost:8080/rest/v1/rollouts/1/resume
-curl -u admin:pw -X DELETE localhost:8080/rest/v1/rollouts/1
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/start
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/pause
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/resume
+curl -u admin:pw -X DELETE localhost:8088/rest/v1/rollouts/1
 ```
 
 - **start** — `ready` → `running`; schedules the first group.
@@ -62,13 +62,13 @@ curl -u admin:pw -X DELETE localhost:8080/rest/v1/rollouts/1
 
 ```bash
 # deploy groups with per-group status and target counts
-curl -u admin:pw localhost:8080/rest/v1/rollouts/1/deploygroups
+curl -u admin:pw localhost:8088/rest/v1/rollouts/1/deploygroups
 
 # one group
-curl -u admin:pw localhost:8080/rest/v1/rollouts/1/deploygroups/5
+curl -u admin:pw localhost:8088/rest/v1/rollouts/1/deploygroups/5
 
 # the controllerIds in a group
-curl -u admin:pw localhost:8080/rest/v1/rollouts/1/deploygroups/5/targets
+curl -u admin:pw localhost:8088/rest/v1/rollouts/1/deploygroups/5/targets
 ```
 
 ## Tracking progress

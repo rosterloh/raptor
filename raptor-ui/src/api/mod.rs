@@ -60,7 +60,7 @@ fn base() -> String {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        "http://localhost:8080".to_string()
+        "http://localhost:8088".to_string()
     }
 }
 

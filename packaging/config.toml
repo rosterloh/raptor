@@ -14,7 +14,7 @@
 #     RAPTOR_DDI__GATEWAY_TOKEN=super-secret
 # which the systemd unit loads before dropping privileges.
 
-bind = "0.0.0.0:8080"
+bind = "0.0.0.0:8088"
 
 # SQLite by default (created on first start). For Postgres, use e.g.
 # database_url = "postgres://user:pass@localhost/raptor"

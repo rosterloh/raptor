@@ -21,7 +21,7 @@ Every target has an `updateStatus` reflecting where it is in the update cycle:
 ### Explicitly (Management API)
 
 ```bash
-curl -u admin:pw -X POST localhost:8080/rest/v1/targets \
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets \
   -H 'Content-Type: application/json' \
   -d '[{"controllerId":"device-42","name":"Device 42"}]'
 ```
@@ -41,8 +41,8 @@ anonymous mode to be on. See [Authentication](./authentication.md).
 The list endpoint supports paging, sorting, and FIQL:
 
 ```bash
-curl -u admin:pw 'localhost:8080/rest/v1/targets?offset=0&limit=50&sort=controllerId:ASC'
-curl -u admin:pw 'localhost:8080/rest/v1/targets?q=updateStatus==error'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?offset=0&limit=50&sort=controllerId:ASC'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=updateStatus==error'
 ```
 
 Filterable fields include `controllerId` (alias `id`), `name`, `description`,
@@ -76,7 +76,7 @@ Devices report key/value **attributes** (hardware revision, OS version, …) via
 the DDI `configData` endpoint. Retrieve them with:
 
 ```bash
-curl -u admin:pw localhost:8080/rest/v1/targets/device-42/attributes
+curl -u admin:pw localhost:8088/rest/v1/targets/device-42/attributes
 # {"hw":"rev2","os":"linux"}
 ```
 

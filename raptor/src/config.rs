@@ -128,8 +128,10 @@ pub struct MgmtConfig {
     pub password_hash: String,
 }
 
+/// 8088 rather than 8080: still unprivileged, but far less likely to collide
+/// with whatever else is already listening on a developer's machine.
 fn default_bind() -> SocketAddr {
-    "0.0.0.0:8080".parse().unwrap()
+    "0.0.0.0:8088".parse().unwrap()
 }
 fn default_max_artifact_size() -> u64 {
     1024 * 1024 * 1024
@@ -174,7 +176,7 @@ password_hash = "$argon2id$fake"
         figment::Jail::expect_with(|jail| {
             jail.create_file("raptor.toml", MINIMAL)?;
             let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
-            assert_eq!(cfg.bind.to_string(), "0.0.0.0:8080");
+            assert_eq!(cfg.bind.to_string(), "0.0.0.0:8088");
             assert_eq!(cfg.database_url, "sqlite://test.db");
             assert_eq!(cfg.max_artifact_size, 1024 * 1024 * 1024);
             assert!(!cfg.ddi.anonymous);

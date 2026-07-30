@@ -41,7 +41,7 @@ updateStatus==error , updateStatus==pending
 URL-encode the query when passing it on the command line:
 
 ```bash
-curl -u admin:pw 'localhost:8080/rest/v1/targets?q=updateStatus%3D%3Derror'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=updateStatus%3D%3Derror'
 ```
 
 ## Filterable fields

@@ -26,7 +26,7 @@ site once GitHub Pages is enabled.
 
 Minimal `raptor.toml`:
 
-    bind = "0.0.0.0:8080"
+    bind = "0.0.0.0:8088"
     database_url = "sqlite://raptor.db?mode=rwc"   # or postgres://user:pass@host/db
     artifact_dir = "./artifacts"
 
@@ -41,16 +41,16 @@ Minimal `raptor.toml`:
 Deploy an update:
 
     # module + artifact + distribution set
-    curl -u admin:pw -X POST localhost:8080/rest/v1/softwaremodules \
+    curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules \
       -H 'Content-Type: application/json' \
       -d '[{"name":"rootfs","version":"1.0","type":"os"}]'
-    curl -u admin:pw -X POST localhost:8080/rest/v1/softwaremodules/1/artifacts \
+    curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules/1/artifacts \
       -F 'file=@rootfs.img'
-    curl -u admin:pw -X POST localhost:8080/rest/v1/distributionsets \
+    curl -u admin:pw -X POST localhost:8088/rest/v1/distributionsets \
       -H 'Content-Type: application/json' \
       -d '[{"name":"release","version":"1.0","type":"os","modules":[{"id":1}]}]'
     # assign to a device (auto-registered on first poll)
-    curl -u admin:pw -X POST localhost:8080/rest/v1/targets/my-device/assignedDS \
+    curl -u admin:pw -X POST localhost:8088/rest/v1/targets/my-device/assignedDS \
       -H 'Content-Type: application/json' -d '{"id":1,"type":"forced"}'
 
 ## Install (Debian/Ubuntu)
@@ -105,7 +105,7 @@ Without `--features embed-ui`, raptor builds and runs exactly as before and
 
 Development loop (hot reload):
 
-    cargo run -- serve --config raptor.toml     # terminal 1: API on :8080
+    cargo run -- serve --config raptor.toml     # terminal 1: API on :8088
     cd raptor-ui && dx serve                    # terminal 2: UI with /rest proxy
 
 (`dx build --release` may print a non-fatal wasm-opt/DWARF warning — harmless,

@@ -43,7 +43,7 @@ MemoryDenyWriteExecute=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
-# Listens on 8080 by default (>1024), so no capabilities are required.
+# Listens on 8088 by default (>1024), so no capabilities are required.
 CapabilityBoundingSet=
 AmbientCapabilities=
 
