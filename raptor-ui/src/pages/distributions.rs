@@ -118,7 +118,7 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                 Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
                     oninput: move |e: FormEvent| version.set(e.value()) }
                 select {
-                    class: INPUT,
+                    class: SELECT,
                     value: "{ds_type}",
                     onchange: move |e| ds_type.set(e.value()),
                     option { value: "os", "os" }

@@ -1,6 +1,8 @@
 //! Shared UI components and Tailwind class constants used across pages.
-//! `ui` holds the vendored shadcn-style pilot components (see its own doc);
-//! everything else here is hand-rolled for this app.
+//! `ui` holds the vendored shadcn-style components (see its own doc); everything
+//! else here is hand-rolled for this app. Both draw their colours from the
+//! semantic tokens in `tailwind.css` rather than naming palette shades, so the
+//! two layers stay one design system.
 
 pub mod badge;
 pub mod confirm;
@@ -23,12 +25,16 @@ pub use toast::{toast_error, toast_ok, ToastStack};
 
 use dioxus::prelude::*;
 
-pub const INPUT: &str = "mb-3 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:border-emerald-600 focus:outline-none";
-pub const HEADING: &str = "mb-4 text-xl font-bold text-zinc-100";
+/// A `<select>` matching [`ui::Input`]'s border, height and focus ring — the two
+/// sit side by side in the create dialogs. Selects can't reuse the `Input`
+/// component itself (that renders an `<input>`), so the class list lives here.
+pub const SELECT: &str = "mb-3 flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-2";
+pub const HEADING: &str = "mb-4 text-xl font-bold text-foreground";
 pub const TABLE: &str = "w-full border-collapse text-sm";
-pub const TH: &str = "border-b border-zinc-800 px-3 py-2 text-left font-medium text-zinc-500";
-pub const TD: &str = "border-b border-zinc-900 px-3 py-2";
-pub const ROW: &str = "cursor-pointer hover:bg-zinc-900";
+pub const TH: &str =
+    "border-b border-border-soft px-3 py-2 text-left font-medium text-muted-foreground";
+pub const TD: &str = "border-b border-border-subtle px-3 py-2";
+pub const ROW: &str = "cursor-pointer hover:bg-card";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
 pub fn use_polling<T: 'static>(mut res: Resource<T>) {

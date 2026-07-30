@@ -15,7 +15,7 @@ pub fn Dialog(
     children: Element,
 ) -> Element {
     let merged_class = tw_merge!(
-        "w-96 rounded-lg border border-zinc-800 bg-zinc-900 p-6",
+        "w-96 rounded-lg border border-border-soft bg-card p-6",
         class.as_deref().unwrap_or("")
     );
 

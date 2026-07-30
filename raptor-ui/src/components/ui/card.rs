@@ -7,7 +7,7 @@ use tw_merge::tw_merge;
 #[component]
 pub fn Card(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
     let merged_class = tw_merge!(
-        "rounded-lg border border-zinc-800 bg-zinc-900 p-4",
+        "rounded-lg border border-border-soft bg-card p-4",
         class.as_deref().unwrap_or("")
     );
 

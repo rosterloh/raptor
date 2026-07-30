@@ -109,7 +109,7 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                 Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
                     oninput: move |e: FormEvent| version.set(e.value()) }
                 select {
-                    class: INPUT,
+                    class: SELECT,
                     value: "{module_type}",
                     onchange: move |e| module_type.set(e.value()),
                     option { value: "os", "os" }

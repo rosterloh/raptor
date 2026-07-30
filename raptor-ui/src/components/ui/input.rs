@@ -14,6 +14,8 @@ pub fn Input(
     #[props(optional)] required: bool,
     #[props(optional)] disabled: bool,
     #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
+    // Added to the vendored props: SearchBox needs Enter to mean "search now".
+    #[props(optional)] onkeydown: Option<EventHandler<KeyboardEvent>>,
 ) -> Element {
     let merged_class = tw_merge!(
         "placeholder:text-muted-foreground border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow]",
@@ -32,6 +34,11 @@ pub fn Input(
             disabled,
             oninput: move |e| {
                 if let Some(handler) = &oninput {
+                    handler.call(e);
+                }
+            },
+            onkeydown: move |e| {
+                if let Some(handler) = &onkeydown {
                     handler.call(e);
                 }
             },

@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
-/* shadcn-style theme vars (pilot), mapped onto the existing zinc/emerald dark palette
-   so vendored components (src/components/ui/*) pick up the app's look. */
+/* The app's colour vocabulary. Semantic names on top of the zinc/emerald dark
+   palette: the vendored shadcn components (src/components/ui/*) and the shared
+   class constants (src/components/mod.rs) both resolve their colours here, so a
+   palette change is an edit to this block rather than a grep across components.
+   Individual pages still carry some raw zinc/emerald classes — those are being
+   migrated onto these tokens. */
 @theme {
   --color-background: var(--color-zinc-950);
   --color-foreground: var(--color-zinc-100);
+  /* Raised surface: cards, dialogs, table row hover. */
+  --color-card: var(--color-zinc-900);
   --color-primary: var(--color-emerald-700);
   --color-primary-foreground: white;
   --color-secondary: var(--color-zinc-800);
@@ -13,7 +19,11 @@
   --color-accent: var(--color-zinc-800);
   --color-accent-foreground: var(--color-zinc-100);
   --color-muted-foreground: var(--color-zinc-500);
+  /* Three border weights, strongest first: control edges, container edges and
+     table header rules, then row separators inside a table. */
   --color-border: var(--color-zinc-700);
+  --color-border-soft: var(--color-zinc-800);
+  --color-border-subtle: var(--color-zinc-900);
   --color-input: var(--color-zinc-700);
   --color-ring: var(--color-emerald-600);
 }
