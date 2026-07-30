@@ -21,8 +21,29 @@ pub fn Dialog(
 
     rsx! {
         if open() {
-            div { class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
-                div { class: "{merged_class}", {children} }
+            // The backdrop takes focus itself (tabindex -1 + autofocus) so the
+            // Escape handler has somewhere to land: opening a dialog otherwise
+            // leaves focus on the trigger outside it, and keydown never arrives.
+            // Landing here also means Tab walks forwards into the panel.
+            div {
+                class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
+                tabindex: "-1",
+                autofocus: true,
+                onkeydown: move |e| {
+                    if e.key() == Key::Escape {
+                        open.set(false);
+                    }
+                },
+                onclick: move |_| open.set(false),
+                div {
+                    class: "{merged_class}",
+                    role: "dialog",
+                    aria_modal: "true",
+                    // Clicks on the panel must not bubble to the backdrop's
+                    // close handler, or every interaction would dismiss it.
+                    onclick: move |e| e.stop_propagation(),
+                    {children}
+                }
             }
         }
     }
