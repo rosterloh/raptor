@@ -208,6 +208,25 @@ pub async fn logout() -> ApiResult<()> {
     post_nothing("/rest/v1/logout").await
 }
 
+/// Whether the API answers at all, without needing a session.
+///
+/// Any HTTP status proves the server is there — a 401 is a *success* for this
+/// question. Only a transport failure means unreachable. Deliberately not via
+/// [`check`], which would treat the 401 as "log in" and redirect to the page
+/// asking this in the first place.
+///
+/// Probes a `/rest` path rather than `/health` because `dx serve` only proxies
+/// `/rest` to the API in development; `/health` would hit the dev server and
+/// answer even with the API down, which is precisely the case worth catching.
+pub async fn api_reachable() -> bool {
+    reqwest::Client::new()
+        .get(format!("{}/rest/v1/session", base()))
+        .header(AJAX_HEADER.0, AJAX_HEADER.1)
+        .send()
+        .await
+        .is_ok()
+}
+
 /// Confirms the session cookie is still good. The route sits behind the server's
 /// auth layer, so a stale or absent session answers 401 — which [`check`] turns
 /// into a redirect to the login page. Used by `Shell` before it paints.
