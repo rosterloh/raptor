@@ -276,10 +276,35 @@ fn target_type_field_omitted_when_none() {
         poll_status: None,
         target_type: None,
         request_attributes: true,
+        installed_ds: None,
+        assigned_ds: None,
+        tags: vec![],
         links: serde_json::Value::Null,
     };
     let v = serde_json::to_value(&t).unwrap();
     assert!(v.get("targetType").is_none());
+    // The enrichment fields are additive: a payload that does not carry them —
+    // every endpoint other than the target list and single-target read — must
+    // serialise exactly as it did before they existed.
+    assert!(v.get("installedDs").is_none());
+    assert!(v.get("assignedDs").is_none());
+    assert!(v.get("tags").is_none());
+}
+
+/// The enriched shape the target list and single-target read return.
+#[test]
+fn target_rest_carries_set_and_tag_refs() {
+    round_trip::<TargetRest>(json!({
+        "controllerId": "d1", "name": "gw-01", "description": null,
+        "updateStatus": "pending", "securityToken": "x",
+        "createdAt": 1, "lastModifiedAt": 2,
+        "address": null, "ipAddress": null, "lastControllerRequestAt": 3,
+        "pollStatus": null, "requestAttributes": false,
+        "installedDs": {"id": 4, "name": "gw-linux-2026.05", "version": "3.2.1", "type": "os_app"},
+        "assignedDs": {"id": 7, "name": "gw-linux-2026.07", "version": "3.4.0", "type": "os_app"},
+        "tags": [{"id": 2, "name": "linux-gw", "colour": "#4f9cf9"}],
+        "_links": {}
+    }));
 }
 
 #[test]

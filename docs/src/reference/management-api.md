@@ -32,6 +32,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `GET` | `/rest/v1/targets/{cid}/attributes` | device-reported attributes |
 | `POST` / `DELETE` | `/rest/v1/targets/{cid}/targettype` | assign / unassign the target type |
 | `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |
+
 | `GET` / `PUT` / `DELETE` | `/rest/v1/targets/{cid}/metadata/{key}` | get / update / delete one entry |
 | `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action) |
 | `GET` | `/rest/v1/targets/{cid}/assignedDS` | currently assigned DS (or 204) |
@@ -53,6 +54,33 @@ device uploads its attributes; re-arm it to ask for a fresh upload:
 curl -u admin:pw -X PUT localhost:8088/rest/v1/targets/device-42 \
   -H 'Content-Type: application/json' -d '{"requestAttributes": true}'
 ```
+
+### Embedded set and tag references
+
+`GET /rest/v1/targets` and `GET /rest/v1/targets/{cid}` include the target's
+installed and assigned distribution sets, and its tags, inline:
+
+```jsonc
+{
+  "controllerId": "dev-a91f3c",
+  "updateStatus": "pending",
+  "installedDs": { "id": 4, "name": "gw-linux", "version": "2026.05", "type": "os_app" },
+  "assignedDs":  { "id": 7, "name": "gw-linux", "version": "2026.07", "type": "os_app" },
+  "tags": [{ "id": 2, "name": "linux-gw", "colour": "#4f9cf9" }]
+}
+```
+
+A raptor extension, and additive: hawkBit exposes these only as `installedDS`,
+`assignedDS` and per-tag reverse lookups, so a list view could otherwise only
+fetch them one request per row. The fields are **omitted** when absent — no
+installed set is different from an empty one — and every other endpoint that
+returns a target (create, tag assignment) serialises exactly as before.
+
+Resolved in a fixed number of queries for the whole page regardless of page size,
+because `assigned_ds_id` and `installed_ds_id` are columns on the target row.
+
+The set `type` is the type *key* (`os`, `app`, `os_app`), not its id: it is what
+says whether a given device class can install that set at all.
 
 ## Software modules & artifacts
 

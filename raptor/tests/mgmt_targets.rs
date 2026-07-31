@@ -162,3 +162,127 @@ async fn duplicate_within_request_rejected() {
         .unwrap();
     assert_eq!(check.status(), StatusCode::NOT_FOUND);
 }
+
+/// The target list carries the installed/assigned set and the target's tags
+/// inline, so a console can render them without a request per row (#70).
+#[tokio::test]
+async fn target_list_embeds_set_and_tag_refs() {
+    let (app, _) = common::setup().await;
+
+    let sm = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/softwaremodules",
+                Some(json!([{"name": "rootfs", "version": "3.4.0", "type": "os"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let ds = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/distributionsets",
+                Some(
+                    json!([{"name": "gw-linux", "version": "2026.07", "type": "os", "modules": [{"id": sm}]}]),
+                ),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let tag = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targettags",
+                Some(json!([{"name": "linux-gw", "colour": "#4f9cf9"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+
+    for cid in ["gw-a", "gw-b"] {
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targets",
+                Some(json!([{"controllerId": cid}])),
+            ))
+            .await
+            .unwrap();
+    }
+    // Assign the set to one of them, and tag it.
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets/gw-a/assignedDS",
+            Some(json!({"id": ds, "type": "forced"})),
+        ))
+        .await
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/targettags/{tag}/assigned/gw-a"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let list = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let row = |cid: &str| {
+        list["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["controllerId"] == cid)
+            .cloned()
+            .unwrap()
+    };
+
+    let a = row("gw-a");
+    assert_eq!(a["assignedDs"]["id"], ds);
+    assert_eq!(a["assignedDs"]["name"], "gw-linux");
+    assert_eq!(a["assignedDs"]["version"], "2026.07");
+    // The type key, not the numeric id — it is what says whether a device class
+    // can install this set at all.
+    assert_eq!(a["assignedDs"]["type"], "os");
+    assert_eq!(a["tags"][0]["name"], "linux-gw");
+    assert_eq!(a["tags"][0]["colour"], "#4f9cf9");
+    // Nothing installed until the device reports it, and that is distinct from
+    // "no assignment" — the field is absent rather than null-ish.
+    assert!(a.get("installedDs").is_none());
+
+    // The untouched target keeps the pre-#70 shape: absent, not empty objects.
+    let b = row("gw-b");
+    assert!(b.get("assignedDs").is_none());
+    assert!(b.get("installedDs").is_none());
+    assert!(b.get("tags").is_none());
+
+    // The single-target read returns the same shape, so a consumer does not have
+    // to special-case it.
+    let one = common::body_json(
+        app.oneshot(common::req("GET", "/rest/v1/targets/gw-a", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(one["assignedDs"], a["assignedDs"]);
+    assert_eq!(one["tags"], a["tags"]);
+}

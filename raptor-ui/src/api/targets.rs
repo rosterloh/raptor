@@ -57,6 +57,25 @@ pub async fn assign_ds(cid: &str, ds_id: i64, forced: bool) -> ApiResult<AssignR
     .await
 }
 
+/// One action's status history: assignment → download → downloaded → feedback →
+/// finished, with whatever messages the device attached. Fetched per action on
+/// demand rather than for every row, so opening the history tab costs one
+/// request and expanding an action costs one more.
+pub async fn action_status_history(
+    cid: &str,
+    aid: i64,
+    offset: u64,
+    limit: u64,
+) -> ApiResult<PagedList<ActionStatusRest>> {
+    get_json(&list_path(
+        &format!("/rest/v1/targets/{cid}/actions/{aid}/status"),
+        offset,
+        limit,
+        None,
+    ))
+    .await
+}
+
 pub async fn cancel_action(cid: &str, aid: i64, force: bool) -> ApiResult<()> {
     let suffix = if force { "?force=true" } else { "" };
     delete(&format!("/rest/v1/targets/{cid}/actions/{aid}{suffix}")).await

@@ -4,7 +4,10 @@
 
 use super::mappers::{TargetRest, target_rest};
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
-use crate::entity::{target, target_attribute, target_metadata, target_type};
+use crate::entity::{
+    distribution_set, distribution_set_type, target, target_attribute, target_metadata, target_tag,
+    target_tag_assignment, target_type,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
@@ -13,7 +16,7 @@ use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use raptor_api_types::{TargetCreate, TargetUpdate};
+use raptor_api_types::{DsRef, TagRef, TargetCreate, TargetUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
     QueryFilter,
@@ -130,6 +133,112 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(out)))
 }
 
+/// The distribution sets and tags a batch of targets refers to, resolved in a
+/// fixed three queries rather than one per row.
+///
+/// `target` stores `assigned_ds_id` / `installed_ds_id` as plain columns, so the
+/// sets are one `IN` lookup over the distinct ids on the page, their type keys a
+/// second, and the tag assignments a third. That is what makes it safe to put
+/// these on a list endpoint at all — the alternative is the caller issuing a
+/// request per row, which is what this exists to remove.
+async fn batch_refs(
+    db: &DatabaseConnection,
+    models: &[target::Model],
+) -> Result<(BTreeMap<i64, DsRef>, BTreeMap<i64, Vec<TagRef>>), AppError> {
+    let ds_ids: Vec<i64> = models
+        .iter()
+        .flat_map(|t| [t.assigned_ds_id, t.installed_ds_id])
+        .flatten()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    let mut sets = BTreeMap::new();
+    if !ds_ids.is_empty() {
+        let ds_rows = distribution_set::Entity::find()
+            .filter(distribution_set::Column::Id.is_in(ds_ids))
+            .all(db)
+            .await?;
+        let type_ids: Vec<i64> = ds_rows
+            .iter()
+            .map(|d| d.type_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let type_keys: BTreeMap<i64, String> = distribution_set_type::Entity::find()
+            .filter(distribution_set_type::Column::Id.is_in(type_ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|t| (t.id, t.key))
+            .collect();
+        for d in ds_rows {
+            sets.insert(
+                d.id,
+                DsRef {
+                    id: d.id,
+                    name: d.name,
+                    version: d.version,
+                    // A set whose type row vanished is a broken invariant, not a
+                    // reason to fail the whole page.
+                    ds_type: type_keys.get(&d.type_id).cloned().unwrap_or_default(),
+                },
+            );
+        }
+    }
+
+    let target_ids: Vec<i64> = models.iter().map(|t| t.id).collect();
+    let mut tags: BTreeMap<i64, Vec<TagRef>> = BTreeMap::new();
+    if !target_ids.is_empty() {
+        let links = target_tag_assignment::Entity::find()
+            .filter(target_tag_assignment::Column::TargetId.is_in(target_ids))
+            .all(db)
+            .await?;
+        let tag_ids: Vec<i64> = links
+            .iter()
+            .map(|l| l.tag_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        if !tag_ids.is_empty() {
+            let by_id: BTreeMap<i64, TagRef> = target_tag::Entity::find()
+                .filter(target_tag::Column::Id.is_in(tag_ids))
+                .all(db)
+                .await?
+                .into_iter()
+                .map(|t| {
+                    (
+                        t.id,
+                        TagRef {
+                            id: t.id,
+                            name: t.name,
+                            colour: t.colour,
+                        },
+                    )
+                })
+                .collect();
+            for l in links {
+                if let Some(tag) = by_id.get(&l.tag_id) {
+                    tags.entry(l.target_id).or_default().push(tag.clone());
+                }
+            }
+        }
+    }
+    Ok((sets, tags))
+}
+
+/// Fills the additive reference fields on an already-mapped target.
+fn attach_refs(
+    out: &mut TargetRest,
+    model: &target::Model,
+    sets: &BTreeMap<i64, DsRef>,
+    tags: &BTreeMap<i64, Vec<TagRef>>,
+) {
+    out.installed_ds = model.installed_ds_id.and_then(|id| sets.get(&id).cloned());
+    out.assigned_ds = model.assigned_ds_id.and_then(|id| sets.get(&id).cloned());
+    out.tags = tags.get(&model.id).cloned().unwrap_or_default();
+}
+
 pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
@@ -143,12 +252,16 @@ pub async fn list(
     }
     sel = apply_sort(sel, &p.sort, &fiql_map)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
-    Ok(Json(Paged::new(
-        rows.iter()
-            .map(|t| target_rest(t, interval, &base))
-            .collect(),
-        total,
-    )))
+    let (sets, tags) = batch_refs(&st.db, &rows).await?;
+    let content = rows
+        .iter()
+        .map(|t| {
+            let mut out = target_rest(t, interval, &base);
+            attach_refs(&mut out, t, &sets, &tags);
+            out
+        })
+        .collect();
+    Ok(Json(Paged::new(content, total)))
 }
 
 pub async fn get_one(
@@ -157,11 +270,16 @@ pub async fn get_one(
     Path(cid): Path<String>,
 ) -> Result<Json<TargetRest>, AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
-    Ok(Json(target_rest(
+    // Same shape as a row of the list, so a consumer does not have to special-case
+    // the single-target payload.
+    let (sets, tags) = batch_refs(&st.db, std::slice::from_ref(&t)).await?;
+    let mut out = target_rest(
         &t,
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),
-    )))
+    );
+    attach_refs(&mut out, &t, &sets, &tags);
+    Ok(Json(out))
 }
 
 pub async fn update(

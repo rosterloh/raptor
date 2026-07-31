@@ -64,6 +64,29 @@ pub fn format_ts(ms: i64) -> String {
         .unwrap_or_else(|| "-".into())
 }
 
+/// How long ago something happened, at a glance: `4s`, `16m`, `3h`, `12d`.
+///
+/// The question an operator asks of a poll timestamp is "is this device stale",
+/// and an absolute clock time makes them do the arithmetic. Only ever used on
+/// screens that poll, so the answer does not sit there going quietly wrong.
+///
+/// `None` renders as `never` — a target that has registered but never polled is
+/// a different and worse condition than one that is merely late.
+pub fn relative_age(now_ms: i64, then_ms: Option<i64>) -> String {
+    let Some(then) = then_ms else {
+        return "never".into();
+    };
+    // A clock skewed behind the server, or a timestamp from the future, must not
+    // render as a huge negative age.
+    let secs = ((now_ms - then) / 1000).max(0);
+    match secs {
+        s if s < 60 => format!("{s}s"),
+        s if s < 3600 => format!("{}m", s / 60),
+        s if s < 86_400 => format!("{}h", s / 3600),
+        s => format!("{}d", s / 86_400),
+    }
+}
+
 /// What a state *means*, independent of how it is painted.
 ///
 /// This module is compiled and tested on the host and holds no presentation:
@@ -118,6 +141,15 @@ pub fn percent(n: i64, total: i64) -> f64 {
 /// "in sync" — because the badge shows a word next to its colour rather than
 /// relying on colour alone.
 pub fn status_style(update_status: &str) -> (&'static str, Tone) {
+    // A cancellation's own lifecycle. Never a success or a failure of the
+    // update itself, so the whole family reads neutral.
+    if let Some(rest) = update_status.strip_prefix("cancel_") {
+        return match rest {
+            "rejected" => ("cancel rejected", Tone::Pending),
+            "closed" => ("cancel closed", Tone::Neutral),
+            _ => ("cancelling", Tone::Neutral),
+        };
+    }
     match update_status {
         "in_sync" => ("in sync", Tone::Ok),
         "pending" => ("pending", Tone::Pending),
@@ -130,7 +162,22 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
         "paused" => ("paused", Tone::Pending),
         "finished" => ("finished", Tone::Ok),
         "canceled" => ("canceled", Tone::Neutral),
+        "canceling" | "cancelling" => ("cancelling", Tone::Pending),
         "stopped" => ("stopped", Tone::Error),
+        // Action-status history entries. These are the `execution` values a
+        // device reports over DDI, so the set is whatever the client sends.
+        "download" => ("download", Tone::Pending),
+        "downloaded" => ("downloaded", Tone::Pending),
+        "proceeding" => ("proceeding", Tone::Pending),
+        "resumed" => ("resumed", Tone::Pending),
+        // `closed` means the device stopped working on the action; on its own it
+        // says nothing about whether the install succeeded. Painting it green
+        // would call a failed update a success, so it stays neutral and the
+        // action's own status carries the outcome.
+        "closed" => ("closed", Tone::Neutral),
+        "confirmed" => ("confirmed", Tone::Info),
+        "rejected" => ("rejected", Tone::Error),
+        "denied" => ("denied", Tone::Error),
         _ => ("unknown", Tone::Neutral),
     }
 }
@@ -280,6 +327,25 @@ mod tests {
     }
 
     #[test]
+    fn relative_age_scales_and_never_goes_negative() {
+        let now = 1_000_000_000;
+        let ago = |secs: i64| relative_age(now, Some(now - secs * 1000));
+        assert_eq!(ago(0), "0s");
+        assert_eq!(ago(45), "45s");
+        assert_eq!(ago(60), "1m");
+        assert_eq!(ago(59 * 60), "59m");
+        assert_eq!(ago(3600), "1h");
+        assert_eq!(ago(23 * 3600), "23h");
+        assert_eq!(ago(86_400), "1d");
+        assert_eq!(ago(400 * 86_400), "400d");
+        // Never polled is its own answer, not "a very long time ago".
+        assert_eq!(relative_age(now, None), "never");
+        // A device clock ahead of ours, or ours behind the server, must not
+        // produce a negative age.
+        assert_eq!(relative_age(now, Some(now + 60_000)), "0s");
+    }
+
+    #[test]
     fn progress_segments_drop_empty_buckets_and_keep_order() {
         let c = raptor_api_types::RolloutTargetsPerStatus {
             notstarted: 0,
@@ -329,6 +395,24 @@ mod tests {
         assert_eq!(status_style("stopped").1, Tone::Error);
         assert_eq!(status_style("in_sync").1, Tone::Ok);
         assert_eq!(status_style("???").1, Tone::Neutral);
+
+        // Device-reported DDI execution values, as they appear in an action's
+        // status history.
+        assert_eq!(status_style("download").1, Tone::Pending);
+        assert_eq!(status_style("downloaded").1, Tone::Pending);
+        assert_eq!(status_style("proceeding").1, Tone::Pending);
+        assert_eq!(status_style("rejected").1, Tone::Error);
+        assert_eq!(status_style("denied").1, Tone::Error);
+        assert_eq!(status_style("confirmed").1, Tone::Info);
+        // `closed` alone does not mean success — a failed install closes too, so
+        // it must never render as Ok.
+        assert_ne!(status_style("closed").1, Tone::Ok);
+        // The cancel_* family is a cancellation's lifecycle, never the update's
+        // own success or failure.
+        assert_eq!(status_style("cancel_closed").1, Tone::Neutral);
+        assert_eq!(status_style("cancel_rejected").1, Tone::Pending);
+        assert_eq!(status_style("cancel_anything_else").1, Tone::Neutral);
+        assert_eq!(status_style("cancel_closed").0, "cancel closed");
         // No Tailwind class ever leaves this module again — that is what makes a
         // palette change an edit to tailwind.css rather than to Rust.
         assert!(!format!("{:?}", status_style("error")).contains("bg-"));

@@ -19,6 +19,19 @@ pub struct TagRest {
     pub links: Value,
 }
 
+/// Compact reference to a tag, for embedding in a list payload. [`TagRest`]'s
+/// timestamps, description and `_links` are noise when repeated for every tag of
+/// every row; a name and a colour are all a chip needs.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRef {
+    pub id: i64,
+    pub name: String,
+    /// Display colour, hawkBit's British spelling. Operator-supplied free text,
+    /// so a consumer must validate it before putting it anywhere near CSS.
+    pub colour: Option<String>,
+}
+
 /// One element of `POST /rest/v1/targettags` or `/rest/v1/distributionsettags`
 /// (hawkBit `MgmtTagRequestBodyPut`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

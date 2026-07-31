@@ -96,6 +96,26 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* A calibrated scale under a measurement. One gradient, and a panel reads as
+   instrumentation rather than as a generic card — the detail carried over from
+   the "Instrument" direction that lost the overall pick. Needs `relative` on the
+   element it is applied to. */
+@utility tick-scale {
+  &::after {
+    content: "";
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 0;
+    height: 4px;
+    background: repeating-linear-gradient(
+      to right,
+      var(--color-border) 0 1px,
+      transparent 1px 8px
+    );
+  }
+}
+
 /* Tabular numerals everywhere a figure can change under a poll: a count that
    shifts width while you are reading it is the fastest way to make a live
    dashboard feel unstable. */

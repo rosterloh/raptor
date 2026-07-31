@@ -16,6 +16,11 @@ pub fn Input(
     #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
     // Added to the vendored props: SearchBox needs Enter to mean "search now".
     #[props(optional)] onkeydown: Option<EventHandler<KeyboardEvent>>,
+    // Also added: without `autocomplete` a password manager cannot fill the
+    // login form, and `aria-invalid` is how a screen reader learns a field was
+    // rejected rather than only seeing the message appear beside it.
+    #[props(into, optional)] autocomplete: Option<String>,
+    #[props(optional)] invalid: bool,
 ) -> Element {
     let merged_class = tw_merge!(
         "placeholder:text-muted-foreground border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow]",
@@ -32,6 +37,8 @@ pub fn Input(
             value,
             required,
             disabled,
+            autocomplete,
+            aria_invalid: invalid,
             oninput: move |e| {
                 if let Some(handler) = &oninput {
                     handler.call(e);
