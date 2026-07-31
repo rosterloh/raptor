@@ -1,6 +1,6 @@
 use crate::components::*;
 use crate::pages::{TagFilter, TagKind};
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 
 pub const LIMIT: u64 = 25;

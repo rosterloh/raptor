@@ -40,9 +40,10 @@ fn check_auth(state: &AppState, req: &Request) -> Result<(), AppError> {
     };
 
     if let Some(tok) = crate::auth::session::session_cookie(req.headers())
-        && state.sessions.validate(&tok) {
-            return Ok(());
-        }
+        && state.sessions.validate(&tok)
+    {
+        return Ok(());
+    }
 
     let header = req
         .headers()

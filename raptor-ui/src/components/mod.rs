@@ -21,7 +21,7 @@ pub use paginator::Paginator;
 pub use progress::{ProgressBar, ProgressLegend};
 pub use search::SearchBox;
 pub use tag_chip::TagChip;
-pub use toast::{toast_error, toast_ok, ToastStack};
+pub use toast::{ToastStack, toast_error, toast_ok};
 
 use dioxus::prelude::*;
 

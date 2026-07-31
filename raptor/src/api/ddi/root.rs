@@ -16,7 +16,7 @@ use axum::{Extension, Json};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::net::SocketAddr;
 
 /// raptor is single-tenant and always emits tenant `DEFAULT` in its links, so a
@@ -90,10 +90,11 @@ pub async fn get_or_register(
     // Only touch address/updated_at when it actually moved, so a stable fleet
     // doesn't rewrite updated_at on every poll.
     if let Some(a) = address
-        && t.address.as_deref() != Some(a) {
-            am.address = Set(Some(a.to_string()));
-            am.updated_at = Set(now_ms());
-        }
+        && t.address.as_deref() != Some(a)
+    {
+        am.address = Set(Some(a.to_string()));
+        am.updated_at = Set(now_ms());
+    }
     Ok(am.update(&st.db).await?)
 }
 

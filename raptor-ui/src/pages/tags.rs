@@ -40,8 +40,12 @@ impl TagKind {
 
     fn empty_hint(self) -> &'static str {
         match self {
-            TagKind::Target => "No target tags yet. Tags label targets for fleet organisation, and can be used as a filter term (tag==beta) on the targets list and in target filters.",
-            TagKind::Ds => "No distribution set tags yet. Tags label sets — for example by release channel — and filter the distributions list (tag==qa).",
+            TagKind::Target => {
+                "No target tags yet. Tags label targets for fleet organisation, and can be used as a filter term (tag==beta) on the targets list and in target filters."
+            }
+            TagKind::Ds => {
+                "No distribution set tags yet. Tags label sets — for example by release channel — and filter the distributions list (tag==qa)."
+            }
         }
     }
 }

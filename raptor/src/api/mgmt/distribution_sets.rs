@@ -1,9 +1,9 @@
 //! Distribution set CRUD (`/rest/v1/distributionsets`), module assignment, and
 //! invalidation. Metadata sub-resources live in `metadata`.
 
-use super::mappers::{ds_rest, DsRest, SmRest};
+use super::mappers::{DsRest, SmRest, ds_rest};
 use super::software_modules::type_keys;
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{
     action, distribution_set, distribution_set_type, ds_module, ds_type_module, rollout,
     software_module, target, target_filter,
@@ -11,11 +11,11 @@ use crate::entity::{
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::{DsCreate, DsInvalidate, DsUpdate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
@@ -173,7 +173,7 @@ pub async fn create(
                 return Err(AppError::Conflict(format!(
                     "distribution set {}:{} already exists",
                     c.name, c.version
-                )))
+                )));
             }
             Ok(None) => {}
             Err(e) => return Err(AppError::from(e)),

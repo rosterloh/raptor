@@ -5,11 +5,11 @@
 
 use crate::metrics;
 use crate::state::AppState;
+use axum::Router;
 use axum::extract::{MatchedPath, Request, State};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
 
 pub fn build_app(state: AppState) -> Router {
     let app = Router::new()

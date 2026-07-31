@@ -2,18 +2,18 @@
 //! compatible-distribution-set-type membership sub-resource.
 
 use super::distribution_set_types::ds_type_json;
-use crate::api::paging::{page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, page};
 use crate::entity::{distribution_set_type, target, target_type, target_type_ds_type};
 use crate::error::AppError;
 use crate::state::AppState;
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use raptor_api_types::{TargetTypeCreate, TargetTypeUpdate, TypeRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn target_type_json(t: &target_type::Model) -> Value {
     let base = format!("/rest/v1/targettypes/{}", t.id);
@@ -121,11 +121,11 @@ pub async fn tt_update(
             .one(&st.db)
             .await?
             .is_some_and(|other| other.id != t.id)
-        {
-            return Err(AppError::Conflict(format!(
-                "target type {name} already exists"
-            )));
-        }
+    {
+        return Err(AppError::Conflict(format!(
+            "target type {name} already exists"
+        )));
+    }
     let mut am: target_type::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);

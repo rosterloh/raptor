@@ -2,17 +2,17 @@
 //! auto-confirm toggles. Action/deployment sub-resources live in `actions`,
 //! metadata sub-resources in `metadata`.
 
-use super::mappers::{target_rest, TargetRest};
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use super::mappers::{TargetRest, target_rest};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{target, target_attribute, target_metadata, target_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::{TargetCreate, TargetUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
@@ -92,7 +92,7 @@ pub async fn create(
                 return Err(AppError::Conflict(format!(
                     "target {} already exists",
                     c.controller_id
-                )))
+                )));
             }
             Err(AppError::NotFound(_)) => {}
             Err(e) => return Err(e),

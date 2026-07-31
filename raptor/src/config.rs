@@ -2,8 +2,8 @@
 //! overrides) via figment. Owns only parsing/defaults — no validation beyond
 //! what `serde` gives for free, and no I/O besides the file/env sources.
 
-use figment::providers::{Env, Format, Toml};
 use figment::Figment;
+use figment::providers::{Env, Format, Toml};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;

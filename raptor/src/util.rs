@@ -41,9 +41,9 @@ pub fn client_address(
             .get(name)
             .and_then(|v| v.to_str().ok())
             .and_then(forwarded_ip)
-        {
-            return Some(ip);
-        }
+    {
+        return Some(ip);
+    }
     peer.map(|p| p.ip().to_string())
 }
 

@@ -21,8 +21,8 @@ pub use target_types::{
 };
 
 use crate::state::AppState;
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 
 pub fn routes() -> Router<AppState> {
     Router::new()

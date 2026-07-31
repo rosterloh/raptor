@@ -3,7 +3,7 @@
 use raptor_api_types::*;
 
 use super::targets::list_targets;
-use super::{delete, get_json, list_path, post_json, put_json, ApiResult};
+use super::{ApiResult, delete, get_json, list_path, post_json, put_json};
 
 pub async fn list_target_filters(
     offset: u64,

@@ -1,11 +1,11 @@
 //! FIQL grammar and parser (via `winnow`): builds the `Expr`/`Comparison`/`Op`
 //! AST from a raw query string. Turning that AST into SQL is `compile`'s job.
 
+use winnow::Result as WResult;
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, delimited, separated};
 use winnow::prelude::*;
 use winnow::token::take_while;
-use winnow::Result as WResult;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {

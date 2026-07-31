@@ -2,7 +2,7 @@
 //! (`/rest/v1/targets/{cid}/assignedDS`, `installedDS`), the per-target and
 //! fleet-wide action listings, and action cancellation.
 
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::domain::deployment::{action_rest, assign_ds};
 use crate::entity::{
     action, action_status, action_status_message, distribution_set, distribution_set_type, target,
@@ -10,11 +10,11 @@ use crate::entity::{
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::DsAssignment;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,

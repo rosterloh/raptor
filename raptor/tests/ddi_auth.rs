@@ -1,7 +1,7 @@
 mod common;
 
 use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{Request, StatusCode, header};
 use tower::ServiceExt;
 
 async fn probe_app(anonymous: bool) -> axum::Router {

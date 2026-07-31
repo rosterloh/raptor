@@ -1,7 +1,7 @@
 use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
 use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 
 #[component]

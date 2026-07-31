@@ -2,7 +2,7 @@
 
 use raptor_api_types::*;
 
-use super::{delete, get_json, list_path, post_json, post_no_content, ApiResult};
+use super::{ApiResult, delete, get_json, list_path, post_json, post_no_content};
 
 pub async fn list_ds(offset: u64, limit: u64, q: Option<&str>) -> ApiResult<PagedList<DsRest>> {
     get_json(&list_path("/rest/v1/distributionsets", offset, limit, q)).await

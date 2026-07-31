@@ -1,6 +1,6 @@
 //! System endpoints: fleet statistics and read-only tenant configuration.
 
-use super::{get_json, ApiResult};
+use super::{ApiResult, get_json};
 use raptor_api_types::{SystemStatistics, TenantConfigValue};
 use std::collections::BTreeMap;
 

@@ -94,13 +94,17 @@ async fn zephyr_client_json_contract() {
     .await;
     let sleep = poll["config"]["polling"]["sleep"].as_str().unwrap();
     assert_eq!(sleep.len(), 8, "sleep must be HH:MM:SS, got {sleep}");
-    assert!(sleep
-        .split(':')
-        .all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_digit())));
-    assert!(poll["_links"]["deploymentBase"]["href"]
-        .as_str()
-        .unwrap()
-        .starts_with("http"));
+    assert!(
+        sleep
+            .split(':')
+            .all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_digit()))
+    );
+    assert!(
+        poll["_links"]["deploymentBase"]["href"]
+            .as_str()
+            .unwrap()
+            .starts_with("http")
+    );
 
     // --- deploymentBase: id is a *string*, modes are the three DDI verbs
     let dep = common::body_json(
@@ -132,10 +136,12 @@ async fn zephyr_client_json_contract() {
     assert_eq!(sha.len(), 64);
     assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
     // the client downloads from download-http, not download
-    assert!(art["_links"]["download-http"]["href"]
-        .as_str()
-        .unwrap()
-        .ends_with(&format!("/softwaremodules/{sm}/artifacts/fw.bin")));
+    assert!(
+        art["_links"]["download-http"]["href"]
+            .as_str()
+            .unwrap()
+            .ends_with(&format!("/softwaremodules/{sm}/artifacts/fw.bin"))
+    );
 
     // --- configData: the client always sends mode "merge"
     let resp = app

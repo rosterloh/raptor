@@ -4,7 +4,7 @@ use raptor_api_types::*;
 
 #[cfg(target_arch = "wasm32")]
 use super::ApiError;
-use super::{delete, get_json, list_path, post_json, ApiResult};
+use super::{ApiResult, delete, get_json, list_path, post_json};
 
 pub async fn list_modules(
     offset: u64,
@@ -50,8 +50,8 @@ pub async fn upload_artifact(
     bytes: Vec<u8>,
     mut on_progress: impl FnMut(f64) + 'static,
 ) -> ApiResult<()> {
-    use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
 
     /// Keeps the XHR and its closures alive together, and aborts the request
     /// (detaching handlers first) if the upload future is dropped mid-flight

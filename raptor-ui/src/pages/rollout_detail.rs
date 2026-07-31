@@ -1,6 +1,6 @@
 use crate::components::ui::{Button, ButtonVariant, Card};
 use crate::components::*;
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 
 #[component]

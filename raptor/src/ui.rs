@@ -2,7 +2,7 @@
 //! bakes in `dx build --release`'s output via `rust-embed`). Pure static-file
 //! serving plus SPA fallback to `index.html`; no application logic.
 
-use axum::http::{header, StatusCode, Uri};
+use axum::http::{StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 

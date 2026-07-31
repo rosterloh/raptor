@@ -53,8 +53,8 @@ mod imp {
 
 #[cfg(feature = "otel")]
 mod imp {
-    use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
     use opentelemetry::KeyValue;
+    use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
     use std::sync::Arc;
 
     struct Instruments {

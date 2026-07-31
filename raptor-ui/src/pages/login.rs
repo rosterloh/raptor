@@ -1,5 +1,5 @@
-use crate::components::ui::{Button, Input};
 use crate::Route;
+use crate::components::ui::{Button, Input};
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-login.png");

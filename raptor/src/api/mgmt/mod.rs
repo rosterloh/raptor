@@ -19,8 +19,8 @@ pub mod targets;
 pub mod types;
 
 use crate::state::AppState;
-use axum::middleware;
 use axum::Router;
+use axum::middleware;
 
 pub fn router(state: AppState) -> Router<AppState> {
     let max_artifact_size = state.cfg.max_artifact_size as usize;

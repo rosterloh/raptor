@@ -41,7 +41,7 @@ pub fn apply_sort<E: EntityTrait, C: ColumnTrait>(
         other => {
             return Err(AppError::BadRequest(format!(
                 "invalid sort direction: {other}"
-            )))
+            )));
         }
     };
     Ok(sel.order_by(col, order))

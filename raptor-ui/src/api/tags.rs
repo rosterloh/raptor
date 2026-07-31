@@ -1,7 +1,7 @@
 //! Target and DS tags: the same shape behind different prefixes, so the
 //! callers pass the prefix and these stay one implementation each.
 
-use super::{delete, get_json, list_path, post_json, post_nothing, put_json, ApiResult};
+use super::{ApiResult, delete, get_json, list_path, post_json, post_nothing, put_json};
 use raptor_api_types::{PagedList, TagCreate, TagRest, TagUpdate};
 
 pub async fn list_tags(

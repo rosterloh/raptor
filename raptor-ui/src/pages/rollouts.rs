@@ -1,5 +1,5 @@
 use crate::components::*;
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 
 const LIMIT: u64 = 25;

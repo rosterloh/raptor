@@ -2,7 +2,7 @@
 
 use raptor_api_types::*;
 
-use super::{get_json, list_path, ApiResult};
+use super::{ApiResult, get_json, list_path};
 
 pub async fn all_actions(
     offset: u64,

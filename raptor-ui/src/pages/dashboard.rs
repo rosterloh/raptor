@@ -1,6 +1,6 @@
 use crate::components::ui::Card;
 use crate::components::*;
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 use raptor_api_types::TenantConfigValue;
 use std::collections::BTreeMap;

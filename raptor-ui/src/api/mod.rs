@@ -2,8 +2,8 @@
 //! any non-login 401 hard-redirects to /ui/login.
 
 use raptor_api_types::*;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 mod actions;
 mod distribution_sets;

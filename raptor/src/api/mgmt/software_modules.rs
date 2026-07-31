@@ -2,17 +2,17 @@
 //! type sub-resources live in the sibling `artifacts`, `metadata`, and `types`
 //! modules respectively.
 
-use super::mappers::{sm_rest, SmRest};
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use super::mappers::{SmRest, sm_rest};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{software_module, software_module_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::{SmCreate, SmUpdate};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;

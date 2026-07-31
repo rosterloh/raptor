@@ -1,18 +1,18 @@
 //! Software-module-type CRUD (`/rest/v1/softwaremoduletypes`) — the type
 //! catalogue that software modules reference (e.g. "os", "app").
 
-use crate::api::paging::{page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, page};
 use crate::entity::{ds_type_module, software_module, software_module_type};
 use crate::error::AppError;
 use crate::state::AppState;
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use raptor_api_types::{SmTypeCreate, SmTypeUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(super) fn sm_type_json(t: &software_module_type::Model) -> Value {
     json!({

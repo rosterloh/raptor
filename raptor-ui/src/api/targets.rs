@@ -3,7 +3,7 @@
 use raptor_api_types::*;
 use std::collections::BTreeMap;
 
-use super::{delete, get_json, get_opt, list_path, post_json, ApiResult};
+use super::{ApiResult, delete, get_json, get_opt, list_path, post_json};
 
 pub async fn list_targets(
     offset: u64,

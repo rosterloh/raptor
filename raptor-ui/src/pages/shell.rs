@@ -1,5 +1,5 @@
-use crate::components::ToastStack;
 use crate::Route;
+use crate::components::ToastStack;
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");

@@ -3,17 +3,17 @@
 //! distribution set.
 
 use crate::api::mgmt::actions::ds_rest_for;
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{distribution_set, target_filter};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::{
     AutoAssignRequest, TargetFilterCreate, TargetFilterRest, TargetFilterUpdate,
 };
@@ -200,7 +200,7 @@ pub async fn set_auto_assign(
         Some(other) => {
             return Err(AppError::BadRequest(format!(
                 "unsupported action type: {other}"
-            )))
+            )));
         }
     };
     let mut am: target_filter::ActiveModel = f.into();

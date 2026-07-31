@@ -2,9 +2,9 @@
 //! hawkBit-compatible error bodies (status code, exception class,
 //! `errorCode` string — clients mostly branch on the status code).
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use raptor_api_types::ErrorBody;
 
 #[derive(Debug)]

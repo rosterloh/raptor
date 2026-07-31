@@ -13,7 +13,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::{Extension, Json};
 use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const HISTORY_LIMIT: usize = 10;
 

@@ -42,13 +42,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cfg = Config::load(Some(&config))?;
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
             if let Some(u) = &cfg.ddi.artifact_http_url
-                && !u.starts_with("http://") {
-                    tracing::warn!(
-                        url = %u,
-                        "[ddi] artifact_http_url is not an http:// URL; it is advertised as the \
-                         plain-HTTP artifact link (download-http), so devices will follow it as-is."
-                    );
-                }
+                && !u.starts_with("http://")
+            {
+                tracing::warn!(
+                    url = %u,
+                    "[ddi] artifact_http_url is not an http:// URL; it is advertised as the \
+                     plain-HTTP artifact link (download-http), so devices will follow it as-is."
+                );
+            }
             if cfg.ddi.confirmation_flow && !cfg.ddi.auto_confirm_default {
                 tracing::warn!(
                     "[ddi] confirmation_flow is enabled: assignments wait for a confirmationBase \
@@ -81,9 +82,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Refresh fleet-state gauges alongside the sweep so metrics
                     // track a real snapshot without an async observable callback.
                     if eval_state.metrics.enabled()
-                        && let Err(e) = observe_fleet(&eval_state).await {
-                            tracing::warn!(error = ?e, "fleet metric observation failed");
-                        }
+                        && let Err(e) = observe_fleet(&eval_state).await
+                    {
+                        tracing::warn!(error = ?e, "fleet metric observation failed");
+                    }
                 }
             });
             let app = raptor::app::build_app(state);

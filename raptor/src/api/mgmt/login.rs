@@ -6,15 +6,15 @@
 //! [`gated_routes`] is the exception: `/rest/v1/session` only means anything
 //! behind the auth layer, so `mgmt::router()` merges that one instead.
 
-use crate::auth::session::{session_cookie, COOKIE};
+use crate::auth::session::{COOKIE, session_cookie};
 use crate::error::AppError;
 use crate::state::AppState;
-use axum::extract::State;
-use axum::http::{header, HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
-use axum::routing::post;
 use axum::Json;
 use axum::Router;
+use axum::extract::State;
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{IntoResponse, Response};
+use axum::routing::post;
 use raptor_api_types::LoginRequest;
 
 pub fn routes() -> Router<AppState> {

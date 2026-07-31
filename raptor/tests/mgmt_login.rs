@@ -1,7 +1,7 @@
 mod common;
 
 use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{Request, StatusCode, header};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -37,10 +37,12 @@ async fn login_secure_flag_behind_tls_proxy() {
     req.headers_mut()
         .insert("x-forwarded-proto", "https".parse().unwrap());
     let resp = app.oneshot(req).await.unwrap();
-    assert!(resp.headers()[header::SET_COOKIE]
-        .to_str()
-        .unwrap()
-        .contains("Secure"));
+    assert!(
+        resp.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .contains("Secure")
+    );
 }
 
 #[tokio::test]
@@ -77,8 +79,10 @@ async fn logout_clears_cookie() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
-    assert!(resp.headers()[header::SET_COOKIE]
-        .to_str()
-        .unwrap()
-        .contains("Max-Age=0"));
+    assert!(
+        resp.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .contains("Max-Age=0")
+    );
 }

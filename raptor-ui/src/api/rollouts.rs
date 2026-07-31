@@ -2,7 +2,7 @@
 
 use raptor_api_types::*;
 
-use super::{delete, get_json, list_path, post_empty, ApiResult};
+use super::{ApiResult, delete, get_json, list_path, post_empty};
 
 pub async fn list_rollouts(
     offset: u64,

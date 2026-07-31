@@ -4,7 +4,7 @@
 
 use super::mappers::{DsRest, TargetRest};
 use super::targets::find_by_cid;
-use crate::api::paging::{apply_sort, page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{
     distribution_set, ds_tag, ds_tag_assignment, target, target_tag, target_tag_assignment,
 };
@@ -12,11 +12,11 @@ use crate::error::AppError;
 use crate::fiql::Op;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
+use axum::Json;
+use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
-use axum::Json;
-use axum::Router;
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 use sea_orm::sea_query::{Expr as SqlExpr, Query as SqlQuery, SelectStatement, SimpleExpr};
 use sea_orm::{
@@ -343,11 +343,11 @@ pub async fn target_tag_update(
             .one(&st.db)
             .await?
             .is_some_and(|other| other.id != t.id)
-        {
-            return Err(AppError::Conflict(format!(
-                "target tag {name} already exists"
-            )));
-        }
+    {
+        return Err(AppError::Conflict(format!(
+            "target tag {name} already exists"
+        )));
+    }
     let mut am: target_tag::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);
@@ -618,11 +618,11 @@ pub async fn ds_tag_update(
             .one(&st.db)
             .await?
             .is_some_and(|other| other.id != t.id)
-        {
-            return Err(AppError::Conflict(format!(
-                "distribution set tag {name} already exists"
-            )));
-        }
+    {
+        return Err(AppError::Conflict(format!(
+            "distribution set tag {name} already exists"
+        )));
+    }
     let mut am: ds_tag::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);

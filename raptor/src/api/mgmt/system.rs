@@ -5,14 +5,14 @@ use crate::config::Config;
 use crate::entity::{action, distribution_set, rollout, software_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
-use axum::routing::get;
 use axum::Json;
 use axum::Router;
+use axum::extract::{Path, Query, State};
+use axum::routing::get;
 use raptor_api_types::{SystemStatistics, TenantConfigValue};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 pub fn routes() -> Router<AppState> {

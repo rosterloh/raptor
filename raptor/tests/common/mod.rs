@@ -1,15 +1,15 @@
 #![allow(dead_code)]
 
-use axum::body::Body;
-use axum::http::{header, Request, Response};
 use axum::Router;
+use axum::body::Body;
+use axum::http::{Request, Response, header};
 use base64::Engine;
 use migration::{Migrator, MigratorTrait};
 use raptor::config::Config;
 use raptor::state::AppState;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Per-process counter making each test's Postgres schema name unique.
 static SCHEMA_SEQ: AtomicU64 = AtomicU64::new(0);

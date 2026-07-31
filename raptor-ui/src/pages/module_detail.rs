@@ -1,6 +1,6 @@
 use crate::components::ui::{Button, ButtonVariant, Card};
 use crate::components::*;
-use crate::{api, Route};
+use crate::{Route, api};
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq)]

@@ -1,7 +1,7 @@
 mod common;
 
 use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{Request, StatusCode, header};
 use tower::ServiceExt;
 
 // Task 8 adds real /rest/v1 routes; this test uses softwaremoduletypes once it exists.

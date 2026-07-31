@@ -2,21 +2,21 @@
 //! mandatory/optional software-module-type membership sub-resources.
 
 use super::software_module_types::sm_type_json;
-use crate::api::paging::{page, ListParams, Paged};
+use crate::api::paging::{ListParams, Paged, page};
 use crate::entity::{
     distribution_set, distribution_set_type, ds_type_module, software_module_type,
     target_type_ds_type,
 };
 use crate::error::AppError;
 use crate::state::AppState;
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use raptor_api_types::{DsTypeCreate, DsTypeUpdate, TypeRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(super) fn ds_type_json(t: &distribution_set_type::Model) -> Value {
     let base = format!("/rest/v1/distributionsettypes/{}", t.id);

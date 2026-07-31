@@ -11,9 +11,9 @@ pub mod feedback;
 pub mod root;
 
 use crate::state::AppState;
+use axum::Router;
 use axum::middleware;
 use axum::routing::{get, post, put};
-use axum::Router;
 
 /// Canonical DDI base for a controller; raptor always emits tenant DEFAULT in links.
 pub fn ddi_base(base: &str, cid: &str) -> String {

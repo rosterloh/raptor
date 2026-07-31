@@ -214,9 +214,11 @@ async fn ds_metadata_crud() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    assert!(common::body_json(resp).await[0]
-        .get("targetVisible")
-        .is_none());
+    assert!(
+        common::body_json(resp).await[0]
+            .get("targetVisible")
+            .is_none()
+    );
 
     let resp = app
         .clone()

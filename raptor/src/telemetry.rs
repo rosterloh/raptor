@@ -37,17 +37,20 @@ impl TelemetryGuard {
         #[cfg(feature = "otel")]
         {
             if let Some(t) = &self.tracer
-                && let Err(e) = t.shutdown() {
-                    eprintln!("otel tracer shutdown: {e}");
-                }
+                && let Err(e) = t.shutdown()
+            {
+                eprintln!("otel tracer shutdown: {e}");
+            }
             if let Some(m) = &self.meter
-                && let Err(e) = m.shutdown() {
-                    eprintln!("otel meter shutdown: {e}");
-                }
+                && let Err(e) = m.shutdown()
+            {
+                eprintln!("otel meter shutdown: {e}");
+            }
             if let Some(l) = &self.logger
-                && let Err(e) = l.shutdown() {
-                    eprintln!("otel logger shutdown: {e}");
-                }
+                && let Err(e) = l.shutdown()
+            {
+                eprintln!("otel logger shutdown: {e}");
+            }
         }
     }
 }
@@ -76,9 +79,9 @@ pub fn init(otel: Option<&OtelConfig>) -> Result<(TelemetryGuard, Metrics), BoxE
 fn init_otel(cfg: &OtelConfig) -> Result<(TelemetryGuard, Metrics), BoxError> {
     use opentelemetry::metrics::MeterProvider as _;
     use opentelemetry::trace::TracerProvider as _;
+    use opentelemetry_sdk::Resource;
     use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
     use opentelemetry_sdk::trace::SdkTracerProvider;
-    use opentelemetry_sdk::Resource;
     use tracing_subscriber::layer::SubscriberExt as _;
     use tracing_subscriber::util::SubscriberInitExt as _;
 

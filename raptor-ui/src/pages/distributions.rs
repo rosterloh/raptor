@@ -1,7 +1,7 @@
 use crate::components::ui::{Button, Dialog, Input};
 use crate::components::*;
 use crate::pages::{TagFilter, TagKind};
-use crate::{api, logic, Route};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 use raptor_api_types::DsCreate;
 
