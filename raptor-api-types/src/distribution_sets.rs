@@ -36,6 +36,22 @@ pub struct DsRest {
     pub links: Value,
 }
 
+/// Compact reference to a distribution set, for embedding in a payload where the
+/// full [`DsRest`] would be wasteful — it carries every module, which is a lot of
+/// bytes repeated once per row of a target list.
+///
+/// Enough to answer "which set, which version, could this device even take it":
+/// the type is what constrains whether a given device class can install it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DsRef {
+    pub id: i64,
+    pub name: String,
+    pub version: String,
+    #[serde(rename = "type")]
+    pub ds_type: String,
+}
+
 /// Body of `POST /rest/v1/distributionsets` (hawkBit
 /// `MgmtDistributionSetRequestBodyPost`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

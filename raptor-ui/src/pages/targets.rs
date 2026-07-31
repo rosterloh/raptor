@@ -97,9 +97,9 @@ pub fn Targets() -> Element {
 
         // Tags are the only way to segment a mixed fleet — raptor's FIQL cannot
         // query the attributes a device reports about itself (#66) — so they get
-        // first-class chips too. Filtering by tag is one `tag==` term and costs
-        // nothing per row; *displaying* each row's tags would be a request per
-        // row, which is why there is no tag column.
+        // first-class chips too. Filtering by tag compiles to one `tag==` term
+        // server-side; the per-row tags in the table below come from the list
+        // payload itself (#70), not a request per row.
         match &*tags.read_unchecked() {
             Some(Ok(page)) if !page.content.is_empty() => rsx! {
                 div { class: "mt-3 flex flex-wrap gap-2", role: "group", aria_label: "Filter by tag",
@@ -159,8 +159,9 @@ pub fn Targets() -> Element {
                             tr {
                                 th { class: TH, "Name" }
                                 th { class: TH, "Controller ID" }
+                                th { class: TH, "Tags" }
+                                th { class: TH, "Installed set" }
                                 th { class: TH, "State" }
-                                th { class: TH, "Address" }
                                 th { class: "{TH} text-right", "Last poll" }
                             }
                         }
@@ -175,10 +176,49 @@ pub fn Targets() -> Element {
                                         }
                                     }
                                     td { class: "{TD} font-mono text-xs text-foreground", "{t.controller_id}" }
-                                    td { class: TD, StatusBadge { status: t.update_status.clone() } }
-                                    td { class: "{TD} font-mono text-xs text-muted-foreground",
-                                        {t.ip_address.clone().or(t.address.clone()).unwrap_or_else(|| "—".into())}
+                                    td { class: TD,
+                                        if t.tags.is_empty() {
+                                            span { class: "text-muted-foreground", "—" }
+                                        } else {
+                                            div { class: "flex flex-wrap gap-1",
+                                                for tg in t.tags.clone() {
+                                                    TagChip {
+                                                        key: "{tg.id}",
+                                                        name: tg.name.clone(),
+                                                        colour: tg.colour.clone(),
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
+                                    // The installed *set*, not a bare version: a
+                                    // sensor's 2.1.3 and a gateway's 3.4.0 are
+                                    // different upgrade lines. The arrow appears
+                                    // only while the device is behind what it has
+                                    // been told to run.
+                                    td { class: TD,
+                                        match (&t.installed_ds, &t.assigned_ds) {
+                                            (Some(i), _) => rsx! {
+                                                span { class: "block font-mono text-xs text-foreground", "{i.name}" }
+                                                span { class: "font-mono text-[11px] text-muted-foreground",
+                                                    "{i.version} · {i.ds_type}"
+                                                    if t.assigned_ds.as_ref().is_some_and(|a| a.id != i.id) {
+                                                        span { class: "text-pend",
+                                                            " → {t.assigned_ds.as_ref().unwrap().version}"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            (None, Some(a)) => rsx! {
+                                                span { class: "block font-mono text-xs text-muted-foreground", "nothing installed" }
+                                                span { class: "font-mono text-[11px] text-pend", "→ {a.name} {a.version}" }
+                                            },
+                                            (None, None) => rsx! {
+                                                span { class: "text-muted-foreground", "—" }
+                                            },
+                                        }
+                                    }
+                                    td { class: TD, StatusBadge { status: t.update_status.clone() } }
                                     td {
                                         class: "{TD} text-right font-mono text-xs text-muted-foreground",
                                         title: {t.last_controller_request_at.map(logic::format_ts).unwrap_or_default()},

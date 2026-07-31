@@ -1,6 +1,8 @@
 //! Target resource: the `MgmtTarget` DTO, its poll status and auto-confirm
 //! state, create/update request bodies, and target-type CRUD bodies.
 
+use crate::distribution_sets::DsRef;
+use crate::tags::TagRef;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -36,6 +38,23 @@ pub struct TargetRest {
     /// its attributes (hawkBit `requestAttributes`).
     #[serde(default)]
     pub request_attributes: bool,
+    /// The set the device reports as installed. raptor extension, additive: in
+    /// hawkBit this is only the `installedDS` sub-resource, so a list view could
+    /// otherwise only get it one request per row.
+    ///
+    /// Populated by the list and single-target endpoints; omitted elsewhere,
+    /// which is why it is optional rather than always present.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub installed_ds: Option<DsRef>,
+    /// The set the device has been told to install. Differs from
+    /// [`Self::installed_ds`] exactly while an update is in flight or has failed,
+    /// which is what makes the pair worth showing together.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub assigned_ds: Option<DsRef>,
+    /// Tags carried by this target. Also a raptor extension — the reverse lookup
+    /// in hawkBit is per tag, not per target.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub tags: Vec<TagRef>,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }

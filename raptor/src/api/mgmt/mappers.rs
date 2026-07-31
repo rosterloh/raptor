@@ -45,6 +45,13 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> Ta
         poll_status,
         target_type: t.type_id,
         request_attributes: t.request_attributes,
+        // Left empty here and filled by the caller. Resolving them needs extra
+        // queries, and this mapper is used by endpoints that create or tag
+        // targets and have no reason to pay for them — see
+        // `targets::batch_refs`, which resolves a whole page at once.
+        installed_ds: None,
+        assigned_ds: None,
+        tags: Vec::new(),
         links: json!({"self": {"href": format!("{base}/rest/v1/targets/{}", t.controller_id)}}),
     }
 }
