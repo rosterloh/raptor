@@ -52,6 +52,22 @@ pub fn tone_fill(tone: Tone) -> &'static str {
     }
 }
 
+/// Text colour for a [`Tone`] — a figure that *is* its status, like a dashboard
+/// counter.
+///
+/// These must stay literal strings. Tailwind scans source text for class names,
+/// so a runtime-built `"text-{tone}"` produces no rule at all and the element
+/// renders unstyled; returning the literal from a match is what makes it work.
+pub fn tone_text(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Ok => "text-ok",
+        Tone::Pending => "text-pend",
+        Tone::Error => "text-err",
+        Tone::Info => "text-info",
+        Tone::Neutral => "text-neutral",
+    }
+}
+
 /// A `<select>` matching [`ui::Input`]'s border, height and focus ring — the two
 /// sit side by side in the create dialogs. Selects can't reuse the `Input`
 /// component itself (that renders an `<input>`), so the class list lives here.
@@ -71,15 +87,24 @@ pub const ROW: &str = "hover:bg-card";
 pub const LINK_CELL: &str = "block text-primary hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
+pub fn use_polling<T: 'static>(res: Resource<T>) {
+    use_polling_every(res, 5_000);
+}
+
+/// [`use_polling`] with an explicit interval, for data that moves slowly enough
+/// that the 5s tick would just be waste. Saved target filters and the sets they
+/// auto-assign are edited by hand, not by devices, so the dashboard's segment
+/// panel refreshes on a much longer beat than its live counters — otherwise each
+/// segment would multiply the per-tick request count.
 ///
-/// Skips the restart while the tab is hidden. Without the gate, every console
-/// left open in a background tab keeps polling the API every 5s indefinitely —
-/// on the dashboard that is the most expensive read the app makes. Data is up to
-/// one interval stale when the tab comes back, which the next tick clears.
-pub fn use_polling<T: 'static>(mut res: Resource<T>) {
+/// Skips the restart while the tab is hidden either way. Without the gate, every
+/// console left open in a background tab keeps polling the API indefinitely — on
+/// the dashboard that is the most expensive read the app makes. Data is up to one
+/// interval stale when the tab comes back, which the next tick clears.
+pub fn use_polling_every<T: 'static>(mut res: Resource<T>, ms: u32) {
     use_future(move || async move {
         loop {
-            gloo_timers::future::TimeoutFuture::new(5_000).await;
+            gloo_timers::future::TimeoutFuture::new(ms).await;
             if !tab_hidden() {
                 res.restart();
             }
