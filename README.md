@@ -78,21 +78,30 @@ Keep plaintext secrets (e.g. a DDI gateway token) out of the world-readable
 config — put them in a root-only `/etc/raptor/raptor.env` as `RAPTOR_*`
 environment overrides, which the unit loads before dropping privileges.
 
-To build a package yourself: `cargo install cargo-deb && dx build --release
---package raptor-ui && cargo deb -p raptor`.
+To build a package yourself: `cargo install cargo-deb && rm -rf
+target/dx/raptor-ui/release && dx build --release --package raptor-ui && cargo
+deb -p raptor`. The `rm -rf` matters — see [Web UI](#web-ui).
 
 ## Web UI
 
 raptor ships an optional web console (Dioxus/WASM) embedded in the binary.
 
-One-time setup, then a two-step build:
+One-time setup, then the build:
 
     rustup target add wasm32-unknown-unknown
-    cargo binstall dioxus-cli@0.7.9  # or: cargo install dioxus-cli@0.7.9
-    # pinned to match the crate's `dioxus = "=0.7.9"` — bump both together
+    cargo binstall dioxus-cli@0.7.10  # or: cargo install dioxus-cli@0.7.10
+    # pinned to match the crate's `dioxus = "=0.7.10"` — bump both together
 
+    rm -rf target/dx/raptor-ui/release        # see the note below
     dx build --release --package raptor-ui    # from the repo root
     cargo build --release --features embed-ui
+
+`dx` writes content-hashed asset filenames and never prunes superseded ones, so
+`target/dx/raptor-ui/release/web/public/assets/` accumulates one wasm bundle and
+one stylesheet per build. `embed-ui` embeds that whole directory, so on a target
+dir that has seen a few builds the binary carries several megabytes of assets
+nothing can reach. Clearing the release output first keeps the `.deb` honest;
+CI builds from a fresh checkout and is unaffected.
 
 Then browse to `http://<server>/ui` and log in with the `[mgmt]` credentials.
 The UI authenticates with an httpOnly session cookie (`POST /rest/v1/login`);
@@ -105,8 +114,14 @@ Without `--features embed-ui`, raptor builds and runs exactly as before and
 
 Development loop (hot reload):
 
-    cargo run -- serve --config raptor.toml     # terminal 1: API on :8088
-    cd raptor-ui && dx serve                    # terminal 2: UI with /rest proxy
+Both commands run from the repo root:
+
+    cargo run -- serve --config raptor.toml   # terminal 1: API on :8088
+    dx serve --package raptor-ui              # terminal 2: UI on :8080/ui, /rest proxied
+
+`dx` must be invoked from the workspace root — from inside `raptor-ui/` it
+panics canonicalizing the workspace `default-members` paths against the wrong
+cwd.
 
 (`dx build --release` may print a non-fatal wasm-opt/DWARF warning — harmless,
 the bundle still builds.)
@@ -184,5 +199,7 @@ via a periodic sweep. The DDI confirmation flow (`confirmationBase`, opt-in via
 it requires a client implementing `confirmationBase`; use `[ddi]
 auto_confirm_default` for clients that don't (the mainline Zephyr one, for
 example). raptor is **single-tenant**: DDI clients should be configured with
-tenant `DEFAULT`. Not yet: tags, AMQP/DMF. Design docs in
+tenant `DEFAULT`. Target and distribution-set tags
+(`/rest/v1/targettags`, `/rest/v1/distributionsettags`) are supported, including
+the `tag==` FIQL term. Not yet: AMQP/DMF. Design docs in
 `docs/superpowers/specs/`.
