@@ -1,8 +1,14 @@
-use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
+use crate::components::ui::{Button, ButtonVariant, Dialog};
 use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
 use crate::{Route, api, logic};
 use dioxus::prelude::*;
+use raptor_api_types::{ActionRest, DsRest};
+
+const ACTION_ROWS: u64 = 20;
+/// A single action's history is short — assignment through to finished is a
+/// handful of entries even on a device that retried.
+const STATUS_ROWS: u64 = 50;
 
 #[component]
 pub fn TargetDetail(cid: String) -> Element {
@@ -12,13 +18,15 @@ pub fn TargetDetail(cid: String) -> Element {
     let mut assigned = use_resource(move || async move { api::assigned_ds(&cid_s()).await });
     let installed = use_resource(move || async move { api::installed_ds(&cid_s()).await });
     let mut actions =
-        use_resource(move || async move { api::target_actions(&cid_s(), 0, 10).await });
+        use_resource(move || async move { api::target_actions(&cid_s(), 0, ACTION_ROWS).await });
     let tags = use_resource(move || async move { api::target_tags(&cid_s()).await });
     use_polling(actions);
 
     let mut show_assign = use_signal(|| false);
     let mut confirm_delete = use_signal(|| false);
+    let tab = use_signal(|| 0usize);
     let nav = use_navigator();
+    let now = now_ms();
 
     let mut refresh = move || {
         target.restart();
@@ -27,96 +35,217 @@ pub fn TargetDetail(cid: String) -> Element {
     };
 
     rsx! {
-        h1 { class: HEADING, "Target {cid_s()}" }
-        div { class: "mb-4 flex gap-2",
-            Button { onclick: move |_| show_assign.set(true), "Assign distribution set" }
-            Button {
-                variant: ButtonVariant::Destructive,
-                onclick: move |_| confirm_delete.set(true),
-                "Delete target"
-            }
-        }
-        div { class: "grid grid-cols-2 gap-4",
-            Card {
-                h2 { class: "mb-2 font-semibold text-foreground", "Status" }
+        div { class: "mb-5 flex flex-wrap items-end justify-between gap-4",
+            div {
                 match &*target.read_unchecked() {
                     Some(Ok(t)) => rsx! {
-                        dl { class: "space-y-1 text-sm",
-                            Row { k: "Name", v: t.name.clone() }
-                            div { class: "flex gap-2",
-                                dt { class: "w-32 text-muted-foreground", "Update status" }
-                                dd { StatusBadge { status: t.update_status.clone() } }
-                            }
-                            Row { k: "Last poll", v: t.last_controller_request_at.map(logic::format_ts).unwrap_or_else(|| "never".into()) }
-                            Row { k: "Address", v: t.address.clone().unwrap_or_else(|| "-".into()) }
-                            Row { k: "Security token", v: t.security_token.clone() }
+                        h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                            "{t.name}"
+                        }
+                        p { class: "mt-0.5 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground",
+                            span { class: "text-foreground", "{t.controller_id}" }
+                            "·"
+                            StatusBadge { status: t.update_status.clone() }
                         }
                     },
-                    Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| target.restart() } },
-                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
-                }
-            }
-            Card {
-                h2 { class: "mb-2 font-semibold text-foreground", "Distribution sets" }
-                DsSummary { label: "Assigned", res: assigned }
-                DsSummary { label: "Installed", res: installed }
-            }
-            Card {
-                EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
-            }
-            Card {
-                h2 { class: "mb-2 font-semibold text-foreground", "Attributes" }
-                match &*attributes.read_unchecked() {
-                    Some(Ok(attrs)) if attrs.is_empty() => rsx! { p { class: "text-sm text-muted-foreground", "none reported" } },
-                    Some(Ok(attrs)) => rsx! {
-                        dl { class: "space-y-1 text-sm",
-                            for (k , v) in attrs.clone() {
-                                Row { k: "{k}", v: "{v}" }
-                            }
+                    _ => rsx! {
+                        h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                            "{cid_s()}"
                         }
                     },
-                    Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
-                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
                 }
             }
-            Card {
-                h2 { class: "mb-2 font-semibold text-foreground", "Recent actions" }
-                match &*actions.read_unchecked() {
-                    Some(Ok(page)) => rsx! {
-                        ul { class: "space-y-2 text-sm",
-                            for a in page.content.clone() {
-                                li { key: "{a.id}", class: "flex items-center justify-between",
-                                    span { "#{a.id} {a.action_type} — {a.detail_status} ({logic::format_ts(a.last_modified_at)})" }
-                                    if a.status == "pending" {
-                                        button {
-                                            class: "text-xs text-err hover:underline",
-                                            onclick: move |_| {
-                                                let cid = cid_s();
-                                                let aid = a.id;
-                                                spawn(async move {
-                                                    match api::cancel_action(&cid, aid, false).await {
-                                                        Ok(()) => toast_ok(format!("cancel requested for action #{aid}")),
-                                                        Err(e) => toast_error(e.to_string()),
-                                                    }
-                                                    actions.restart();
-                                                });
-                                            },
-                                            "Cancel"
+            div { class: "flex flex-wrap gap-2",
+                Button {
+                    variant: ButtonVariant::Outline,
+                    onclick: move |_| confirm_delete.set(true),
+                    "Delete target"
+                }
+                Button { onclick: move |_| show_assign.set(true), "Assign update" }
+            }
+        }
+
+        SectionRule { label: "Delivery state" }
+        div { class: "grid grid-cols-1 gap-px border border-border-soft bg-border-soft sm:grid-cols-3",
+            // Version alone means nothing across device classes, so each tile
+            // names the set the number belongs to.
+            DsTile { label: "Installed", res: installed }
+            DsTile { label: "Assigned", res: assigned }
+            div { class: "tick-scale relative bg-card p-4",
+                p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                    "Last poll"
+                }
+                match &*target.read_unchecked() {
+                    Some(Ok(t)) => rsx! {
+                        p { class: "font-display mt-1.5 text-[28px] leading-none font-bold text-foreground",
+                            {logic::relative_age(now, t.last_controller_request_at)}
+                        }
+                        p { class: "mt-1.5 font-mono text-[11px] text-muted-foreground",
+                            {t.last_controller_request_at.map(logic::format_ts).unwrap_or_else(|| "never polled".into())}
+                        }
+                    },
+                    _ => rsx! {
+                        p { class: "font-display mt-1.5 text-[28px] leading-none font-bold text-muted-foreground",
+                            "…"
+                        }
+                    },
+                }
+            }
+        }
+
+        SectionRule { label: "Detail" }
+        div { class: "border border-border-soft bg-card px-4 pb-4",
+            Tabs {
+                labels: vec![
+                    "Overview".to_string(),
+                    "Attributes".to_string(),
+                    "Action history".to_string(),
+                    "Tags".to_string(),
+                ],
+                selected: tab,
+
+                TabPanel { index: 0, selected: tab,
+                    div { class: "grid grid-cols-1 gap-6 lg:grid-cols-2",
+                        div {
+                            match &*target.read_unchecked() {
+                                Some(Ok(t)) => rsx! {
+                                    dl { class: "grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-sm",
+                                        Row { k: "Controller ID", v: t.controller_id.clone(), mono: true }
+                                        Row { k: "Name", v: t.name.clone() }
+                                        Row {
+                                            k: "Description",
+                                            v: t.description.clone().unwrap_or_else(|| "—".into()),
                                         }
+                                        Row {
+                                            k: "Address",
+                                            v: t.ip_address.clone().or(t.address.clone()).unwrap_or_else(|| "—".into()),
+                                            mono: true,
+                                        }
+                                        Row { k: "Security token", v: t.security_token.clone(), mono: true }
+                                        Row { k: "Registered", v: logic::format_ts(t.created_at) }
+                                    }
+                                },
+                                Some(Err(e)) => rsx! {
+                                    ErrorPane { message: e.to_string(), on_retry: move |_| target.restart() }
+                                },
+                                None => rsx! { p { class: "text-sm text-muted-foreground", "Loading…" } },
+                            }
+                        }
+                        // What is actually on the device. The shape of this list
+                        // differs per class — a gateway carries an os module and
+                        // an application, a sensor carries one image — which is
+                        // why the set's version alone is not the answer.
+                        div {
+                            p { class: "mb-2 font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                                "Installed modules"
+                            }
+                            match &*installed.read_unchecked() {
+                                Some(Ok(Some(ds))) if !ds.modules.is_empty() => rsx! {
+                                    table { class: TABLE,
+                                        thead {
+                                            tr {
+                                                th { class: TH, "Type" }
+                                                th { class: TH, "Module" }
+                                                th { class: "{TH} text-right", "Version" }
+                                            }
+                                        }
+                                        tbody {
+                                            for m in ds.modules.clone() {
+                                                tr { key: "{m.id}",
+                                                    td { class: "{TD} font-mono text-xs text-muted-foreground",
+                                                        "{m.module_type}"
+                                                    }
+                                                    td { class: TD,
+                                                        Link {
+                                                            to: Route::ModuleDetail { id: m.id },
+                                                            class: LINK_CELL,
+                                                            "{m.name}"
+                                                        }
+                                                    }
+                                                    td { class: "{TD} text-right font-mono text-xs", "{m.version}" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                Some(Ok(Some(_))) => rsx! {
+                                    p { class: "text-sm text-muted-foreground",
+                                        "The installed set has no modules — it is incomplete."
+                                    }
+                                },
+                                Some(Ok(None)) => rsx! {
+                                    p { class: "text-sm text-muted-foreground",
+                                        "Nothing installed yet. The device reports this once it has finished an update."
+                                    }
+                                },
+                                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                                None => rsx! { p { class: "text-sm text-muted-foreground", "Loading…" } },
+                            }
+                        }
+                    }
+                }
+
+                TabPanel { index: 1, selected: tab,
+                    match &*attributes.read_unchecked() {
+                        Some(Ok(attrs)) if attrs.is_empty() => rsx! {
+                            p { class: "text-sm text-muted-foreground",
+                                "None reported. A device sends these on its configData request."
+                            }
+                        },
+                        Some(Ok(attrs)) => rsx! {
+                            dl { class: "grid grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm",
+                                for (k , v) in attrs.clone() {
+                                    Row { key: "{k}", k: "{k}", v: "{v}", mono: true }
+                                }
+                            }
+                            p { class: "mt-4 text-xs text-muted-foreground",
+                                "Free-form and device-defined, so the keys differ per device class. They are not
+                                 queryable: raptor's FIQL covers controllerId, name, description, updateStatus,
+                                 lastControllerRequestAt, address and tags, so segmenting by hardware goes through a tag."
+                            }
+                        },
+                        Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                        None => rsx! { p { class: "text-sm text-muted-foreground", "Loading…" } },
+                    }
+                }
+
+                TabPanel { index: 2, selected: tab,
+                    match &*actions.read_unchecked() {
+                        Some(Ok(page)) if page.content.is_empty() => rsx! {
+                            p { class: "text-sm text-muted-foreground",
+                                "No actions yet. One appears here as soon as a distribution set is assigned."
+                            }
+                        },
+                        Some(Ok(page)) => rsx! {
+                            div { class: "divide-y divide-border-subtle",
+                                for a in page.content.clone() {
+                                    ActionRow {
+                                        key: "{a.id}",
+                                        cid: cid_s(),
+                                        action: a,
+                                        on_cancelled: move |_| actions.restart(),
                                     }
                                 }
                             }
-                        }
-                    },
-                    Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
-                    None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
+                        },
+                        Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                        None => rsx! { p { class: "text-sm text-muted-foreground", "Loading…" } },
+                    }
+                }
+
+                TabPanel { index: 3, selected: tab,
+                    EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
                 }
             }
         }
+
         AssignDsDialog { open: show_assign, cid: cid_s, on_done: move |_| refresh() }
         ConfirmDialog {
             title: "Delete target".to_string(),
-            message: format!("Delete target {} and its attributes? This cannot be undone.", cid_s()),
+            message: format!(
+                "Delete {} and its action history? The device re-registers on its next poll, without its tags or assignment.",
+                cid_s(),
+            ),
             open: confirm_delete,
             on_confirm: move |_| {
                 let cid = cid_s();
@@ -134,33 +263,162 @@ pub fn TargetDetail(cid: String) -> Element {
     }
 }
 
+/// One action, expandable to its status history.
+///
+/// The history is the answer to "why is this device stuck": the latest
+/// `detailStatus` says *what* state it is in, the timeline says how it got there
+/// and what the device said on the way. Fetched only when expanded, so a target
+/// with twenty actions costs one request until you ask about a specific one.
 #[component]
-fn Row(k: String, v: String) -> Element {
+fn ActionRow(cid: String, action: ActionRest, on_cancelled: EventHandler<()>) -> Element {
+    let mut open = use_signal(|| false);
+    let aid = action.id;
+    let cid_for_history = cid.clone();
+    let history = use_resource(move || {
+        let cid = cid_for_history.clone();
+        async move {
+            if open() {
+                Some(api::action_status_history(&cid, aid, 0, STATUS_ROWS).await)
+            } else {
+                None
+            }
+        }
+    });
+    let cancellable = action.status == "pending";
     rsx! {
-        div { class: "flex gap-2",
-            dt { class: "w-32 shrink-0 text-muted-foreground", "{k}" }
-            dd { class: "break-all", "{v}" }
+        div { class: "py-3",
+            div { class: "flex flex-wrap items-center gap-3",
+                button {
+                    r#type: "button",
+                    class: "flex items-center gap-2 font-mono text-xs text-fg-dim hover:text-foreground",
+                    aria_expanded: open(),
+                    onclick: move |_| open.toggle(),
+                    span { class: "inline-block w-3 text-muted-foreground",
+                        if open() {
+                            "−"
+                        } else {
+                            "+"
+                        }
+                    }
+                    span { class: "text-foreground", "#{action.id}" }
+                }
+                span { class: "font-mono text-xs text-muted-foreground", "{action.action_type}" }
+                StatusBadge { status: action.detail_status.clone() }
+                span { class: "ml-auto font-mono text-[11px] text-muted-foreground",
+                    {logic::format_ts(action.last_modified_at)}
+                }
+                if cancellable {
+                    button {
+                        r#type: "button",
+                        class: "font-mono text-[11px] text-err hover:underline",
+                        onclick: move |_| {
+                            let cid = cid.clone();
+                            spawn(async move {
+                                match api::cancel_action(&cid, aid, false).await {
+                                    Ok(()) => toast_ok(format!("cancel requested for action #{aid}")),
+                                    Err(e) => toast_error(e.to_string()),
+                                }
+                                on_cancelled.call(());
+                            });
+                        },
+                        "Cancel"
+                    }
+                }
+            }
+            if open() {
+                div { class: "mt-3 ml-3 border-l border-border-soft pl-4",
+                    match &*history.read_unchecked() {
+                        Some(Some(Ok(page))) if page.content.is_empty() => rsx! {
+                            p { class: "text-xs text-muted-foreground", "No status entries recorded." }
+                        },
+                        Some(Some(Ok(page))) => rsx! {
+                            ol { class: "space-y-3",
+                                for s in page.content.clone() {
+                                    li { key: "{s.id}", class: "relative",
+                                        div { class: "flex flex-wrap items-baseline gap-2",
+                                            span { class: "-ml-[21px] size-[7px] shrink-0 rounded-full {tone_fill(logic::status_style(&s.status_type).1)}" }
+                                            span { class: "font-mono text-xs text-foreground",
+                                                {logic::status_style(&s.status_type).0}
+                                            }
+                                            span { class: "font-mono text-[11px] text-muted-foreground",
+                                                {logic::format_ts(s.reported_at)}
+                                            }
+                                        }
+                                        // Whatever the device attached. Usually the
+                                        // only place a failure says why it failed.
+                                        if !s.messages.is_empty() {
+                                            ul { class: "mt-1 space-y-0.5",
+                                                for (i , m) in s.messages.iter().enumerate() {
+                                                    li {
+                                                        key: "{i}",
+                                                        class: "font-mono text-[11px] break-all text-fg-dim",
+                                                        "{m}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        Some(Some(Err(e))) => rsx! { p { class: "text-xs text-err", "{e}" } },
+                        _ => rsx! {
+                            p { class: "text-xs text-muted-foreground", "Loading history…" }
+                        },
+                    }
+                }
+            }
         }
     }
 }
 
 #[component]
-fn DsSummary(
-    label: String,
-    res: Resource<crate::api::ApiResult<Option<raptor_api_types::DsRest>>>,
-) -> Element {
+fn Row(k: String, v: String, #[props(default = false)] mono: bool) -> Element {
     rsx! {
-        div { class: "mb-2 text-sm",
-            span { class: "text-muted-foreground", "{label}: " }
+        dt { class: "text-muted-foreground", "{k}" }
+        dd {
+            class: if mono { "font-mono text-xs break-all text-foreground" } else { "break-all text-fg-dim" },
+            "{v}"
+        }
+    }
+}
+
+/// Installed or assigned set: the version big, the set it belongs to underneath.
+#[component]
+fn DsTile(label: String, res: Resource<api::ApiResult<Option<DsRest>>>) -> Element {
+    rsx! {
+        div { class: "tick-scale relative bg-card p-4",
+            p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                "{label}"
+            }
             match &*res.read_unchecked() {
                 Some(Ok(Some(ds))) => rsx! {
-                    Link { to: crate::Route::DsDetail { id: ds.id }, class: "text-primary hover:underline",
-                        "{ds.name} {ds.version}"
+                    p { class: "font-display mt-1.5 text-[28px] leading-none font-bold text-foreground",
+                        "{ds.version}"
+                    }
+                    p { class: "mt-1.5 font-mono text-[11px] text-muted-foreground",
+                        Link {
+                            to: Route::DsDetail { id: ds.id },
+                            class: "hover:text-fg-dim hover:underline",
+                            "{ds.name}"
+                        }
+                        " · {ds.ds_type}"
                     }
                 },
-                Some(Ok(None)) => rsx! { span { class: "text-muted-foreground", "none" } },
-                Some(Err(e)) => rsx! { span { class: "text-err", "{e}" } },
-                None => rsx! { span { class: "text-muted-foreground", "…" } },
+                Some(Ok(None)) => rsx! {
+                    p { class: "font-display mt-1.5 text-[28px] leading-none font-bold text-muted-foreground",
+                        "—"
+                    }
+                    p { class: "mt-1.5 font-mono text-[11px] text-muted-foreground", "none" }
+                },
+                Some(Err(e)) => rsx! {
+                    p { class: "mt-1.5 text-sm text-err", "{e}" }
+                },
+                None => rsx! {
+                    p { class: "font-display mt-1.5 text-[28px] leading-none font-bold text-muted-foreground",
+                        "…"
+                    }
+                },
             }
         }
     }
@@ -201,6 +459,7 @@ pub fn AssignDsDialog(
                                         onchange: move |_| selected.set(Some(ds.id)),
                                     }
                                     span { "{ds.name} {ds.version}" }
+                                    span { class: "font-mono text-[11px] text-muted-foreground", "{ds.ds_type}" }
                                     if !ds.complete {
                                         span { class: "text-xs text-pend", "(incomplete)" }
                                     }

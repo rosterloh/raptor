@@ -141,6 +141,15 @@ pub fn percent(n: i64, total: i64) -> f64 {
 /// "in sync" — because the badge shows a word next to its colour rather than
 /// relying on colour alone.
 pub fn status_style(update_status: &str) -> (&'static str, Tone) {
+    // A cancellation's own lifecycle. Never a success or a failure of the
+    // update itself, so the whole family reads neutral.
+    if let Some(rest) = update_status.strip_prefix("cancel_") {
+        return match rest {
+            "rejected" => ("cancel rejected", Tone::Pending),
+            "closed" => ("cancel closed", Tone::Neutral),
+            _ => ("cancelling", Tone::Neutral),
+        };
+    }
     match update_status {
         "in_sync" => ("in sync", Tone::Ok),
         "pending" => ("pending", Tone::Pending),
@@ -153,7 +162,22 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
         "paused" => ("paused", Tone::Pending),
         "finished" => ("finished", Tone::Ok),
         "canceled" => ("canceled", Tone::Neutral),
+        "canceling" | "cancelling" => ("cancelling", Tone::Pending),
         "stopped" => ("stopped", Tone::Error),
+        // Action-status history entries. These are the `execution` values a
+        // device reports over DDI, so the set is whatever the client sends.
+        "download" => ("download", Tone::Pending),
+        "downloaded" => ("downloaded", Tone::Pending),
+        "proceeding" => ("proceeding", Tone::Pending),
+        "resumed" => ("resumed", Tone::Pending),
+        // `closed` means the device stopped working on the action; on its own it
+        // says nothing about whether the install succeeded. Painting it green
+        // would call a failed update a success, so it stays neutral and the
+        // action's own status carries the outcome.
+        "closed" => ("closed", Tone::Neutral),
+        "confirmed" => ("confirmed", Tone::Info),
+        "rejected" => ("rejected", Tone::Error),
+        "denied" => ("denied", Tone::Error),
         _ => ("unknown", Tone::Neutral),
     }
 }
@@ -371,6 +395,24 @@ mod tests {
         assert_eq!(status_style("stopped").1, Tone::Error);
         assert_eq!(status_style("in_sync").1, Tone::Ok);
         assert_eq!(status_style("???").1, Tone::Neutral);
+
+        // Device-reported DDI execution values, as they appear in an action's
+        // status history.
+        assert_eq!(status_style("download").1, Tone::Pending);
+        assert_eq!(status_style("downloaded").1, Tone::Pending);
+        assert_eq!(status_style("proceeding").1, Tone::Pending);
+        assert_eq!(status_style("rejected").1, Tone::Error);
+        assert_eq!(status_style("denied").1, Tone::Error);
+        assert_eq!(status_style("confirmed").1, Tone::Info);
+        // `closed` alone does not mean success — a failed install closes too, so
+        // it must never render as Ok.
+        assert_ne!(status_style("closed").1, Tone::Ok);
+        // The cancel_* family is a cancellation's lifecycle, never the update's
+        // own success or failure.
+        assert_eq!(status_style("cancel_closed").1, Tone::Neutral);
+        assert_eq!(status_style("cancel_rejected").1, Tone::Pending);
+        assert_eq!(status_style("cancel_anything_else").1, Tone::Neutral);
+        assert_eq!(status_style("cancel_closed").0, "cancel closed");
         // No Tailwind class ever leaves this module again — that is what makes a
         // palette change an edit to tailwind.css rather than to Rust.
         assert!(!format!("{:?}", status_style("error")).contains("bg-"));

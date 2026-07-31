@@ -12,6 +12,7 @@ pub mod paginator;
 pub mod progress;
 pub mod search;
 pub mod section;
+pub mod tabs;
 pub mod tag_chip;
 pub mod toast;
 pub mod ui;
@@ -24,6 +25,7 @@ pub use paginator::Paginator;
 pub use progress::{ProgressBar, ProgressLegend};
 pub use search::SearchBox;
 pub use section::SectionRule;
+pub use tabs::{TabPanel, Tabs};
 pub use tag_chip::TagChip;
 pub use toast::{ToastStack, toast_error, toast_ok};
 
