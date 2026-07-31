@@ -5,21 +5,25 @@
 //! two layers stay one design system.
 
 pub mod badge;
+pub mod chip;
 pub mod confirm;
 pub mod error_pane;
 pub mod paginator;
 pub mod progress;
 pub mod search;
+pub mod section;
 pub mod tag_chip;
 pub mod toast;
 pub mod ui;
 
 pub use badge::StatusBadge;
+pub use chip::Chip;
 pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;
 pub use paginator::Paginator;
 pub use progress::{ProgressBar, ProgressLegend};
 pub use search::SearchBox;
+pub use section::SectionRule;
 pub use tag_chip::TagChip;
 pub use toast::{ToastStack, toast_error, toast_ok};
 
@@ -110,6 +114,21 @@ pub fn use_polling_every<T: 'static>(mut res: Resource<T>, ms: u32) {
             }
         }
     });
+}
+
+/// Wall-clock milliseconds, for turning a stored timestamp into an age. Lives
+/// here beside [`tab_hidden`] rather than in `logic`, which stays free of
+/// platform lookups so it can be tested on the host; `logic::relative_age` takes
+/// `now` as an argument for the same reason. Returns 0 off-wasm.
+pub fn now_ms() -> i64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as i64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        0
+    }
 }
 
 /// Whether the document is currently hidden — a backgrounded tab or a minimised

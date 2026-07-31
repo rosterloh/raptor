@@ -64,6 +64,29 @@ pub fn format_ts(ms: i64) -> String {
         .unwrap_or_else(|| "-".into())
 }
 
+/// How long ago something happened, at a glance: `4s`, `16m`, `3h`, `12d`.
+///
+/// The question an operator asks of a poll timestamp is "is this device stale",
+/// and an absolute clock time makes them do the arithmetic. Only ever used on
+/// screens that poll, so the answer does not sit there going quietly wrong.
+///
+/// `None` renders as `never` — a target that has registered but never polled is
+/// a different and worse condition than one that is merely late.
+pub fn relative_age(now_ms: i64, then_ms: Option<i64>) -> String {
+    let Some(then) = then_ms else {
+        return "never".into();
+    };
+    // A clock skewed behind the server, or a timestamp from the future, must not
+    // render as a huge negative age.
+    let secs = ((now_ms - then) / 1000).max(0);
+    match secs {
+        s if s < 60 => format!("{s}s"),
+        s if s < 3600 => format!("{}m", s / 60),
+        s if s < 86_400 => format!("{}h", s / 3600),
+        s => format!("{}d", s / 86_400),
+    }
+}
+
 /// What a state *means*, independent of how it is painted.
 ///
 /// This module is compiled and tested on the host and holds no presentation:
@@ -277,6 +300,25 @@ mod tests {
     #[test]
     fn timestamps_render() {
         assert_eq!(format_ts(0), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn relative_age_scales_and_never_goes_negative() {
+        let now = 1_000_000_000;
+        let ago = |secs: i64| relative_age(now, Some(now - secs * 1000));
+        assert_eq!(ago(0), "0s");
+        assert_eq!(ago(45), "45s");
+        assert_eq!(ago(60), "1m");
+        assert_eq!(ago(59 * 60), "59m");
+        assert_eq!(ago(3600), "1h");
+        assert_eq!(ago(23 * 3600), "23h");
+        assert_eq!(ago(86_400), "1d");
+        assert_eq!(ago(400 * 86_400), "400d");
+        // Never polled is its own answer, not "a very long time ago".
+        assert_eq!(relative_age(now, None), "never");
+        // A device clock ahead of ours, or ours behind the server, must not
+        // produce a negative age.
+        assert_eq!(relative_age(now, Some(now + 60_000)), "0s");
     }
 
     #[test]

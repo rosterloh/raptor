@@ -70,6 +70,10 @@ pub fn Dashboard() -> Element {
     // one is read once rather than polled with the rest.
     let configs = use_resource(|| async { api::system_configs().await });
 
+    // Read once per render rather than per row, so every age on the page is
+    // measured against the same instant.
+    let now = now_ms();
+
     rsx! {
         match &*data.read_unchecked() {
             Some(Ok((stats, recent, rollouts, failing))) => {
@@ -168,8 +172,10 @@ pub fn Dashboard() -> Element {
                                                     }
                                                     td { class: TD, "{t.name}" }
                                                     td { class: TD, StatusBadge { status: t.update_status.clone() } }
-                                                    td { class: "{TD} text-right font-mono text-xs text-muted-foreground",
-                                                        {t.last_controller_request_at.map(logic::format_ts).unwrap_or_else(|| "never".into())}
+                                                    td {
+                                                        class: "{TD} text-right font-mono text-xs text-err",
+                                                        title: {t.last_controller_request_at.map(logic::format_ts).unwrap_or_default()},
+                                                        {logic::relative_age(now, t.last_controller_request_at)}
                                                     }
                                                 }
                                             }
@@ -223,20 +229,6 @@ pub fn Dashboard() -> Element {
         }
         SectionRule { label: "System" }
         SystemCard { configs }
-    }
-}
-
-/// A labelled hairline separating one region from the next. Cheaper than a card
-/// per group, and it keeps the page reading as one dense surface.
-#[component]
-fn SectionRule(label: String) -> Element {
-    rsx! {
-        div { class: "mt-6 mb-3 flex items-center gap-3",
-            span { class: "font-mono text-[11px] font-medium tracking-[0.1em] text-muted-foreground uppercase",
-                "{label}"
-            }
-            span { class: "h-px flex-1 bg-border-soft" }
-        }
     }
 }
 
