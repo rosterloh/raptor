@@ -52,7 +52,7 @@ The embedded web console is behind the `embed-ui` Cargo feature. It requires the
 [Dioxus CLI](https://dioxuslabs.com/) (`dx`) to build the WASM bundle first:
 
 ```console
-$ cargo binstall dioxus-cli@0.7.9
+$ cargo binstall dioxus-cli@0.7.10
 $ dx build --release --package raptor-ui
 $ cargo build --release --features embed-ui
 ```

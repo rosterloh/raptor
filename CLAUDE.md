@@ -39,10 +39,10 @@ cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings
 ```
 
 Web console (only needed for `embed-ui` work; pinned `dioxus-cli` version must
-match the crate's `dioxus = "=0.7.9"` — bump both together):
+match the crate's `dioxus = "=0.7.10"` — bump both together):
 
 ```sh
-cargo binstall dioxus-cli@0.7.9
+cargo binstall dioxus-cli@0.7.10
 dx build --release --package raptor-ui   # from the repo root, THEN:
 cargo build --release --features embed-ui
 ```

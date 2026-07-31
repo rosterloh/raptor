@@ -6,7 +6,8 @@ default_platform = "web"
 title = "raptor"
 base_path = "ui"
 
-# dev loop: `dx serve` here + `cargo run -- serve` in raptor/ → API calls proxied
+# dev loop, both from the repo root: `dx serve --package raptor-ui` +
+# `cargo run -- serve --config raptor.toml` → API calls proxied
 [[web.proxy]]
 backend = "http://localhost:8088/rest"
 

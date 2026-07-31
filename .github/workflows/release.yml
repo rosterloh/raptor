@@ -20,7 +20,7 @@ jobs:
       # target/dx/raptor-ui/release/web/public, which the `embed-ui` feature
       # embeds into the raptor binary. --disable-strategies compile forces the
       # prebuilt dx binary (avoids a slow, occasionally-broken source build).
-      - run: cargo binstall dioxus-cli@0.7.9 --no-confirm --force --disable-strategies compile
+      - run: cargo binstall dioxus-cli@0.7.10 --no-confirm --force --disable-strategies compile
       - run: dx build --release --package raptor-ui
 
       # cargo-deb builds `raptor` in release with the embed-ui feature (per

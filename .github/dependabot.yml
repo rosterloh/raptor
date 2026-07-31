@@ -10,7 +10,7 @@ updates:
       cargo-minor-patch:
         update-types: [minor, patch]
     ignore:
-      # `dioxus = "=0.7.9"` must match the dioxus-cli version installed in CI
+      # `dioxus = "=0.7.10"` must match the dioxus-cli version installed in CI
       # (release.yml) — bump both together by hand.
       - dependency-name: dioxus
 

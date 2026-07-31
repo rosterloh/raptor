@@ -35,10 +35,10 @@ jobs:
         with: { targets: wasm32-unknown-unknown, components: clippy }
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@v1.21.1
-      # pinned to match the crate's `dioxus = "=0.7.9"`; --force works around
+      # pinned to match the crate's `dioxus = "=0.7.10"`; --force works around
       # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
       # which makes binstall skip a reinstall and leaves `dx` missing on PATH
-      - run: cargo binstall dioxus-cli@0.7.9 --no-confirm --force
+      - run: cargo binstall dioxus-cli@0.7.10 --no-confirm --force
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
       - run: cargo test -p raptor --features embed-ui --test ui_serving
@@ -56,7 +56,7 @@ jobs:
       - name: committed tailwind.css is up to date
         run: |
           # dx discards the tailwind step's result (`_ = TailwindCli::run_once(..)`,
-          # dioxus-cli 0.7.9 src/build/request.rs), so a failed download leaves the
+          # dioxus-cli 0.7.10 src/build/request.rs), so a failed download leaves the
           # asset untouched and the diff below passes having checked nothing. Prove
           # the generator was there before trusting a green result.
           if ! find "${XDG_DATA_HOME:-$HOME/.local/share}/.dx/tools" -name 'tailwindcss*' -type f 2>/dev/null | grep -q . \
