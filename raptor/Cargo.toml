@@ -1,7 +1,8 @@
 [package]
 name = "raptor"
-version = "1.0.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
 description = "A hawkBit-compatible OTA update server in Rust"
 license = "MIT"
 repository = "https://github.com/rosterloh/raptor"

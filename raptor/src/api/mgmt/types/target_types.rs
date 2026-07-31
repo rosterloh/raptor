@@ -115,8 +115,8 @@ pub async fn tt_update(
         .await?
         .ok_or(AppError::NotFound("target type"))?;
     // A rename must not collide with another type.
-    if let Some(name) = &u.name {
-        if target_type::Entity::find()
+    if let Some(name) = &u.name
+        && target_type::Entity::find()
             .filter(target_type::Column::Name.eq(name))
             .one(&st.db)
             .await?
@@ -126,7 +126,6 @@ pub async fn tt_update(
                 "target type {name} already exists"
             )));
         }
-    }
     let mut am: target_type::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);

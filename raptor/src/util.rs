@@ -36,15 +36,14 @@ pub fn client_address(
     headers: &HeaderMap,
     peer: Option<std::net::SocketAddr>,
 ) -> Option<String> {
-    if let Some(name) = &cfg.ddi.trusted_proxy_header {
-        if let Some(ip) = headers
+    if let Some(name) = &cfg.ddi.trusted_proxy_header
+        && let Some(ip) = headers
             .get(name)
             .and_then(|v| v.to_str().ok())
             .and_then(forwarded_ip)
         {
             return Some(ip);
         }
-    }
     peer.map(|p| p.ip().to_string())
 }
 

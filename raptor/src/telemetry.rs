@@ -36,21 +36,18 @@ impl TelemetryGuard {
     pub fn shutdown(&self) {
         #[cfg(feature = "otel")]
         {
-            if let Some(t) = &self.tracer {
-                if let Err(e) = t.shutdown() {
+            if let Some(t) = &self.tracer
+                && let Err(e) = t.shutdown() {
                     eprintln!("otel tracer shutdown: {e}");
                 }
-            }
-            if let Some(m) = &self.meter {
-                if let Err(e) = m.shutdown() {
+            if let Some(m) = &self.meter
+                && let Err(e) = m.shutdown() {
                     eprintln!("otel meter shutdown: {e}");
                 }
-            }
-            if let Some(l) = &self.logger {
-                if let Err(e) = l.shutdown() {
+            if let Some(l) = &self.logger
+                && let Err(e) = l.shutdown() {
                     eprintln!("otel logger shutdown: {e}");
                 }
-            }
         }
     }
 }

@@ -89,12 +89,11 @@ pub async fn get_or_register(
     am.last_poll_at = Set(Some(now_ms()));
     // Only touch address/updated_at when it actually moved, so a stable fleet
     // doesn't rewrite updated_at on every poll.
-    if let Some(a) = address {
-        if t.address.as_deref() != Some(a) {
+    if let Some(a) = address
+        && t.address.as_deref() != Some(a) {
             am.address = Set(Some(a.to_string()));
             am.updated_at = Set(now_ms());
         }
-    }
     Ok(am.update(&st.db).await?)
 }
 

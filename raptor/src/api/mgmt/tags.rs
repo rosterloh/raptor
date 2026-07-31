@@ -337,8 +337,8 @@ pub async fn target_tag_update(
     Json(u): Json<TagUpdate>,
 ) -> Result<Json<TagRest>, AppError> {
     let t = load_target_tag(&st, id).await?;
-    if let Some(name) = &u.name {
-        if target_tag::Entity::find()
+    if let Some(name) = &u.name
+        && target_tag::Entity::find()
             .filter(target_tag::Column::Name.eq(name))
             .one(&st.db)
             .await?
@@ -348,7 +348,6 @@ pub async fn target_tag_update(
                 "target tag {name} already exists"
             )));
         }
-    }
     let mut am: target_tag::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);
@@ -613,8 +612,8 @@ pub async fn ds_tag_update(
     Json(u): Json<TagUpdate>,
 ) -> Result<Json<TagRest>, AppError> {
     let t = load_ds_tag(&st, id).await?;
-    if let Some(name) = &u.name {
-        if ds_tag::Entity::find()
+    if let Some(name) = &u.name
+        && ds_tag::Entity::find()
             .filter(ds_tag::Column::Name.eq(name))
             .one(&st.db)
             .await?
@@ -624,7 +623,6 @@ pub async fn ds_tag_update(
                 "distribution set tag {name} already exists"
             )));
         }
-    }
     let mut am: ds_tag::ActiveModel = t.into();
     if let Some(n) = u.name {
         am.name = Set(n);
