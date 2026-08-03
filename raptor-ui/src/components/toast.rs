@@ -1,3 +1,4 @@
+use dioxus::core::spawn_forever;
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq)]
@@ -17,13 +18,16 @@ fn push(text: String, error: bool) {
         *n
     };
     TOASTS.write().push(Toast { id, text, error });
-    spawn(async move {
-        gloo_timers::future::TimeoutFuture::new(6_000).await;
+    // `spawn_forever` (root scope), not `spawn`: the caller is usually a dialog
+    // that closes or a page that navigates away the moment the toast appears,
+    // and a scope-owned task dies with its scope — leaving the toast forever.
+    spawn_forever(async move {
+        gloo_timers::future::TimeoutFuture::new(5_000).await;
         dismiss(id);
     });
 }
 
-/// Drop one toast, whether the 6s timer or the user's close button got there
+/// Drop one toast, whether the 5s timer or the user's close button got there
 /// first — dismissing early just makes the pending timer a no-op.
 fn dismiss(id: u64) {
     TOASTS.write().retain(|t| t.id != id);
