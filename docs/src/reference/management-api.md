@@ -87,7 +87,7 @@ says whether a given device class can install that set at all.
 | Method | Path | Description |
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/softwaremodules` | create / list |
-| `GET` / `PUT` / `DELETE` | `/rest/v1/softwaremodules/{id}` | get / update / delete |
+| `GET` / `PUT` / `DELETE` | `/rest/v1/softwaremodules/{id}` | get / update / delete (`409` if the module belongs to a distribution set) |
 | `POST` / `GET` | `/rest/v1/softwaremodules/{id}/artifacts` | upload (multipart) / list |
 | `GET` / `DELETE` | `/rest/v1/softwaremodules/{id}/artifacts/{aid}` | get / delete |
 | `GET` | `/rest/v1/softwaremodules/{id}/artifacts/{aid}/download` | download |

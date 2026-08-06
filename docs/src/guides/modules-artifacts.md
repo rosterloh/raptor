@@ -59,6 +59,14 @@ curl -u admin:pw -O localhost:8088/rest/v1/softwaremodules/1/artifacts/1/downloa
 curl -u admin:pw -X DELETE localhost:8088/rest/v1/softwaremodules/1/artifacts/1
 ```
 
+Deleting a **module** (`DELETE /rest/v1/softwaremodules/{id}`) removes its
+metadata, artifact rows, and any blobs that lose their last reference. A module
+that belongs to a distribution set is refused with `409 Conflict` and nothing is
+deleted — remove it from the set first, and note that a distribution set already
+referenced by actions cannot be deleted either. Re-publishing content under a
+version number that has already been rolled out therefore means bumping the
+version rather than deleting and recreating.
+
 ## Device-side download
 
 Devices fetch artifacts through the DDI API, not the Management API:
