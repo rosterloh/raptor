@@ -160,6 +160,64 @@ async fn blob_refcounting_on_delete() {
 }
 
 #[tokio::test]
+async fn referenced_module_delete_conflicts_and_keeps_artifacts() {
+    let (app, state) = common::setup().await;
+    let m = create_module(&app, "rootfs").await;
+
+    let resp = app
+        .clone()
+        .oneshot(multipart_upload(
+            &format!("/rest/v1/softwaremodules/{m}/artifacts"),
+            "fw.bin",
+            b"keep me",
+        ))
+        .await
+        .unwrap();
+    let sha256 = common::body_json(resp).await["hashes"]["sha256"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/distributionsets",
+            Some(
+                json!([{"name": "stable", "version": "1.0", "type": "os", "modules": [{"id": m}]}]),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/softwaremodules/{m}"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Nothing deleted: module, artifact row, and blob all survive.
+    assert!(state.store.path_for(&sha256).exists());
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            &format!("/rest/v1/softwaremodules/{m}/artifacts"),
+            None,
+        ))
+        .await
+        .unwrap();
+    let list = common::body_json(resp).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn large_body_rejected_on_json_routes() {
     let (app, _) = common::setup().await;
 

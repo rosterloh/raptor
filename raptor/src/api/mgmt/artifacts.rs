@@ -73,25 +73,15 @@ async fn find_owned(
 }
 
 /// Remove a blob from disk if no artifact rows reference its sha256 anymore.
-async fn gc_blob(st: &AppState, sha256: &str) -> Result<(), AppError> {
+/// Irreversible: only call once the DB deletes that dropped the rows are
+/// committed.
+pub(super) async fn gc_blob(st: &AppState, sha256: &str) -> Result<(), AppError> {
     let refs = artifact::Entity::find()
         .filter(artifact::Column::Sha256.eq(sha256))
         .count(&st.db)
         .await?;
     if refs == 0 {
         st.store.remove(sha256)?;
-    }
-    Ok(())
-}
-
-pub async fn delete_module_artifacts(st: &AppState, module_id: i64) -> Result<(), AppError> {
-    let rows = artifact::Entity::find()
-        .filter(artifact::Column::ModuleId.eq(module_id))
-        .all(&st.db)
-        .await?;
-    for a in rows {
-        artifact::Entity::delete_by_id(a.id).exec(&st.db).await?;
-        gc_blob(st, &a.sha256).await?;
     }
     Ok(())
 }

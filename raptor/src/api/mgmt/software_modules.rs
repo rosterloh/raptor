@@ -4,7 +4,7 @@
 
 use super::mappers::{SmRest, sm_rest};
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
-use crate::entity::{software_module, software_module_type};
+use crate::entity::{artifact, ds_module, sm_metadata, software_module, software_module_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
@@ -14,7 +14,10 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use raptor_api_types::{SmCreate, SmUpdate};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    TransactionTrait,
+};
 use std::collections::HashMap;
 
 pub fn routes() -> Router<AppState> {
@@ -171,13 +174,39 @@ pub async fn delete(
         .one(&st.db)
         .await?
         .ok_or(AppError::NotFound("software module"))?;
-    super::artifacts::delete_module_artifacts(&st, m.id).await?;
-    crate::entity::sm_metadata::Entity::delete_many()
-        .filter(crate::entity::sm_metadata::Column::ModuleId.eq(m.id))
-        .exec(&st.db)
+    let refs = ds_module::Entity::find()
+        .filter(ds_module::Column::ModuleId.eq(m.id))
+        .count(&st.db)
+        .await?;
+    if refs > 0 {
+        return Err(AppError::Conflict(
+            "software module is referenced by distribution sets".into(),
+        ));
+    }
+    // Blob removal is irreversible and cannot take part in the transaction, so
+    // collect the hashes now and GC them only after every DB delete committed.
+    let txn = st.db.begin().await?;
+    let shas: Vec<String> = artifact::Entity::find()
+        .filter(artifact::Column::ModuleId.eq(m.id))
+        .all(&txn)
+        .await?
+        .into_iter()
+        .map(|a| a.sha256)
+        .collect();
+    artifact::Entity::delete_many()
+        .filter(artifact::Column::ModuleId.eq(m.id))
+        .exec(&txn)
+        .await?;
+    sm_metadata::Entity::delete_many()
+        .filter(sm_metadata::Column::ModuleId.eq(m.id))
+        .exec(&txn)
         .await?;
     software_module::Entity::delete_by_id(m.id)
-        .exec(&st.db)
+        .exec(&txn)
         .await?;
+    txn.commit().await?;
+    for sha in &shas {
+        super::artifacts::gc_blob(&st, sha).await?;
+    }
     Ok(StatusCode::OK)
 }
