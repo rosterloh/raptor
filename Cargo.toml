@@ -1,6 +1,6 @@
 [workspace]
-members = ["raptor", "raptor-api-types", "raptor-ui", "migration"]
-default-members = ["raptor", "raptor-api-types", "migration"]
+members = ["raptor", "raptor-api-types", "raptor-ui", "raptor-cli", "migration"]
+default-members = ["raptor", "raptor-api-types", "raptor-cli", "migration"]
 resolver = "3"
 
 # Inherited by members via `<field>.workspace = true`.

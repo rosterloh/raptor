@@ -130,6 +130,20 @@ Release smoke test: login → create module → upload artifact → create
 distribution set → assign module → deploy to a target → watch the action on
 the dashboard → cancel or complete → logout.
 
+## CLI & TUI (raptorctl)
+
+`raptorctl` (crate `raptor-cli`) is a scriptable client and terminal dashboard
+for the Management API — build/upload artifacts, manage targets, and watch
+deployments from a terminal or CI job, no browser required:
+
+    cargo build --release -p raptor-cli
+    raptorctl login --url http://localhost:8088 --user admin
+    raptorctl target list
+    raptorctl tui
+
+See [the CLI & TUI guide](docs/src/guides/cli.md) for the full command
+reference and TUI keybindings.
+
 ## Observability (OpenTelemetry)
 
 By default raptor logs to stdout (`tracing` + `EnvFilter`) and ships no

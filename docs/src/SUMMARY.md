@@ -26,6 +26,7 @@
 - [Confirmation Flow](./guides/confirmation-flow.md)
 - [Filtering with FIQL](./guides/fiql.md)
 - [Authentication](./guides/authentication.md)
+- [CLI & TUI (raptorctl)](./guides/cli.md)
 - [Using raptor with Zephyr](./guides/zephyr.md)
 - [Running as a systemd Service](./guides/systemd.md)
 - [Web Console](./guides/web-console.md)
