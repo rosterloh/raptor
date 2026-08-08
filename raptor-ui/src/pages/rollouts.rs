@@ -13,10 +13,22 @@ pub fn Rollouts() -> Element {
         api::list_rollouts(offset(), LIMIT, q.as_deref()).await
     });
     use_polling(rollouts);
+    let mut search_key = use_signal(|| 0u32);
+
+    use_filter_clear(
+        move || !query().is_empty(),
+        move || {
+            query.set(String::new());
+            offset.set(0);
+            search_key += 1;
+        },
+    );
+
     rsx! {
         h1 { class: HEADING, "Rollouts" }
         div { class: "mb-3",
             SearchBox {
+                key: "{search_key}",
                 placeholder: "Search name…",
                 on_search: move |s| {
                     query.set(s);

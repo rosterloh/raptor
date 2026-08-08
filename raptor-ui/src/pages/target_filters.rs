@@ -32,6 +32,16 @@ pub fn TargetFilters() -> Element {
     let mut confirm_delete = use_signal(|| false);
     let mut delete_for = use_signal(|| None::<TargetFilterRest>);
 
+    let mut search_key = use_signal(|| 0u32);
+    use_filter_clear(
+        move || !query().is_empty(),
+        move || {
+            query.set(String::new());
+            offset.set(0);
+            search_key += 1;
+        },
+    );
+
     let ds_names: BTreeMap<i64, String> = match &*sets.read_unchecked() {
         Some(Ok(page)) => page
             .content
@@ -54,6 +64,7 @@ pub fn TargetFilters() -> Element {
         }
         div { class: "mb-3",
             SearchBox {
+                key: "{search_key}",
                 placeholder: "Search name…",
                 on_search: move |s| {
                     query.set(s);

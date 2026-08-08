@@ -43,6 +43,22 @@ pub fn Targets() -> Element {
         api::list_tags(TagKind::Target.prefix(), 0, 100, None).await
     });
 
+    // SearchBox owns its typed text internally, so clearing `query` alone leaves
+    // stale text on screen; bumping this and keying the box on it forces a
+    // remount, which resets that internal state too.
+    let mut search_key = use_signal(|| 0u32);
+
+    use_filter_clear(
+        move || !query().is_empty() || !state().is_empty() || !tag().is_empty(),
+        move || {
+            query.set(String::new());
+            state.set(String::new());
+            tag.set(String::new());
+            offset.set(0);
+            search_key += 1;
+        },
+    );
+
     let now = now_ms();
 
     rsx! {
@@ -63,6 +79,7 @@ pub fn Targets() -> Element {
         SectionRule { label: "Filter" }
         div { class: "flex flex-wrap items-center gap-3",
             SearchBox {
+                key: "{search_key}",
                 placeholder: "name or controller id…",
                 on_search: move |s| {
                     query.set(s);
