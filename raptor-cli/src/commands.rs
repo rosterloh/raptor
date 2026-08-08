@@ -374,20 +374,13 @@ pub enum ArtifactCmd {
 pub async fn artifact(c: &Client, cmd: ArtifactCmd, json: bool) -> Result<()> {
     match cmd {
         ArtifactCmd::Upload { module_id, file } => {
-            let filename = file
-                .file_name()
-                .ok_or_else(|| anyhow::anyhow!("not a file: {}", file.display()))?
-                .to_string_lossy()
-                .to_string();
-            let bytes = std::fs::read(&file)?;
-            let size = bytes.len();
-            eprintln!("uploading {filename} ({size} bytes)...");
-            let a = api::modules::artifact_upload(c, module_id, filename, bytes).await?;
+            eprintln!("uploading {}...", file.display());
+            let a = api::modules::artifact_upload(c, module_id, &file).await?;
             if json {
                 return print_json(&a);
             }
             println!(
-                "uploaded artifact {} ({} bytes, sha256 {})",
+                "uploaded artifact {} ({} bytes, sha256 {} verified)",
                 a.id, a.size, a.hashes.sha256
             );
         }
@@ -517,6 +510,86 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------
+// publish
+// ---------------------------------------------------------------------
+
+/// `module create` -> `artifact upload` -> `ds create`, threaded by id. The
+/// three calls are always the same for one image; this exists so a caller
+/// doesn't have to carry the module id between them via `--json` + `jq`.
+pub struct PublishArgs {
+    pub file: std::path::PathBuf,
+    pub version: String,
+    pub name: Option<String>,
+    pub module_type: String,
+    pub vendor: Option<String>,
+}
+
+/// Defaults to the filename with a trailing `-<version>.swu` stripped —
+/// how release artifacts are usually named. Falls back to the filename
+/// without its extension if that suffix isn't present.
+fn default_publish_name(file: &std::path::Path, version: &str) -> String {
+    let filename = file.file_name().unwrap_or_default().to_string_lossy();
+    filename
+        .strip_suffix(&format!("-{version}.swu"))
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            file.file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| filename.to_string())
+        })
+}
+
+pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
+    let name = args
+        .name
+        .unwrap_or_else(|| default_publish_name(&args.file, &args.version));
+
+    let module = api::modules::create(
+        c,
+        &SmCreate {
+            name: name.clone(),
+            version: args.version.clone(),
+            module_type: args.module_type.clone(),
+            vendor: args.vendor,
+            description: None,
+        },
+    )
+    .await?;
+    eprintln!("created module {} ({name})", module.id);
+
+    eprintln!("uploading {}...", args.file.display());
+    let artifact = api::modules::artifact_upload(c, module.id, &args.file).await?;
+    eprintln!(
+        "uploaded artifact {} ({} bytes, sha256 {} verified)",
+        artifact.id, artifact.size, artifact.hashes.sha256
+    );
+
+    let ds = api::distribution_sets::create(
+        c,
+        &DsCreate {
+            name: name.clone(),
+            version: args.version,
+            ds_type: args.module_type,
+            description: None,
+            required_migration_step: false,
+            modules: vec![ModuleRef { id: module.id }],
+        },
+    )
+    .await?;
+
+    if json {
+        return print_json(
+            &serde_json::json!({"module": module, "artifact": artifact, "distributionSet": ds}),
+        );
+    }
+    println!(
+        "published {name}:{} — module {}, distribution set {}",
+        ds.version, module.id, ds.id
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------
 // action
 // ---------------------------------------------------------------------
 
@@ -632,4 +705,27 @@ pub async fn status(c: &Client, json: bool) -> Result<()> {
         println!("  {k:<12} {v}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn default_publish_name_strips_version_suffix() {
+        assert_eq!(
+            default_publish_name(Path::new("myapp-1.2.3.swu"), "1.2.3"),
+            "myapp"
+        );
+    }
+
+    #[test]
+    fn default_publish_name_falls_back_to_stem() {
+        // version doesn't match the filename's suffix — fall back rather than error.
+        assert_eq!(
+            default_publish_name(Path::new("firmware.bin"), "1.2.3"),
+            "firmware"
+        );
+    }
 }

@@ -6,6 +6,7 @@ mod api;
 mod client;
 mod commands;
 mod config;
+mod hash;
 mod print;
 mod tui;
 
@@ -49,6 +50,23 @@ enum Cmd {
     Ds(commands::DsCmd),
     #[command(subcommand)]
     Action(commands::ActionCmd),
+    /// Create a software module, upload its artifact, and create a
+    /// distribution set wrapping it — one call for the common single-module
+    /// release, threaded by id instead of `--json` + `jq`.
+    Publish {
+        file: std::path::PathBuf,
+        #[arg(long)]
+        version: String,
+        /// Defaults to the filename with a trailing `-<version>.swu` stripped.
+        #[arg(long)]
+        name: Option<String>,
+        /// os | application | firmware — used for both the module and the
+        /// distribution set it's wrapped in.
+        #[arg(long = "type", default_value = "os")]
+        module_type: String,
+        #[arg(long)]
+        vendor: Option<String>,
+    },
     /// Fleet-wide statistics
     Status,
     /// Interactive terminal dashboard
@@ -102,6 +120,26 @@ async fn main() {
         Cmd::Artifact(c) => commands::artifact(&client, c, cli.json).await,
         Cmd::Ds(c) => commands::ds(&client, c, cli.json).await,
         Cmd::Action(c) => commands::action(&client, c, cli.json).await,
+        Cmd::Publish {
+            file,
+            version,
+            name,
+            module_type,
+            vendor,
+        } => {
+            commands::publish(
+                &client,
+                commands::PublishArgs {
+                    file,
+                    version,
+                    name,
+                    module_type,
+                    vendor,
+                },
+                cli.json,
+            )
+            .await
+        }
         Cmd::Status => commands::status(&client, cli.json).await,
         Cmd::Tui { refresh } => tui::run(client, refresh).await,
     };

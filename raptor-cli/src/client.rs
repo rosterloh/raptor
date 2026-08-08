@@ -83,13 +83,17 @@ impl Client {
         Self::empty(resp).await
     }
 
-    pub async fn upload<T: DeserializeOwned>(
+    /// Uploads `file` as multipart body content, streamed rather than read
+    /// into memory first — artifacts run to a GiB, and this is typically run
+    /// on a build machine already near its memory ceiling.
+    pub async fn upload_file<T: DeserializeOwned>(
         &self,
         path: &str,
         filename: String,
-        bytes: Vec<u8>,
+        file: tokio::fs::File,
+        len: u64,
     ) -> Result<T> {
-        let part = reqwest::multipart::Part::bytes(bytes).file_name(filename);
+        let part = reqwest::multipart::Part::stream_with_length(file, len).file_name(filename);
         let form = reqwest::multipart::Form::new().part("file", part);
         let resp = self
             .http

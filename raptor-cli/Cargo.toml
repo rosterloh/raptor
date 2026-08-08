@@ -12,8 +12,8 @@ path = "src/main.rs"
 [dependencies]
 raptor-api-types = { path = "../raptor-api-types" }
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal", "fs", "io-util"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "multipart", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1"
@@ -22,3 +22,5 @@ directories = "6"
 rpassword = "7"
 ratatui = "0.30"
 crossterm = "0.29"
+sha2 = "0.11"
+hex = "0.4"
