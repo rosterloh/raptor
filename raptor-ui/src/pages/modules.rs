@@ -15,6 +15,17 @@ pub fn Modules() -> Element {
         api::list_modules(offset(), LIMIT, q.as_deref()).await
     });
     let mut show_create = use_signal(|| false);
+    let mut search_key = use_signal(|| 0u32);
+
+    use_filter_clear(
+        move || !query().is_empty(),
+        move || {
+            query.set(String::new());
+            offset.set(0);
+            search_key += 1;
+        },
+    );
+
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Modules" }
@@ -22,6 +33,7 @@ pub fn Modules() -> Element {
         }
         div { class: "mb-3",
             SearchBox {
+                key: "{search_key}",
                 placeholder: "Search name or version…",
                 on_search: move |s| {
                     query.set(s);

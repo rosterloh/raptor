@@ -1,5 +1,5 @@
 use crate::Route;
-use crate::components::ToastStack;
+use crate::components::{CommandPalette, FilterClear, ToastStack};
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
@@ -7,6 +7,8 @@ const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
 #[component]
 pub fn Shell() -> Element {
     let nav = use_navigator();
+    FilterClear::provide();
+    let mut palette_open = use_signal(|| false);
     // Confirm the session before painting a logged-in shell. Previously an
     // unauthenticated visit to /ui/targets rendered the whole sidebar and a
     // "Loading…", then jumped to the login page once the first API call came
@@ -19,7 +21,19 @@ pub fn Shell() -> Element {
         return rsx! {};
     }
     rsx! {
-        div { class: "flex min-h-screen bg-background text-foreground",
+        div {
+            class: "flex min-h-screen bg-background text-foreground",
+            // Keydown bubbles here from any focused descendant (nav links, search
+            // boxes, dialogs), so ⌘K/Ctrl-K opens the palette no matter what has
+            // focus — a real global shortcut would need a window-level listener,
+            // which this sidesteps.
+            onkeydown: move |e: KeyboardEvent| {
+                let combo = e.modifiers().meta() || e.modifiers().ctrl();
+                if combo && e.key() == Key::Character("k".to_string()) {
+                    e.prevent_default();
+                    palette_open.set(true);
+                }
+            },
             aside { class: "flex w-52 flex-col border-r border-border-soft bg-card",
                 div { class: "flex items-center gap-2 px-4 py-5",
                     img { src: LOGO, class: "h-8 w-8", alt: "" }
@@ -36,6 +50,14 @@ pub fn Shell() -> Element {
                     NavLink { to: Route::Tags {}, label: "Tags" }
                 }
                 button {
+                    class: "mx-2 mb-1 flex items-center justify-between rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",
+                    onclick: move |_| palette_open.set(true),
+                    span { "Jump to…" }
+                    kbd { class: "rounded border border-border-soft px-1.5 py-0.5 font-mono text-xs text-muted-foreground",
+                        "⌘K"
+                    }
+                }
+                button {
                     class: "m-2 rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",
                     onclick: move |_| async move {
                         let _ = crate::api::logout().await;
@@ -49,6 +71,7 @@ pub fn Shell() -> Element {
                 ToastStack {}
             }
         }
+        CommandPalette { open: palette_open }
     }
 }
 

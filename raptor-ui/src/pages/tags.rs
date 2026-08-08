@@ -84,6 +84,16 @@ pub fn Tags() -> Element {
     let mut confirm_delete = use_signal(|| false);
     let mut delete_for = use_signal(|| None::<TagRest>);
 
+    let mut search_key = use_signal(|| 0u32);
+    use_filter_clear(
+        move || !query().is_empty(),
+        move || {
+            query.set(String::new());
+            offset.set(0);
+            search_key += 1;
+        },
+    );
+
     let count_of = |id: i64| -> String {
         match &*counts.read_unchecked() {
             Some(map) => match map.get(&id) {
@@ -121,6 +131,7 @@ pub fn Tags() -> Element {
         }
         div { class: "mb-3",
             SearchBox {
+                key: "{search_key}",
                 placeholder: "Search name…",
                 on_search: move |s| {
                     query.set(s);

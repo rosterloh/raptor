@@ -6,6 +6,7 @@
 
 pub mod badge;
 pub mod chip;
+pub mod command_palette;
 pub mod confirm;
 pub mod error_pane;
 pub mod paginator;
@@ -19,6 +20,7 @@ pub mod ui;
 
 pub use badge::StatusBadge;
 pub use chip::Chip;
+pub use command_palette::CommandPalette;
 pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;
 pub use paginator::Paginator;
@@ -131,6 +133,62 @@ pub fn now_ms() -> i64 {
     {
         0
     }
+}
+
+/// The command palette's "Clear filter" action needs to reach into whichever
+/// list page is currently mounted without the two knowing about each other
+/// directly. A page registers its own active-filter check and clear behaviour
+/// via [`use_filter_clear`]; the palette just reads this context.
+#[derive(Clone, Copy)]
+pub struct FilterClear {
+    active: Signal<bool>,
+    clear: Signal<Option<Callback<()>>>,
+}
+
+impl FilterClear {
+    /// Call once, in `Shell`, to seed the context every page and the palette
+    /// share.
+    pub fn provide() {
+        use_context_provider(|| FilterClear {
+            active: Signal::new(false),
+            clear: Signal::new(None),
+        });
+    }
+
+    pub(crate) fn active(&self) -> bool {
+        (self.active)()
+    }
+
+    pub(crate) fn clear(&self) {
+        if let Some(cb) = (self.clear)() {
+            cb.call(());
+        }
+    }
+}
+
+/// Registers this page's filter state with the command palette. `is_active` is
+/// evaluated inside the tracked effect, so pass a closure reading the page's
+/// own filter signals (not a plain `bool`) or the palette's "Clear filter" item
+/// won't react to later changes. Deregisters on unmount so navigating away
+/// doesn't leave the palette pointed at an unmounted page.
+pub fn use_filter_clear(
+    mut is_active: impl FnMut() -> bool + 'static,
+    on_clear: impl FnMut() + 'static,
+) {
+    let mut ctx = use_context::<FilterClear>();
+    // `on_clear` mutates signals, so it needs `FnMut`; wrapped so the `Callback`
+    // handed to the palette can still be called through a shared reference.
+    let on_clear = std::rc::Rc::new(std::cell::RefCell::new(on_clear));
+    use_effect(move || {
+        ctx.active.set(is_active());
+        let on_clear = on_clear.clone();
+        ctx.clear
+            .set(Some(Callback::new(move |()| (on_clear.borrow_mut())())));
+    });
+    use_drop(move || {
+        ctx.active.set(false);
+        ctx.clear.set(None);
+    });
 }
 
 /// Whether the document is currently hidden — a backgrounded tab or a minimised
