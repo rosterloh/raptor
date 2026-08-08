@@ -286,3 +286,85 @@ async fn target_list_embeds_set_and_tag_refs() {
     assert_eq!(one["assignedDs"], a["assignedDs"]);
     assert_eq!(one["tags"], a["tags"]);
 }
+
+// --------------------------------------------------------------------------
+// `attribute.<key>==<value>` FIQL on targets
+// --------------------------------------------------------------------------
+
+#[tokio::test]
+async fn target_list_filters_by_attribute() {
+    let (app, _) = common::setup().await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([
+                {"controllerId": "dev-1"}, {"controllerId": "dev-2"}, {"controllerId": "dev-3"}
+            ])),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let set_attrs = |cid: &'static str, data: serde_json::Value| {
+        let app = app.clone();
+        async move {
+            let resp = app
+                .oneshot(common::req(
+                    "PUT",
+                    &format!("/DEFAULT/controller/v1/{cid}/configData"),
+                    Some(json!({"mode": "merge", "data": data})),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+    };
+    set_attrs("dev-1", json!({"hw_revision": "rev-C", "kernel": "6.6"})).await;
+    set_attrs("dev-2", json!({"hw_revision": "rev-B"})).await;
+    set_attrs("dev-3", json!({})).await;
+
+    let cids = |v: &serde_json::Value| -> Vec<String> {
+        let mut out: Vec<String> = v["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["controllerId"].as_str().unwrap().to_string())
+            .collect();
+        out.sort();
+        out
+    };
+
+    let get = |q: &'static str| {
+        let app = app.clone();
+        async move { common::body_json(app.oneshot(common::req("GET", q, None)).await.unwrap()).await }
+    };
+
+    let r = get("/rest/v1/targets?q=attribute.hw_revision==rev-C").await;
+    assert_eq!(cids(&r), ["dev-1"]);
+
+    // wildcards behave as they do for other fields
+    let r = get("/rest/v1/targets?q=attribute.hw_revision==rev-*").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-2"]);
+
+    // combines with a plain column
+    let r = get("/rest/v1/targets?q=attribute.kernel==6.6;controllerId==dev-1").await;
+    assert_eq!(cids(&r), ["dev-1"]);
+
+    // an unknown key matches nothing rather than erroring
+    let r = get("/rest/v1/targets?q=attribute.nope==anything").await;
+    assert_eq!(r["total"], 0);
+
+    // works the same way in a saved target filter (shares `targets::condition`)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targetfilters",
+            Some(json!({"name": "rev-c", "query": "attribute.hw_revision==rev-C"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
