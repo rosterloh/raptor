@@ -61,11 +61,46 @@ pub fn fiql_map(f: &str) -> Option<target::Column> {
     }
 }
 
+/// Compiles `attribute.<key>==<value>` into
+/// `target.id IN (SELECT target_id FROM target_attribute
+///                WHERE key = '<key>' AND value <op> <value>)`.
+/// An unknown key simply matches no rows, since attributes are free-form and
+/// vary by device class.
+fn target_attribute_field(
+    field: &str,
+    op: &crate::fiql::Op,
+    values: &[String],
+) -> Option<Result<sea_orm::sea_query::SimpleExpr, AppError>> {
+    let key = field.strip_prefix("attribute.")?;
+    Some(super::tags::tag_op(op).map(|(positive, value_op)| {
+        let owners = sea_orm::sea_query::Query::select()
+            .column(target_attribute::Column::TargetId)
+            .from(target_attribute::Entity)
+            .and_where(target_attribute::Column::Key.eq(key))
+            .and_where(crate::fiql::cmp_expr(
+                target_attribute::Column::Value,
+                &value_op,
+                values,
+            ))
+            .to_owned();
+        super::tags::membership(
+            sea_orm::sea_query::Expr::col((target::Entity, target::Column::Id)),
+            owners,
+            positive,
+        )
+    }))
+}
+
 /// Compiles a FIQL query over targets. Shared by the target list, saved target
-/// filters and rollouts so `tag==beta` means the same thing everywhere.
+/// filters and rollouts so `tag==beta` and `attribute.<key>==<value>` mean the
+/// same thing everywhere.
 pub fn condition(q: &str) -> Result<sea_orm::Condition, AppError> {
     let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
-    crate::fiql::to_condition_ext(&expr, &fiql_map, &super::tags::target_tag_field)
+    let virtual_field = |field: &str, op: &crate::fiql::Op, values: &[String]| {
+        super::tags::target_tag_field(field, op, values)
+            .or_else(|| target_attribute_field(field, op, values))
+    };
+    crate::fiql::to_condition_ext(&expr, &fiql_map, &virtual_field)
 }
 
 pub async fn find_by_cid(db: &DatabaseConnection, cid: &str) -> Result<target::Model, AppError> {
