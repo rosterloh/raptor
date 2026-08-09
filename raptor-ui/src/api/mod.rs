@@ -7,6 +7,7 @@ use serde::de::DeserializeOwned;
 
 mod actions;
 mod distribution_sets;
+mod metadata;
 mod modules;
 mod rollouts;
 mod system;
@@ -17,6 +18,7 @@ mod types;
 
 pub use actions::*;
 pub use distribution_sets::*;
+pub use metadata::*;
 pub use modules::*;
 pub use rollouts::*;
 pub use system::*;
