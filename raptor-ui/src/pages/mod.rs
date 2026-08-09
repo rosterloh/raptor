@@ -15,6 +15,7 @@ mod tags;
 mod target_detail;
 mod target_filters;
 mod targets;
+mod types;
 
 pub use actions::Actions;
 pub use dashboard::Dashboard;
@@ -30,3 +31,4 @@ pub use tags::{EntityTags, TagFilter, TagKind, Tags};
 pub use target_detail::TargetDetail;
 pub use target_filters::TargetFilters;
 pub use targets::Targets;
+pub use types::Types;

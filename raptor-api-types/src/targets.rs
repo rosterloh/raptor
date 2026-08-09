@@ -117,6 +117,21 @@ pub struct TargetTypeUpdate {
     pub colour: Option<String>,
 }
 
+/// A target type (hawkBit `MgmtTargetType`): the type catalogue entry a
+/// [`TargetRest`] references via its `targetType` id, carrying the
+/// compatible-distribution-set-type list as `_links`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetTypeRest {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub colour: Option<String>,
+    pub deleted: bool,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
+
 /// Auto-confirm state for a target (hawkBit `GET /rest/v1/targets/{cid}/autoConfirm`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

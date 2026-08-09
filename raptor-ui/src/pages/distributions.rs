@@ -114,7 +114,26 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
 fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
     let mut name = use_signal(String::new);
     let mut version = use_signal(String::new);
-    let mut ds_type = use_signal(|| "os".to_string());
+    let mut ds_type = use_signal(String::new);
+    // Fetched only while open, like AssignDsDialog's set list — this dialog is
+    // always mounted, but the type catalogue only matters once it's shown.
+    let types = use_resource(move || async move {
+        if open() {
+            api::list_ds_types(0, 100, None).await
+        } else {
+            Ok(raptor_api_types::PagedList::new(vec![], 0))
+        }
+    });
+    // Default to the first type once the catalogue loads, same as the old
+    // hardcoded "os" default.
+    use_effect(move || {
+        if ds_type().is_empty()
+            && let Some(Ok(page)) = &*types.read_unchecked()
+            && let Some(first) = page.content.first()
+        {
+            ds_type.set(first.key.clone());
+        }
+    });
     rsx! {
         Dialog { open,
             form {
@@ -150,9 +169,14 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                     class: SELECT,
                     value: "{ds_type}",
                     onchange: move |e| ds_type.set(e.value()),
-                    option { value: "os", "os" }
-                    option { value: "app", "app" }
-                    option { value: "os_app", "os_app" }
+                    match &*types.read_unchecked() {
+                        Some(Ok(page)) => rsx! {
+                            for t in page.content.clone() {
+                                option { key: "{t.id}", value: "{t.key}", "{t.key}" }
+                            }
+                        },
+                        _ => rsx! {},
+                    }
                 }
                 div { class: "flex justify-end gap-2",
                     button {

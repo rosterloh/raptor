@@ -135,3 +135,18 @@ pub struct DsTypeUpdate {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub description: Option<String>,
 }
+
+/// A distribution-set type (hawkBit `MgmtDistributionSetType`): the type
+/// catalogue entry a [`DsRest`] references via its `type` key, carrying the
+/// mandatory/optional software-module-type composition as `_links`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DsTypeRest {
+    pub id: i64,
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub deleted: bool,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}
