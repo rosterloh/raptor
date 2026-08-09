@@ -1,5 +1,5 @@
 use crate::Route;
-use crate::components::{CommandPalette, FilterClear, ToastStack};
+use crate::components::{CommandPalette, FilterClear, ToastStack, use_theme};
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
@@ -9,6 +9,7 @@ pub fn Shell() -> Element {
     let nav = use_navigator();
     FilterClear::provide();
     let mut palette_open = use_signal(|| false);
+    let (is_dark, toggle_theme) = use_theme();
     // Confirm the session before painting a logged-in shell. Previously an
     // unauthenticated visit to /ui/targets rendered the whole sidebar and a
     // "Loading…", then jumped to the login page once the first API call came
@@ -56,6 +57,11 @@ pub fn Shell() -> Element {
                     kbd { class: "rounded border border-border-soft px-1.5 py-0.5 font-mono text-xs text-muted-foreground",
                         "⌘K"
                     }
+                }
+                button {
+                    class: "mx-2 mb-1 flex items-center justify-between rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",
+                    onclick: move |_| toggle_theme(()),
+                    span { if is_dark() { "Light mode" } else { "Dark mode" } }
                 }
                 button {
                     class: "m-2 rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",
