@@ -2,7 +2,7 @@
 
 use raptor_api_types::*;
 
-use super::{ApiResult, delete, get_json, list_path, post_json, post_no_content};
+use super::{ApiResult, delete, get_json, list_path, post_json, post_no_content, put_json};
 
 pub async fn list_ds(offset: u64, limit: u64, q: Option<&str>) -> ApiResult<PagedList<DsRest>> {
     get_json(&list_path("/rest/v1/distributionsets", offset, limit, q)).await
@@ -18,6 +18,14 @@ pub async fn create_ds(ds: &DsCreate) -> ApiResult<Vec<DsRest>> {
 
 pub async fn delete_ds(id: i64) -> ApiResult<()> {
     delete(&format!("/rest/v1/distributionsets/{id}")).await
+}
+
+pub async fn update_ds(id: i64, u: &DsUpdate) -> ApiResult<DsRest> {
+    put_json(&format!("/rest/v1/distributionsets/{id}"), u).await
+}
+
+pub async fn invalidate_ds(id: i64, body: &DsInvalidate) -> ApiResult<()> {
+    post_no_content(&format!("/rest/v1/distributionsets/{id}/invalidate"), body).await
 }
 
 pub async fn ds_assign_modules(id: i64, module_ids: &[i64]) -> ApiResult<()> {

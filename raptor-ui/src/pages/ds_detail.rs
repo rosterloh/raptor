@@ -1,8 +1,9 @@
-use crate::components::ui::{Button, ButtonVariant, Card, Dialog};
+use crate::components::ui::{Button, ButtonVariant, Card, Dialog, Input};
 use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
 use crate::{Route, api, logic};
 use dioxus::prelude::*;
+use raptor_api_types::DsUpdate;
 
 #[component]
 pub fn DsDetail(id: i64) -> Element {
@@ -10,15 +11,36 @@ pub fn DsDetail(id: i64) -> Element {
     let tags = use_resource(move || async move { api::ds_tags(id).await });
     let mut show_modules = use_signal(|| false);
     let mut show_deploy = use_signal(|| false);
+    let mut show_edit = use_signal(|| false);
+    let mut show_invalidate = use_signal(|| false);
     let mut confirm_delete = use_signal(|| false);
     let nav = use_navigator();
+    let current = ds
+        .read_unchecked()
+        .as_ref()
+        .and_then(|r| r.as_ref().ok().cloned());
     rsx! {
         match &*ds.read_unchecked() {
             Some(Ok(d)) => rsx! {
-                h1 { class: HEADING, "{d.name} {d.version}" }
+                div { class: "mb-4 flex items-center gap-2",
+                    h1 { class: "text-xl font-bold text-foreground", "{d.name} {d.version}" }
+                    if !d.valid {
+                        span { class: "inline-block rounded border px-2 py-0.5 text-xs bg-err-bg text-err-fg border-err-border",
+                            "invalid"
+                        }
+                    }
+                }
                 div { class: "mb-4 flex gap-2",
-                    Button { onclick: move |_| show_deploy.set(true), "Deploy…" }
-                    Button { onclick: move |_| show_modules.set(true), "Assign modules" }
+                    Button { disabled: !d.valid, onclick: move |_| show_deploy.set(true), "Deploy…" }
+                    Button { disabled: !d.valid, onclick: move |_| show_modules.set(true), "Assign modules" }
+                    Button { onclick: move |_| show_edit.set(true), "Edit" }
+                    if d.valid {
+                        Button {
+                            variant: ButtonVariant::Destructive,
+                            onclick: move |_| show_invalidate.set(true),
+                            "Invalidate"
+                        }
+                    }
                     Button {
                         variant: ButtonVariant::Destructive,
                         onclick: move |_| confirm_delete.set(true),
@@ -55,6 +77,10 @@ pub fn DsDetail(id: i64) -> Element {
         }
         AssignModulesDialog { open: show_modules, ds_id: id, on_done: move |_| ds.restart() }
         DeployDialog { open: show_deploy, ds_id: id }
+        if let Some(d) = current.clone() {
+            EditDsDialog { open: show_edit, ds: d, on_saved: move |_| ds.restart() }
+        }
+        InvalidateDsDialog { open: show_invalidate, ds_id: id, on_done: move |_| ds.restart() }
         ConfirmDialog {
             title: "Delete distribution set".to_string(),
             message: "Delete this distribution set? Sets referenced by actions cannot be deleted.".to_string(),
@@ -214,6 +240,165 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                         });
                     },
                     "Deploy"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn FieldError(message: Option<String>) -> Element {
+    match message {
+        Some(m) => rsx! {
+            p { class: "mb-3 text-xs text-err", "{m}" }
+        },
+        None => rsx! {},
+    }
+}
+
+/// A duplicate (name, version) lands as a 409 on both fields, since the API
+/// doesn't say which one collided.
+#[component]
+fn EditDsDialog(
+    open: Signal<bool>,
+    ds: raptor_api_types::DsRest,
+    on_saved: EventHandler<()>,
+) -> Element {
+    let mut name = use_signal(|| ds.name.clone());
+    let mut version = use_signal(|| ds.version.clone());
+    let mut description = use_signal(|| ds.description.clone().unwrap_or_default());
+    let mut required_migration_step = use_signal(|| ds.required_migration_step);
+    let mut error = use_signal(|| None::<String>);
+    let mut saving = use_signal(|| false);
+    let ds_id = ds.id;
+    rsx! {
+        Dialog { open,
+            form {
+                onsubmit: move |e: FormEvent| {
+                    e.prevent_default();
+                    let (n, v) = (name().trim().to_string(), version().trim().to_string());
+                    if n.is_empty() || v.is_empty() {
+                        return;
+                    }
+                    error.set(None);
+                    saving.set(true);
+                    let desc = description();
+                    let update = DsUpdate {
+                        name: Some(n),
+                        version: Some(v),
+                        description: Some(desc).filter(|d| !d.is_empty()),
+                        required_migration_step: Some(required_migration_step()),
+                    };
+                    spawn(async move {
+                        let res = api::update_ds(ds_id, &update).await;
+                        saving.set(false);
+                        match res {
+                            Ok(_) => {
+                                toast_ok("distribution set updated");
+                                open.set(false);
+                                on_saved.call(());
+                            }
+                            Err(api::ApiError::Server { message, .. }) => error.set(Some(message)),
+                            Err(e) => toast_error(e.to_string()),
+                        }
+                    });
+                },
+                h3 { class: "mb-3 text-lg font-semibold text-foreground", "Edit distribution set" }
+                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
+                    oninput: move |e: FormEvent| name.set(e.value()) }
+                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
+                    oninput: move |e: FormEvent| version.set(e.value()) }
+                FieldError { message: error() }
+                Input { class: "mb-3", placeholder: "Description", value: "{description}",
+                    oninput: move |e: FormEvent| description.set(e.value()) }
+                label { class: "mb-4 flex items-center gap-2 text-sm",
+                    input {
+                        r#type: "checkbox",
+                        checked: required_migration_step(),
+                        onchange: move |e| required_migration_step.set(e.checked()),
+                    }
+                    "Requires migration step"
+                }
+                div { class: "flex justify-end gap-2",
+                    button {
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
+                        r#type: "button",
+                        onclick: move |_| open.set(false),
+                        "Cancel"
+                    }
+                    Button { r#type: "submit", disabled: saving(), "Save" }
+                }
+            }
+        }
+    }
+}
+
+/// Confirm-and-configure dialog: invalidating stops rollouts and cancels
+/// in-flight actions, so it needs the same explicit confirmation as delete,
+/// plus the cancelation-type/rollout choices [`ConfirmDialog`] has no room for.
+#[component]
+fn InvalidateDsDialog(open: Signal<bool>, ds_id: i64, on_done: EventHandler<()>) -> Element {
+    let mut action_type = use_signal(|| "none".to_string());
+    let mut cancel_rollouts = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
+    let mut busy = use_signal(|| false);
+    rsx! {
+        Dialog { open,
+            h3 { class: "mb-2 text-lg font-semibold text-foreground", "Invalidate distribution set" }
+            p { class: "mb-4 text-sm text-fg-dim",
+                "Invalidating stops the set from being assigned again. In-flight actions and rollouts are only affected if chosen below."
+            }
+            label { class: "mb-3 flex items-center gap-2 text-sm text-fg-dim",
+                "Cancel in-flight actions"
+                select {
+                    class: SELECT,
+                    value: "{action_type}",
+                    onchange: move |e| action_type.set(e.value()),
+                    option { value: "none", "none" }
+                    option { value: "soft", "soft" }
+                    option { value: "force", "force" }
+                }
+            }
+            label { class: "mb-4 flex items-center gap-2 text-sm",
+                input {
+                    r#type: "checkbox",
+                    checked: cancel_rollouts(),
+                    onchange: move |e| cancel_rollouts.set(e.checked()),
+                }
+                "Also stop rollouts deploying this set"
+            }
+            FieldError { message: error() }
+            div { class: "flex justify-end gap-2",
+                button {
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
+                    onclick: move |_| open.set(false),
+                    "Cancel"
+                }
+                Button {
+                    variant: ButtonVariant::Destructive,
+                    disabled: busy(),
+                    onclick: move |_| {
+                        error.set(None);
+                        busy.set(true);
+                        let body = raptor_api_types::DsInvalidate {
+                            action_cancelation_type: Some(action_type()),
+                            cancel_rollouts: cancel_rollouts(),
+                        };
+                        spawn(async move {
+                            let res = api::invalidate_ds(ds_id, &body).await;
+                            busy.set(false);
+                            match res {
+                                Ok(()) => {
+                                    toast_ok("distribution set invalidated");
+                                    open.set(false);
+                                    on_done.call(());
+                                }
+                                Err(api::ApiError::Server { message, .. }) => error.set(Some(message)),
+                                Err(e) => toast_error(e.to_string()),
+                            }
+                        });
+                    },
+                    "Invalidate"
                 }
             }
         }
