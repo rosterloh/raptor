@@ -97,6 +97,15 @@ pub const ROW: &str = "hover:bg-card";
 pub const LINK_CELL: &str = "block text-primary hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
+///
+/// Deliberately not paired with `SuspenseBoundary`/`.suspend()` (see #85):
+/// `Resource::restart` sets the resource's state back to `Pending`
+/// (dioxus-hooks 0.7.10 `use_resource.rs`, the `cb` closure), and
+/// `Resource::suspend` re-throws `RenderError::Suspended` whenever state is
+/// `Pending` and the task isn't paused — so every poll tick would re-suspend
+/// and flash the shared fallback instead of serving the stale value. Pages
+/// using `use_polling`/`use_polling_every` must keep the explicit
+/// `match &*resource.read_unchecked() { ... }` handling.
 pub fn use_polling<T: 'static>(res: Resource<T>) {
     use_polling_every(res, 5_000);
 }
