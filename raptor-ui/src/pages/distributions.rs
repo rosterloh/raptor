@@ -37,6 +37,7 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
     let mut tag_signal = use_signal(|| tag.clone());
     use_effect(use_reactive!(|tag| tag_signal.set(tag)));
     rsx! {
+        document::Title { "Distributions — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Distributions" }
             Button { onclick: move |_| show_create.set(true), "New distribution set" }

@@ -52,6 +52,7 @@ pub fn TargetFilters(query: String, offset: u64) -> Element {
     };
 
     rsx! {
+        document::Title { "Target filters — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Target filters" }
             Button {

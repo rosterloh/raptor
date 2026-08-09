@@ -35,8 +35,13 @@ pub fn TargetDetail(cid: String) -> Element {
         assigned.restart();
         actions.restart();
     };
+    let title = match &*target.read_unchecked() {
+        Some(Ok(t)) => format!("{} — raptor", t.name),
+        _ => format!("{cid} — raptor"),
+    };
 
     rsx! {
+        document::Title { "{title}" }
         div { class: "mb-5 flex flex-wrap items-end justify-between gap-4",
             div {
                 match &*target.read_unchecked() {

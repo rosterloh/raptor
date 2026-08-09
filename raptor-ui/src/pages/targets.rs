@@ -62,6 +62,7 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
     let now = now_ms();
 
     rsx! {
+        document::Title { "Targets — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
                 h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",

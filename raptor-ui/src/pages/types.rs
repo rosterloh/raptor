@@ -25,6 +25,7 @@ enum Tab {
 pub fn Types() -> Element {
     let mut tab = use_signal(|| Tab::Sm);
     rsx! {
+        document::Title { "Types — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Types" }
         }

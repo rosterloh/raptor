@@ -29,8 +29,13 @@ pub fn RolloutDetail(id: i64) -> Element {
             groups.restart();
         });
     };
+    let title = match &*rollout.read_unchecked() {
+        Some(Ok(r)) => format!("{} — raptor", r.name),
+        _ => format!("Rollout #{id} — raptor"),
+    };
 
     rsx! {
+        document::Title { "{title}" }
         match &*rollout.read_unchecked() {
             Some(Ok(r)) => rsx! {
                 h1 { class: HEADING, "{r.name}" }

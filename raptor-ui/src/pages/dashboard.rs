@@ -75,6 +75,7 @@ pub fn Dashboard() -> Element {
     let now = now_ms();
 
     rsx! {
+        document::Title { "Dashboard — raptor" }
         match &*data.read_unchecked() {
             Some(Ok((stats, recent, rollouts, failing))) => {
                 let count = |s: &str| stats.targets_by_status.get(s).copied().unwrap_or(0);

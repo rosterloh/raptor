@@ -27,6 +27,7 @@ pub fn Modules(query: String, offset: u64) -> Element {
     });
 
     rsx! {
+        document::Title { "Modules — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Modules" }
             Button { onclick: move |_| show_create.set(true), "New module" }
