@@ -90,7 +90,7 @@ pub fn DsDetail(id: i64) -> Element {
                     match api::delete_ds(id).await {
                         Ok(()) => {
                             toast_ok("deleted");
-                            nav.push(Route::Distributions {});
+                            nav.push(Route::distributions());
                         }
                         Err(e) => toast_error(e.to_string()),
                     }

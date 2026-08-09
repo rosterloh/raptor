@@ -253,7 +253,7 @@ pub fn TargetDetail(cid: String) -> Element {
                     match api::delete_target(&cid).await {
                         Ok(()) => {
                             toast_ok(format!("deleted {cid}"));
-                            nav.push(Route::Targets {});
+                            nav.push(Route::targets());
                         }
                         Err(e) => toast_error(e.to_string()),
                     }

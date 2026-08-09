@@ -8,30 +8,34 @@ use raptor_api_types::DsCreate;
 const LIMIT: u64 = 25;
 
 #[component]
-pub fn Distributions() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
-    let mut tag = use_signal(String::new);
-    let mut sets = use_resource(move || async move {
-        let q = logic::fiql_and(&[
-            logic::fiql_contains(&["name", "version"], &query()),
-            logic::fiql_tag(&tag()),
-        ]);
-        api::list_ds(offset(), LIMIT, q.as_deref()).await
-    });
+pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    let goto = move |query: String, tag: String, offset: u64| {
+        nav.replace(Route::Distributions { query, tag, offset });
+    };
+
+    let q = logic::fiql_and(&[
+        logic::fiql_contains(&["name", "version"], &query),
+        logic::fiql_tag(&tag),
+    ]);
+    let mut sets = use_resource(use_reactive!(|q, offset| async move {
+        api::list_ds(offset, LIMIT, q.as_deref()).await
+    }));
     let mut show_create = use_signal(|| false);
     let mut search_key = use_signal(|| 0u32);
 
-    use_filter_clear(
-        move || !query().is_empty() || !tag().is_empty(),
-        move || {
-            query.set(String::new());
-            tag.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty() || !tag.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(String::new(), String::new(), 0);
+        search_key += 1;
+    });
 
+    // TagFilter binds to a `Signal<String>`, so the current tag is mirrored
+    // into one; picking a new tag both updates the box and navigates. The
+    // effect keeps it in sync when the prop changes from outside the dropdown
+    // (back/forward navigation, "Clear filter").
+    let mut tag_signal = use_signal(|| tag.clone());
+    use_effect(use_reactive!(|tag| tag_signal.set(tag)));
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Distributions" }
@@ -42,13 +46,21 @@ pub fn Distributions() -> Element {
                 SearchBox {
                     key: "{search_key}",
                     placeholder: "Search name or version…",
-                    on_search: move |s| {
-                        query.set(s);
-                        offset.set(0);
+                    initial: query.clone(),
+                    on_search: {
+                        let tag = tag.clone();
+                        move |s| goto(s, tag.clone(), 0)
                     },
                 }
             }
-            TagFilter { kind: TagKind::Ds, selected: tag, on_change: move |_| offset.set(0) }
+            TagFilter {
+                kind: TagKind::Ds,
+                selected: tag_signal,
+                on_change: {
+                    let query = query.clone();
+                    move |_| goto(query.clone(), tag_signal(), 0)
+                },
+            }
         }
         match &*sets.read_unchecked() {
             Some(Ok(page)) => rsx! {
@@ -85,10 +97,10 @@ pub fn Distributions() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(query.clone(), tag.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| sets.restart() } },
