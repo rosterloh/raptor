@@ -25,6 +25,7 @@ pub fn Rollouts(query: String, offset: u64) -> Element {
     });
 
     rsx! {
+        document::Title { "Rollouts — raptor" }
         h1 { class: HEADING, "Rollouts" }
         div { class: "mb-3",
             SearchBox {

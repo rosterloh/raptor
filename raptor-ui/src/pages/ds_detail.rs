@@ -19,7 +19,12 @@ pub fn DsDetail(id: i64) -> Element {
         .read_unchecked()
         .as_ref()
         .and_then(|r| r.as_ref().ok().cloned());
+    let title = match &current {
+        Some(d) => format!("{} {} — raptor", d.name, d.version),
+        None => format!("Distribution set #{id} — raptor"),
+    };
     rsx! {
+        document::Title { "{title}" }
         match &*ds.read_unchecked() {
             Some(Ok(d)) => rsx! {
                 div { class: "mb-4 flex items-center gap-2",

@@ -63,8 +63,13 @@ pub fn ModuleDetail(id: i64) -> Element {
             });
         }
     };
+    let title = match &*module.read_unchecked() {
+        Some(Ok(m)) => format!("{} {} — raptor", m.name, m.version),
+        _ => format!("Module #{id} — raptor"),
+    };
 
     rsx! {
+        document::Title { "{title}" }
         match &*module.read_unchecked() {
             Some(Ok(m)) => rsx! {
                 h1 { class: HEADING, "{m.name} {m.version}" }

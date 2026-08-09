@@ -98,6 +98,7 @@ pub fn Tags(kind: String, query: String, offset: u64) -> Element {
     });
 
     rsx! {
+        document::Title { "Tags — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Tags" }
             Button {

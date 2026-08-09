@@ -29,6 +29,7 @@ pub fn Actions(filter: String, offset: u64) -> Element {
         filter.clone()
     };
     rsx! {
+        document::Title { "Actions — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Actions" }
             select {
