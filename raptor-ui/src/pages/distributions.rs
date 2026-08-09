@@ -59,6 +59,7 @@ pub fn Distributions() -> Element {
                             th { class: TH, "Version" }
                             th { class: TH, "Type" }
                             th { class: TH, "Complete" }
+                            th { class: TH, "Valid" }
                             th { class: TH, "Created" }
                         }
                     }
@@ -71,6 +72,13 @@ pub fn Distributions() -> Element {
                                 td { class: TD, "{ds.version}" }
                                 td { class: TD, "{ds.ds_type}" }
                                 td { class: TD, if ds.complete { "yes" } else { "no" } }
+                                td { class: TD,
+                                    if !ds.valid {
+                                        span { class: "inline-block rounded border px-2 py-0.5 text-xs bg-err-bg text-err-fg border-err-border",
+                                            "invalid"
+                                        }
+                                    }
+                                }
                                 td { class: TD, {logic::format_ts(ds.created_at)} }
                             }
                         }
