@@ -16,6 +16,39 @@ $ cargo build --release --features embed-ui
 
 Without the feature the server runs identically but does not serve the UI routes.
 
+## Developing the console
+
+For UI work, `dx build` + `cargo build --features embed-ui` is too slow to
+iterate with — every visual tweak pays a full wasm rebuild. Instead, run the
+two halves of the app separately and let `dx serve` handle the frontend:
+
+```console
+$ cargo run -- serve --config raptor.toml     # the API, on :8088
+$ dx serve --package raptor-ui                # the console, on its own port
+```
+
+`dx serve` hosts the console on its own port (`:8080` by default) rather than
+`:8088`, but `raptor-ui/Dioxus.toml` already proxies `/rest/*` to
+`http://localhost:8088/rest` (`[[web.proxy]]`), so the browser only ever talks
+to the `dx serve` origin — the login flow's `SameSite=Strict` session cookie
+and every other same-origin API call work unmodified, no extra config needed.
+Browse to `http://localhost:<dx-port>/ui` and log in as usual. `dx serve`
+already gives you rsx hot-reload (markup/style edits apply without a rebuild);
+a `.rs` logic change triggers an incremental rebuild, faster than a `dx build`
+but still a rebuild.
+
+Dioxus 0.7 also ships `--hotpatch` (`dx serve --hotpatch --package raptor-ui`),
+which is meant to patch Rust logic changes into the running app without any
+rebuild via the Subsecond engine. As of the pinned `dioxus-cli` 0.7.10, this
+did not work for this crate in testing: the initial build succeeds and serves,
+but the browser fails to boot the app with
+`TypeError: WebAssembly.instantiate(): Import #0 "__wbindgen_placeholder__": module is not an object or function`
+— reproduced on repeated clean runs. Plain `dx serve` (no `--hotpatch`) has no
+such issue. Until this is resolved upstream, use plain `dx serve` for the fast
+loop and fall back to a full `dx build` for a release check. If `dx serve`
+itself gets confused (stale rebuild, weird state), press `r` in its terminal
+UI to force a full rebuild.
+
 ## Accessing it
 
 Browse to `/ui`:
