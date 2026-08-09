@@ -11,7 +11,7 @@ mod pages;
 
 use pages::{
     Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, RolloutDetail,
-    Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets,
+    Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets, Types,
 };
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
@@ -33,6 +33,8 @@ pub enum Route {
         TargetFilters { query: String, offset: u64 },
         #[route("/tags?:kind&:query&:offset")]
         Tags { kind: String, query: String, offset: u64 },
+        #[route("/types")]
+        Types {},
         #[route("/distributions?:query&:tag&:offset")]
         Distributions { query: String, tag: String, offset: u64 },
         #[route("/distributions/:id")]

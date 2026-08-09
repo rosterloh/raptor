@@ -123,6 +123,15 @@ pub fn TargetDetail(cid: String) -> Element {
                                         }
                                         Row { k: "Security token", v: t.security_token.clone(), mono: true }
                                         Row { k: "Registered", v: logic::format_ts(t.created_at) }
+                                        // ---- target type (issue #34) ----
+                                        dt { class: "text-muted-foreground", "Target type" }
+                                        dd { class: "break-all text-fg-dim",
+                                            TargetTypeField {
+                                                cid: cid_s,
+                                                target_type_id: t.target_type,
+                                                on_changed: move |_| target.restart(),
+                                            }
+                                        }
                                     }
                                 },
                                 Some(Err(e)) => rsx! {
@@ -440,6 +449,10 @@ pub fn AssignDsDialog(
     });
     let mut selected = use_signal(|| None::<i64>);
     let mut forced = use_signal(|| true);
+    // A 400 here means the set's type is incompatible with the target's type
+    // (issue #34) — shown inline against the picker rather than as a toast,
+    // since it's a validation error the operator can act on right there.
+    let mut assign_error = use_signal(|| None::<String>);
     rsx! {
         Dialog { open, class: "max-h-[80vh] w-[28rem] overflow-y-auto",
             h3 { class: "mb-3 text-lg font-semibold text-foreground", "Assign distribution set" }
@@ -479,6 +492,9 @@ pub fn AssignDsDialog(
                 }
                 "Forced (device installs immediately)"
             }
+            if let Some(msg) = assign_error() {
+                p { class: "mb-3 text-sm text-err", "{msg}" }
+            }
             div { class: "flex justify-end gap-2",
                 button {
                     class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
@@ -489,10 +505,15 @@ pub fn AssignDsDialog(
                     disabled: selected().is_none(),
                     onclick: move |_| {
                         let (cid, ds_id, is_forced) = (cid(), selected().unwrap(), forced());
+                        assign_error.set(None);
                         spawn(async move {
                             match api::assign_ds(&cid, ds_id, is_forced).await {
                                 Ok(r) if r.assigned > 0 => toast_ok("assignment created"),
                                 Ok(_) => toast_ok("already assigned"),
+                                Err(api::ApiError::Server { status: 400, message }) => {
+                                    assign_error.set(Some(message));
+                                    return;
+                                }
                                 Err(e) => {
                                     toast_error(e.to_string());
                                     return;
@@ -500,6 +521,124 @@ pub fn AssignDsDialog(
                             }
                             open.set(false);
                             on_done.call(());
+                        });
+                    },
+                    "Assign"
+                }
+            }
+        }
+    }
+}
+
+// ---- target type (issue #34) ----
+
+/// The target's type, if any, with a change/unassign control — mounted
+/// alongside the other detail rows in `TargetDetail`'s Overview tab.
+#[component]
+fn TargetTypeField(
+    cid: Signal<String>,
+    target_type_id: Option<i64>,
+    on_changed: EventHandler<()>,
+) -> Element {
+    let target_types =
+        use_resource(move || async move { api::list_target_types(0, 100, None).await });
+    let mut show_dialog = use_signal(|| false);
+    let name = match &*target_types.read_unchecked() {
+        Some(Ok(page)) => target_type_id
+            .and_then(|id| page.content.iter().find(|t| t.id == id))
+            .map(|t| t.name.clone()),
+        _ => None,
+    };
+    rsx! {
+        span { {name.clone().unwrap_or_else(|| "none".into())} }
+        button {
+            class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
+            r#type: "button",
+            onclick: move |_| show_dialog.set(true),
+            if name.is_some() { "Change" } else { "Assign" }
+        }
+        if name.is_some() {
+            button {
+                class: "ml-1 rounded px-2 py-0.5 text-xs text-err hover:bg-accent",
+                r#type: "button",
+                onclick: move |_| {
+                    spawn(async move {
+                        match api::unassign_target_type(&cid()).await {
+                            Ok(()) => {
+                                toast_ok("target type unassigned");
+                                on_changed.call(());
+                            }
+                            Err(e) => toast_error(e.to_string()),
+                        }
+                    });
+                },
+                "Unassign"
+            }
+        }
+        AssignTargetTypeDialog { open: show_dialog, cid, on_done: move |_| on_changed.call(()) }
+    }
+}
+
+#[component]
+fn AssignTargetTypeDialog(
+    open: Signal<bool>,
+    cid: Signal<String>,
+    on_done: EventHandler<()>,
+) -> Element {
+    let types = use_resource(move || async move {
+        if open() {
+            api::list_target_types(0, 100, None).await
+        } else {
+            Ok(raptor_api_types::PagedList::new(vec![], 0))
+        }
+    });
+    let mut selected = use_signal(|| None::<i64>);
+    rsx! {
+        Dialog { open, class: "max-h-[80vh] w-[24rem] overflow-y-auto",
+            h3 { class: "mb-3 text-lg font-semibold text-foreground", "Assign target type" }
+            match &*types.read_unchecked() {
+                Some(Ok(page)) if page.content.is_empty() => rsx! {
+                    p { class: "text-sm text-muted-foreground", "No target types yet." }
+                },
+                Some(Ok(page)) => rsx! {
+                    ul { class: "mb-3 space-y-1",
+                        for tt in page.content.clone() {
+                            li { key: "{tt.id}",
+                                label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
+                                    input {
+                                        r#type: "radio",
+                                        name: "tt",
+                                        checked: selected() == Some(tt.id),
+                                        onchange: move |_| selected.set(Some(tt.id)),
+                                    }
+                                    span { "{tt.name}" }
+                                }
+                            }
+                        }
+                    }
+                },
+                Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
+                None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
+            }
+            div { class: "flex justify-end gap-2",
+                button {
+                    class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
+                    onclick: move |_| open.set(false),
+                    "Cancel"
+                }
+                Button {
+                    disabled: selected().is_none(),
+                    onclick: move |_| {
+                        let (cid, id) = (cid(), selected().unwrap());
+                        spawn(async move {
+                            match api::assign_target_type(&cid, id).await {
+                                Ok(()) => {
+                                    toast_ok("target type assigned");
+                                    open.set(false);
+                                    on_done.call(());
+                                }
+                                Err(e) => toast_error(e.to_string()),
+                            }
                         });
                     },
                     "Assign"

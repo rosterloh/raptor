@@ -253,6 +253,40 @@ fn ds_type_create_shape() {
 }
 
 #[test]
+fn sm_type_rest_shape() {
+    round_trip::<SmTypeRest>(json!({
+        "id": 1, "key": "os", "name": "OS", "description": null,
+        "maxAssignments": 1, "deleted": false,
+        "_links": {"self": {"href": "http://x/rest/v1/softwaremoduletypes/1"}}
+    }));
+}
+
+#[test]
+fn ds_type_rest_shape() {
+    round_trip::<DsTypeRest>(json!({
+        "id": 1, "key": "os_app", "name": "OS with apps", "description": null,
+        "deleted": false,
+        "_links": {
+            "self": {"href": "http://x/rest/v1/distributionsettypes/1"},
+            "mandatorymodules": {"href": "http://x/rest/v1/distributionsettypes/1/mandatorymoduletypes"},
+            "optionalmodules": {"href": "http://x/rest/v1/distributionsettypes/1/optionalmoduletypes"}
+        }
+    }));
+}
+
+#[test]
+fn target_type_rest_shape() {
+    round_trip::<TargetTypeRest>(json!({
+        "id": 1, "name": "gateway", "description": null, "colour": "#ff0000",
+        "deleted": false,
+        "_links": {
+            "self": {"href": "http://x/rest/v1/targettypes/1"},
+            "compatibledistributionsettypes": {"href": "http://x/rest/v1/targettypes/1/compatibledistributionsettypes"}
+        }
+    }));
+}
+
+#[test]
 fn target_type_create_shape() {
     round_trip::<TargetTypeCreate>(json!({
         "name": "gateway", "description": "edge", "colour": "#ff0000",

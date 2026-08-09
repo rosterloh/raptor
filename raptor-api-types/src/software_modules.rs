@@ -97,3 +97,18 @@ pub struct SmTypeUpdate {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub description: Option<String>,
 }
+
+/// A software-module type (hawkBit `MgmtSoftwareModuleType`): the type
+/// catalogue entry a [`SmRest`] references via its `type` key.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SmTypeRest {
+    pub id: i64,
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub max_assignments: i32,
+    pub deleted: bool,
+    #[serde(rename = "_links", default)]
+    pub links: Value,
+}

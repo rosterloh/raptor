@@ -49,6 +49,7 @@ pub fn Shell() -> Element {
                     NavLink { to: Route::rollouts(), label: "Rollouts" }
                     NavLink { to: Route::actions(), label: "Actions" }
                     NavLink { to: Route::tags(), label: "Tags" }
+                    NavLink { to: Route::Types {}, label: "Types" }
                 }
                 button {
                     class: "mx-2 mb-1 flex items-center justify-between rounded px-3 py-2 text-left text-sm text-fg-dim hover:bg-accent",

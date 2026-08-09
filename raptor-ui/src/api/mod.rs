@@ -13,6 +13,7 @@ mod system;
 mod tags;
 mod target_filters;
 mod targets;
+mod types;
 
 pub use actions::*;
 pub use distribution_sets::*;
@@ -22,6 +23,7 @@ pub use system::*;
 pub use tags::*;
 pub use target_filters::*;
 pub use targets::*;
+pub use types::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ApiError {
