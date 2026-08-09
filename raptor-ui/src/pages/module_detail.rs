@@ -166,7 +166,7 @@ pub fn ModuleDetail(id: i64) -> Element {
                     match api::delete_module(id).await {
                         Ok(()) => {
                             toast_ok("module deleted");
-                            nav.push(Route::Modules {});
+                            nav.push(Route::modules());
                         }
                         Err(e) => toast_error(e.to_string()),
                     }

@@ -25,28 +25,80 @@ pub enum Route {
     #[layout(Shell)]
         #[route("/")]
         Dashboard {},
-        #[route("/targets")]
-        Targets {},
+        #[route("/targets?:query&:state&:tag&:offset")]
+        Targets { query: String, state: String, tag: String, offset: u64 },
         #[route("/targets/:cid")]
         TargetDetail { cid: String },
-        #[route("/targetfilters")]
-        TargetFilters {},
-        #[route("/tags")]
-        Tags {},
-        #[route("/distributions")]
-        Distributions {},
+        #[route("/targetfilters?:query&:offset")]
+        TargetFilters { query: String, offset: u64 },
+        #[route("/tags?:kind&:query&:offset")]
+        Tags { kind: String, query: String, offset: u64 },
+        #[route("/distributions?:query&:tag&:offset")]
+        Distributions { query: String, tag: String, offset: u64 },
         #[route("/distributions/:id")]
         DsDetail { id: i64 },
-        #[route("/modules")]
-        Modules {},
+        #[route("/modules?:query&:offset")]
+        Modules { query: String, offset: u64 },
         #[route("/modules/:id")]
         ModuleDetail { id: i64 },
-        #[route("/rollouts")]
-        Rollouts {},
+        #[route("/rollouts?:query&:offset")]
+        Rollouts { query: String, offset: u64 },
         #[route("/rollouts/:id")]
         RolloutDetail { id: i64 },
-        #[route("/actions")]
-        Actions {},
+        #[route("/actions?:filter&:offset")]
+        Actions { filter: String, offset: u64 },
+}
+
+impl Route {
+    // Every field falls back to `Default` via `FromQueryArgument`, so these
+    // just spell out the bare-route form once instead of at every
+    // nav-link/deep-link call site.
+    pub fn targets() -> Self {
+        Route::Targets {
+            query: String::new(),
+            state: String::new(),
+            tag: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn target_filters() -> Self {
+        Route::TargetFilters {
+            query: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn tags() -> Self {
+        Route::Tags {
+            kind: String::new(),
+            query: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn distributions() -> Self {
+        Route::Distributions {
+            query: String::new(),
+            tag: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn modules() -> Self {
+        Route::Modules {
+            query: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn rollouts() -> Self {
+        Route::Rollouts {
+            query: String::new(),
+            offset: 0,
+        }
+    }
+    pub fn actions() -> Self {
+        Route::Actions {
+            filter: String::new(),
+            offset: 0,
+        }
+    }
 }
 
 fn main() {

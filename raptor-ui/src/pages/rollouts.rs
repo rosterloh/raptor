@@ -5,24 +5,24 @@ use dioxus::prelude::*;
 const LIMIT: u64 = 25;
 
 #[component]
-pub fn Rollouts() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
-    let mut rollouts = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name"], &query());
-        api::list_rollouts(offset(), LIMIT, q.as_deref()).await
-    });
+pub fn Rollouts(query: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    let goto = move |query: String, offset: u64| {
+        nav.replace(Route::Rollouts { query, offset });
+    };
+
+    let q = logic::fiql_contains(&["name"], &query);
+    let mut rollouts = use_resource(use_reactive!(|q, offset| async move {
+        api::list_rollouts(offset, LIMIT, q.as_deref()).await
+    }));
     use_polling(rollouts);
     let mut search_key = use_signal(|| 0u32);
 
-    use_filter_clear(
-        move || !query().is_empty(),
-        move || {
-            query.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(String::new(), 0);
+        search_key += 1;
+    });
 
     rsx! {
         h1 { class: HEADING, "Rollouts" }
@@ -30,10 +30,8 @@ pub fn Rollouts() -> Element {
             SearchBox {
                 key: "{search_key}",
                 placeholder: "Search name…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+                initial: query.clone(),
+                on_search: move |s| goto(s, 0),
             }
         }
         match &*rollouts.read_unchecked() {
@@ -76,10 +74,10 @@ pub fn Rollouts() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(query.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! {

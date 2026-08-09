@@ -5,28 +5,36 @@ use dioxus::prelude::*;
 const LIMIT: u64 = 25;
 
 #[component]
-pub fn Actions() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut filter = use_signal(|| "all".to_string());
-    let mut actions = use_resource(move || async move {
-        let q = match filter().as_str() {
+pub fn Actions(filter: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    let goto = move |filter: String, offset: u64| {
+        nav.replace(Route::Actions { filter, offset });
+    };
+
+    // A missing `filter` param (a bare `/actions` visit or an old bookmark)
+    // falls back to "" via `Default`, which the match below already treats
+    // the same as "all".
+    let mut actions = use_resource(use_reactive!(|filter, offset| async move {
+        let q = match filter.as_str() {
             "pending" => Some("active==true"),
             "finished" => Some("active==false"),
             _ => None,
         };
-        api::all_actions(offset(), LIMIT, q).await
-    });
+        api::all_actions(offset, LIMIT, q).await
+    }));
     use_polling(actions);
+    let select_value = if filter.is_empty() {
+        "all".to_string()
+    } else {
+        filter.clone()
+    };
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: "text-xl font-bold text-foreground", "Actions" }
             select {
                 class: "rounded border border-border bg-card px-3 py-1.5 text-sm",
-                value: "{filter}",
-                onchange: move |e| {
-                    filter.set(e.value());
-                    offset.set(0);
-                },
+                value: "{select_value}",
+                onchange: move |e| goto(e.value(), 0),
                 option { value: "all", "All" }
                 option { value: "pending", "Running" }
                 option { value: "finished", "Finished" }
@@ -87,10 +95,10 @@ pub fn Actions() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(filter.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| actions.restart() } },

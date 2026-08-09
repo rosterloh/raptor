@@ -6,9 +6,17 @@ use dioxus::prelude::*;
 const DEBOUNCE_MS: u32 = 300;
 
 #[component]
-pub fn SearchBox(placeholder: String, on_search: EventHandler<String>) -> Element {
-    let mut value = use_signal(String::new);
-    let mut dispatched = use_signal(String::new);
+pub fn SearchBox(
+    placeholder: String,
+    on_search: EventHandler<String>,
+    // Seeds the box from URL-backed filter state (#81) so a bookmarked or
+    // back-navigated filter shows the text that produced it, not a blank box.
+    // Only read at mount — a caller that needs to reset the text externally
+    // (e.g. "Clear filter") remounts the box via its `key` instead.
+    #[props(default)] initial: String,
+) -> Element {
+    let mut value = use_signal(|| initial.clone());
+    let mut dispatched = use_signal(|| initial);
 
     // Forward only terms the parent hasn't already been handed. The debounce and
     // Enter would otherwise both fire for the same text, costing a duplicate

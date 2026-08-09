@@ -1,6 +1,6 @@
 use crate::components::ui::{Button, Dialog, Input};
 use crate::components::*;
-use crate::{api, logic};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 
@@ -47,18 +47,42 @@ impl TagKind {
             }
         }
     }
+
+    /// URL-safe form of the kind, for the `?kind=` query segment. Anything
+    /// other than "ds" — including a missing/old-bookmarked param — falls
+    /// back to `Target`.
+    fn slug(self) -> &'static str {
+        match self {
+            TagKind::Target => "target",
+            TagKind::Ds => "ds",
+        }
+    }
+
+    fn from_slug(s: &str) -> Self {
+        if s == "ds" {
+            TagKind::Ds
+        } else {
+            TagKind::Target
+        }
+    }
 }
 
 #[component]
-pub fn Tags() -> Element {
-    let mut kind = use_signal(|| TagKind::Target);
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
+pub fn Tags(kind: String, query: String, offset: u64) -> Element {
+    let tag_kind = TagKind::from_slug(&kind);
+    let nav = use_navigator();
+    let goto = move |kind: TagKind, query: String, offset: u64| {
+        nav.replace(Route::Tags {
+            kind: kind.slug().to_string(),
+            query,
+            offset,
+        });
+    };
 
-    let mut tags = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name"], &query());
-        api::list_tags(kind().prefix(), offset(), LIMIT, q.as_deref()).await
-    });
+    let mut tags = use_resource(use_reactive!(|tag_kind, query, offset| async move {
+        let q = logic::fiql_contains(&["name"], &query);
+        api::list_tags(tag_kind.prefix(), offset, LIMIT, q.as_deref()).await
+    }));
 
     let mut show_form = use_signal(|| false);
     // None = create, Some = edit that tag.
@@ -67,14 +91,11 @@ pub fn Tags() -> Element {
     let mut delete_for = use_signal(|| None::<TagRest>);
 
     let mut search_key = use_signal(|| 0u32);
-    use_filter_clear(
-        move || !query().is_empty(),
-        move || {
-            query.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(tag_kind, String::new(), 0);
+        search_key += 1;
+    });
 
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
@@ -91,10 +112,10 @@ pub fn Tags() -> Element {
             for k in [TagKind::Target, TagKind::Ds] {
                 button {
                     key: "{k.tab()}",
-                    class: if kind() == k { "rounded px-3 py-1.5 text-sm bg-accent text-foreground border-b-2 border-primary" } else { "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent" },
-                    onclick: move |_| {
-                        kind.set(k);
-                        offset.set(0);
+                    class: if tag_kind == k { "rounded px-3 py-1.5 text-sm bg-accent text-foreground border-b-2 border-primary" } else { "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent" },
+                    onclick: {
+                        let query = query.clone();
+                        move |_| goto(k, query.clone(), 0)
                     },
                     "{k.tab()}"
                 }
@@ -104,15 +125,13 @@ pub fn Tags() -> Element {
             SearchBox {
                 key: "{search_key}",
                 placeholder: "Search name…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+                initial: query.clone(),
+                on_search: move |s| goto(tag_kind, s, 0),
             }
         }
         match &*tags.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                p { class: "text-sm text-muted-foreground", "{kind().empty_hint()}" }
+                p { class: "text-sm text-muted-foreground", "{tag_kind.empty_hint()}" }
             },
             Some(Ok(page)) => rsx! {
                 table { class: TABLE,
@@ -120,7 +139,7 @@ pub fn Tags() -> Element {
                         tr {
                             th { class: TH, "Name" }
                             th { class: TH, "Description" }
-                            th { class: TH, "{kind().tagged()}" }
+                            th { class: TH, "{tag_kind.tagged()}" }
                             th { class: TH, "Modified" }
                             th { class: TH, "" }
                         }
@@ -167,10 +186,10 @@ pub fn Tags() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(tag_kind, query.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! {
@@ -183,7 +202,7 @@ pub fn Tags() -> Element {
         if show_form() {
             TagFormDialog {
                 open: show_form,
-                kind: kind(),
+                kind: tag_kind,
                 existing: form_for(),
                 on_saved: move |_| tags.restart(),
             }
@@ -199,7 +218,7 @@ pub fn Tags() -> Element {
             open: confirm_delete,
             on_confirm: move |_| {
                 let Some(t) = delete_for() else { return };
-                let prefix = kind().prefix();
+                let prefix = tag_kind.prefix();
                 spawn(async move {
                     match api::delete_tag(prefix, t.id).await {
                         Ok(()) => {

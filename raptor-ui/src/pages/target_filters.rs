@@ -1,7 +1,7 @@
 use crate::components::ui::{Button, ButtonVariant, Dialog, Input};
 use crate::components::*;
 use crate::logic::FilterField;
-use crate::{api, logic};
+use crate::{Route, api, logic};
 use dioxus::prelude::*;
 use raptor_api_types::{TargetFilterCreate, TargetFilterRest, TargetFilterUpdate};
 use std::collections::BTreeMap;
@@ -15,13 +15,16 @@ const DS_LIMIT: u64 = 100;
 const PREVIEW_DEBOUNCE_MS: u32 = 400;
 
 #[component]
-pub fn TargetFilters() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
-    let mut filters = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name"], &query());
-        api::list_target_filters(offset(), LIMIT, q.as_deref()).await
-    });
+pub fn TargetFilters(query: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    let goto = move |query: String, offset: u64| {
+        nav.replace(Route::TargetFilters { query, offset });
+    };
+
+    let q = logic::fiql_contains(&["name"], &query);
+    let mut filters = use_resource(use_reactive!(|q, offset| async move {
+        api::list_target_filters(offset, LIMIT, q.as_deref()).await
+    }));
     let sets = use_resource(move || async move { api::list_ds(0, DS_LIMIT, None).await });
 
     let mut show_form = use_signal(|| false);
@@ -33,14 +36,11 @@ pub fn TargetFilters() -> Element {
     let mut delete_for = use_signal(|| None::<TargetFilterRest>);
 
     let mut search_key = use_signal(|| 0u32);
-    use_filter_clear(
-        move || !query().is_empty(),
-        move || {
-            query.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(String::new(), 0);
+        search_key += 1;
+    });
 
     let ds_names: BTreeMap<i64, String> = match &*sets.read_unchecked() {
         Some(Ok(page)) => page
@@ -66,10 +66,8 @@ pub fn TargetFilters() -> Element {
             SearchBox {
                 key: "{search_key}",
                 placeholder: "Search name…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+                initial: query.clone(),
+                on_search: move |s| goto(s, 0),
             }
         }
         match &*filters.read_unchecked() {
@@ -148,10 +146,10 @@ pub fn TargetFilters() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(query.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! {

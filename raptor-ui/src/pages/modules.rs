@@ -7,24 +7,24 @@ use raptor_api_types::SmCreate;
 const LIMIT: u64 = 25;
 
 #[component]
-pub fn Modules() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
-    let mut modules = use_resource(move || async move {
-        let q = logic::fiql_contains(&["name", "version"], &query());
-        api::list_modules(offset(), LIMIT, q.as_deref()).await
-    });
+pub fn Modules(query: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    let goto = move |query: String, offset: u64| {
+        nav.replace(Route::Modules { query, offset });
+    };
+
+    let q = logic::fiql_contains(&["name", "version"], &query);
+    let mut modules = use_resource(use_reactive!(|q, offset| async move {
+        api::list_modules(offset, LIMIT, q.as_deref()).await
+    }));
     let mut show_create = use_signal(|| false);
     let mut search_key = use_signal(|| 0u32);
 
-    use_filter_clear(
-        move || !query().is_empty(),
-        move || {
-            query.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(String::new(), 0);
+        search_key += 1;
+    });
 
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
@@ -35,10 +35,8 @@ pub fn Modules() -> Element {
             SearchBox {
                 key: "{search_key}",
                 placeholder: "Search name or version…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
-                },
+                initial: query.clone(),
+                on_search: move |s| goto(s, 0),
             }
         }
         match &*modules.read_unchecked() {
@@ -68,10 +66,10 @@ pub fn Modules() -> Element {
                     }
                 }
                 Paginator {
-                    offset: offset(),
+                    offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| offset.set(o),
+                    on_change: move |o| goto(query.clone(), o),
                 }
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| modules.restart() } },

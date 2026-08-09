@@ -100,7 +100,7 @@ pub fn Dashboard() -> Element {
                             }
                         }
                         Link {
-                            to: Route::Targets {},
+                            to: Route::targets(),
                             class: "text-sm text-fg-dim underline underline-offset-4 hover:text-foreground",
                             "Inspect all targets →"
                         }
@@ -108,10 +108,10 @@ pub fn Dashboard() -> Element {
 
                     SectionRule { label: "State" }
                     div { class: "grid grid-cols-4 gap-px border border-border-soft bg-border-soft",
-                        Tile { label: "In sync", value: count("in_sync"), tone: logic::Tone::Ok, note: "matching their assigned set" }
-                        Tile { label: "Pending", value: count("pending"), tone: logic::Tone::Pending, note: "downloading or installing" }
-                        Tile { label: "Error", value: count("error"), tone: logic::Tone::Error, note: "needs attention" }
-                        Tile { label: "Registered", value: count("registered"), tone: logic::Tone::Info, note: "known, nothing assigned" }
+                        Tile { label: "In sync", value: count("in_sync"), tone: logic::Tone::Ok, note: "matching their assigned set", state: "in_sync" }
+                        Tile { label: "Pending", value: count("pending"), tone: logic::Tone::Pending, note: "downloading or installing", state: "pending" }
+                        Tile { label: "Error", value: count("error"), tone: logic::Tone::Error, note: "needs attention", state: "error" }
+                        Tile { label: "Registered", value: count("registered"), tone: logic::Tone::Info, note: "known, nothing assigned", state: "registered" }
                     }
 
                     div { class: "mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]",
@@ -262,7 +262,7 @@ fn SegmentPanel(segments: Resource<api::ApiResult<Segments>>) -> Element {
                     div { class: "flex items-center justify-between border-t border-border-soft px-4 py-2 font-mono text-[11px] text-muted-foreground",
                         span { "Saved target filters" }
                         Link {
-                            to: Route::TargetFilters {},
+                            to: Route::target_filters(),
                             class: "text-fg-dim underline underline-offset-4 hover:text-foreground",
                             "Manage →"
                         }
@@ -389,9 +389,17 @@ fn SystemCard(configs: Resource<api::ApiResult<BTreeMap<String, TenantConfigValu
 /// text, so an interpolated `"text-{tone}"` would generate no rule and the figure
 /// would render unstyled.
 #[component]
-fn Tile(label: String, value: u64, tone: logic::Tone, note: String) -> Element {
+fn Tile(
+    label: String,
+    value: u64,
+    tone: logic::Tone,
+    note: String,
+    state: &'static str,
+) -> Element {
     rsx! {
-        div { class: "tick-scale relative bg-card p-4",
+        Link {
+            to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), offset: 0 },
+            class: "tick-scale relative block bg-card p-4 hover:bg-accent",
             p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
                 "{label}"
             }

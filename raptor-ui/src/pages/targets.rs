@@ -15,26 +15,31 @@ const STATES: [(&str, &str, logic::Tone); 4] = [
 ];
 
 #[component]
-pub fn Targets() -> Element {
-    let mut offset = use_signal(|| 0u64);
-    let mut query = use_signal(String::new);
-    let mut state = use_signal(String::new);
-    let mut tag = use_signal(String::new);
+pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Element {
+    let nav = use_navigator();
+    // Filter and pagination state live in the URL (#81) so Back, refresh, and
+    // bookmarks all preserve them; navigating with `replace` (not `push`) keeps
+    // per-keystroke/per-click changes off the back stack.
+    let goto = move |query: String, state: String, tag: String, offset: u64| {
+        nav.replace(Route::Targets {
+            query,
+            state,
+            tag,
+            offset,
+        });
+    };
 
     // The compiled query is shown to the operator, so build it once and reuse it
     // for both the request and the display — otherwise the two could disagree.
-    let fiql = use_memo(move || {
-        logic::fiql_and(&[
-            logic::fiql_contains(&["name", "controllerId"], &query()),
-            (!state().is_empty()).then(|| format!("updateStatus=={}", state())),
-            logic::fiql_tag(&tag()),
-        ])
-    });
+    let fiql = logic::fiql_and(&[
+        logic::fiql_contains(&["name", "controllerId"], &query),
+        (!state.is_empty()).then(|| format!("updateStatus=={state}")),
+        logic::fiql_tag(&tag),
+    ]);
 
-    let mut targets =
-        use_resource(
-            move || async move { api::list_targets(offset(), LIMIT, fiql().as_deref()).await },
-        );
+    let mut targets = use_resource(use_reactive!(|fiql, offset| async move {
+        api::list_targets(offset, LIMIT, fiql.as_deref()).await
+    }));
     // Polled because the rows carry poll ages: an age that silently stops
     // advancing is worse than no age at all.
     use_polling(targets);
@@ -48,16 +53,11 @@ pub fn Targets() -> Element {
     // remount, which resets that internal state too.
     let mut search_key = use_signal(|| 0u32);
 
-    use_filter_clear(
-        move || !query().is_empty() || !state().is_empty() || !tag().is_empty(),
-        move || {
-            query.set(String::new());
-            state.set(String::new());
-            tag.set(String::new());
-            offset.set(0);
-            search_key += 1;
-        },
-    );
+    let active = !query.is_empty() || !state.is_empty() || !tag.is_empty();
+    use_filter_clear(use_reactive!(|active| active), move || {
+        goto(String::new(), String::new(), String::new(), 0);
+        search_key += 1;
+    });
 
     let now = now_ms();
 
@@ -81,9 +81,10 @@ pub fn Targets() -> Element {
             SearchBox {
                 key: "{search_key}",
                 placeholder: "name or controller id…",
-                on_search: move |s| {
-                    query.set(s);
-                    offset.set(0);
+                initial: query.clone(),
+                on_search: {
+                    let (state, tag) = (state.clone(), tag.clone());
+                    move |s| goto(s, state.clone(), tag.clone(), 0)
                 },
             }
             // State is the fleet's primary axis, so it gets chips rather than
@@ -91,10 +92,10 @@ pub fn Targets() -> Element {
             div { class: "flex flex-wrap gap-2", role: "group", aria_label: "Filter by state",
                 Chip {
                     label: "All".to_string(),
-                    pressed: state().is_empty(),
-                    onclick: move |_| {
-                        state.set(String::new());
-                        offset.set(0);
+                    pressed: state.is_empty(),
+                    onclick: {
+                        let (query, tag) = (query.clone(), tag.clone());
+                        move |_| goto(query.clone(), String::new(), tag.clone(), 0)
                     },
                 }
                 for (key , label , tone) in STATES {
@@ -102,10 +103,10 @@ pub fn Targets() -> Element {
                         key: "{key}",
                         label: label.to_string(),
                         tone,
-                        pressed: state() == key,
-                        onclick: move |_| {
-                            state.set(key.to_string());
-                            offset.set(0);
+                        pressed: state == key,
+                        onclick: {
+                            let (query, tag) = (query.clone(), tag.clone());
+                            move |_| goto(query.clone(), key.to_string(), tag.clone(), 0)
                         },
                     }
                 }
@@ -122,10 +123,10 @@ pub fn Targets() -> Element {
                 div { class: "mt-3 flex flex-wrap gap-2", role: "group", aria_label: "Filter by tag",
                     Chip {
                         label: "All tags".to_string(),
-                        pressed: tag().is_empty(),
-                        onclick: move |_| {
-                            tag.set(String::new());
-                            offset.set(0);
+                        pressed: tag.is_empty(),
+                        onclick: {
+                            let (query, state) = (query.clone(), state.clone());
+                            move |_| goto(query.clone(), state.clone(), String::new(), 0)
                         },
                     }
                     for t in page.content.clone() {
@@ -133,13 +134,10 @@ pub fn Targets() -> Element {
                             key: "{t.id}",
                             label: t.name.clone(),
                             dot: logic::tag_colour(t.colour.as_deref()),
-                            pressed: tag() == t.name,
+                            pressed: tag == t.name,
                             onclick: {
-                                let name = t.name.clone();
-                                move |_| {
-                                    tag.set(name.clone());
-                                    offset.set(0);
-                                }
+                                let (query, state, name) = (query.clone(), state.clone(), t.name.clone());
+                                move |_| goto(query.clone(), state.clone(), name.clone(), 0)
                             },
                         }
                     }
@@ -152,7 +150,7 @@ pub fn Targets() -> Element {
         // as well as the console, so showing it teaches the query language for
         // free and makes a surprising result explainable.
         p { class: "mt-3 font-mono text-[11px] break-all text-muted-foreground",
-            match fiql() {
+            match &fiql {
                 Some(q) => rsx! { "q={q}" },
                 None => rsx! { "no filter — all targets" },
             }
@@ -246,10 +244,13 @@ pub fn Targets() -> Element {
                         }
                     }
                     Paginator {
-                        offset: offset(),
+                        offset,
                         limit: LIMIT,
                         total: page.total,
-                        on_change: move |o| offset.set(o),
+                        on_change: {
+                            let (query, state, tag) = (query.clone(), state.clone(), tag.clone());
+                            move |o| goto(query.clone(), state.clone(), tag.clone(), o)
+                        },
                     }
                 },
                 Some(Err(e)) => rsx! {

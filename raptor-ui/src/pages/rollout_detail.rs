@@ -92,7 +92,7 @@ pub fn RolloutDetail(id: i64) -> Element {
                     match api::delete_rollout(id).await {
                         Ok(()) => {
                             toast_ok("rollout deleted");
-                            nav.push(Route::Rollouts {});
+                            nav.push(Route::rollouts());
                         }
                         Err(e) => toast_error(e.to_string()),
                     }

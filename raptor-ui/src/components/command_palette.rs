@@ -25,17 +25,17 @@ enum Item {
 fn nav_items() -> Vec<(&'static str, Route)> {
     vec![
         ("Dashboard", Route::Dashboard {}),
-        ("Targets", Route::Targets {}),
-        ("Target filters", Route::TargetFilters {}),
-        ("Distributions", Route::Distributions {}),
-        ("Modules", Route::Modules {}),
-        ("Rollouts", Route::Rollouts {}),
-        ("Actions", Route::Actions {}),
-        ("Tags", Route::Tags {}),
+        ("Targets", Route::targets()),
+        ("Target filters", Route::target_filters()),
+        ("Distributions", Route::distributions()),
+        ("Modules", Route::modules()),
+        ("Rollouts", Route::rollouts()),
+        ("Actions", Route::actions()),
+        ("Tags", Route::tags()),
         // The only in-app entry point for a deploy is a distribution set's own
         // "Deploy…" button — this jumps to where the fleet picks one, rather
         // than guessing which set and target the operator means.
-        ("Deploy…", Route::Distributions {}),
+        ("Deploy…", Route::distributions()),
     ]
 }
 
