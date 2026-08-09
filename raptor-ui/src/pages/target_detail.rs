@@ -363,6 +363,13 @@ fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> E
                 }
                 span { class: "font-mono text-xs text-muted-foreground", "{action.action_type}" }
                 StatusBadge { status: action.detail_status.clone() }
+                if let Some(label) = logic::fetch_stall_label(&action.status, action.deployment_fetch_count) {
+                    span {
+                        class: "rounded border border-pend-border bg-pend-bg px-1.5 py-0.5 font-mono text-[11px] text-pend-fg",
+                        title: "Repeatedly re-downloading the update without ever reporting progress back — check the device's client, not the server.",
+                        "{label}"
+                    }
+                }
                 span { class: "ml-auto font-mono text-[11px] text-muted-foreground",
                     {logic::format_ts(action.last_modified_at)}
                 }

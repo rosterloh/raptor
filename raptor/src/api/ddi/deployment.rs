@@ -12,7 +12,9 @@ use crate::util::base_url;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::{Extension, Json};
-use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder,
+};
 use serde_json::{Value, json};
 
 const HISTORY_LIMIT: usize = 10;
@@ -212,6 +214,12 @@ pub async fn deployment_base(
     if !a.active || a.status != "running" {
         return Err(AppError::NotFound("action"));
     }
+    // Diagnostic-only counter (issue #77): a device stuck re-fetching
+    // deploymentBase without ever reporting feedback looks identical to a
+    // slow install otherwise. Reset on any feedback in `apply_feedback`.
+    let mut am: action::ActiveModel = a.clone().into();
+    am.deployment_fetch_count = Set(a.deployment_fetch_count + 1);
+    am.update(&st.db).await?;
     let base = base_url(&st.cfg, &headers);
     Ok(Json(deployment_json(&st, &cid, &a, &base).await?))
 }

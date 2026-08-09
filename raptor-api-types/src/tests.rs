@@ -68,7 +68,7 @@ fn action_shape() {
         "id": 1, "type": "update", "status": "pending", "detailStatus": "running",
         "forceType": "timeforced", "forceTime": 1_700_000_000_000_i64,
         "createdAt": 1, "lastModifiedAt": 2,
-        "target": "d1",
+        "target": "d1", "deploymentFetchCount": 3,
         "_links": {"self": {"href": "http://x/rest/v1/actions/1"}}
     }));
 }
@@ -85,6 +85,7 @@ fn action_target_field_omitted_when_none() {
         created_at: 1,
         last_modified_at: 2,
         target: None,
+        deployment_fetch_count: 0,
         links: serde_json::Value::Null,
     };
     let v = serde_json::to_value(&a).unwrap();

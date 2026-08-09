@@ -219,6 +219,14 @@ pub async fn apply_feedback(
     details: &[String],
 ) -> Result<(), AppError> {
     add_action_status(&st.db, a.id, execution, details).await?;
+    // Any feedback — even the "history only" kinds below — proves the device
+    // is still communicating, so it clears the repeated-fetch-with-no-feedback
+    // diagnostic counter incremented by DDI's deploymentBase handler.
+    if a.deployment_fetch_count != 0 {
+        let mut am: action::ActiveModel = a.clone().into();
+        am.deployment_fetch_count = Set(0);
+        am.update(&st.db).await?;
+    }
     match (execution, finished) {
         ("closed", "failure") => {
             set_action(st, a, "error", false).await?;
@@ -380,6 +388,7 @@ pub fn action_rest(
         created_at: a.created_at,
         last_modified_at: a.updated_at,
         target: target_cid.map(str::to_string),
+        deployment_fetch_count: a.deployment_fetch_count,
         links: serde_json::json!({
             "self": {"href": format!("{base}/rest/v1/actions/{}", a.id)},
             "distributionset": {"href": format!("{base}/rest/v1/distributionsets/{}", a.ds_id)}

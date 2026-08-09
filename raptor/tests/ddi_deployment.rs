@@ -459,3 +459,69 @@ async fn action_history_messages_ordered_newest_first() {
     assert_eq!(messages[2], "m2");
     assert_eq!(messages[3], "m1");
 }
+
+/// A device stuck re-fetching deploymentBase without ever reporting feedback
+/// looks identical to a slow install unless raptor counts the fetches (#77).
+#[tokio::test]
+async fn deployment_fetch_count_tracks_unacknowledged_polls() {
+    let (app, _) = common::setup().await;
+    let (_sm, action_id) = deploy_fixture(&app).await;
+
+    let deployment_base = || {
+        Request::get(format!(
+            "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}"
+        ))
+        .body(Body::empty())
+        .unwrap()
+    };
+    let action = |app: &axum::Router| {
+        let app = app.clone();
+        async move {
+            common::body_json(
+                app.oneshot(common::req(
+                    "GET",
+                    &format!("/rest/v1/targets/d1/actions/{action_id}"),
+                    None,
+                ))
+                .await
+                .unwrap(),
+            )
+            .await
+        }
+    };
+
+    // Three fetches, no feedback in between: the counter tracks every one.
+    for _ in 0..3 {
+        let resp = app.clone().oneshot(deployment_base()).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    assert_eq!(action(&app).await["deploymentFetchCount"], 3);
+
+    // Any feedback — even a non-terminal "proceeding" — proves the device is
+    // still communicating and clears the counter.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/DEFAULT/controller/v1/d1/deploymentBase/{action_id}/feedback"
+            ))
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "id": action_id.to_string(),
+                    "status": {"execution": "proceeding", "result": {"finished": "none"}}
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(action(&app).await["deploymentFetchCount"], 0);
+
+    // Counting resumes from zero after the reset.
+    let resp = app.clone().oneshot(deployment_base()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(action(&app).await["deploymentFetchCount"], 1);
+}
