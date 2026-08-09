@@ -3,7 +3,6 @@ use crate::components::*;
 use crate::{api, logic};
 use dioxus::prelude::*;
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
-use std::collections::BTreeMap;
 
 const LIMIT: u64 = 25;
 
@@ -61,23 +60,6 @@ pub fn Tags() -> Element {
         api::list_tags(kind().prefix(), offset(), LIMIT, q.as_deref()).await
     });
 
-    // One count per tag on the page, fired concurrently — the API has no bulk
-    // "assigned count" and a page is at most LIMIT rows. A failed count shows as
-    // "-" rather than failing the page.
-    let counts = use_resource(move || async move {
-        let prefix = kind().prefix();
-        let ids: Vec<i64> = match &*tags.read() {
-            Some(Ok(page)) => page.content.iter().map(|t| t.id).collect(),
-            _ => Vec::new(),
-        };
-        let results = futures::future::join_all(
-            ids.into_iter()
-                .map(|id| async move { (id, api::count_tagged(prefix, id).await.ok()) }),
-        )
-        .await;
-        results.into_iter().collect::<BTreeMap<i64, Option<u64>>>()
-    });
-
     let mut show_form = use_signal(|| false);
     // None = create, Some = edit that tag.
     let mut form_for = use_signal(|| None::<TagRest>);
@@ -93,17 +75,6 @@ pub fn Tags() -> Element {
             search_key += 1;
         },
     );
-
-    let count_of = |id: i64| -> String {
-        match &*counts.read_unchecked() {
-            Some(map) => match map.get(&id) {
-                Some(Some(n)) => n.to_string(),
-                Some(None) => "-".into(),
-                None => "…".into(),
-            },
-            None => "…".into(),
-        }
-    };
 
     rsx! {
         div { class: "mb-4 flex items-center justify-between",
@@ -163,7 +134,7 @@ pub fn Tags() -> Element {
                                 td { class: "{TD} text-fg-dim",
                                     {t.description.clone().unwrap_or_else(|| "-".into())}
                                 }
-                                td { class: "{TD} tabular-nums text-fg-dim", {count_of(t.id)} }
+                                td { class: "{TD} tabular-nums text-fg-dim", "{t.assigned_count}" }
                                 td { class: TD, {logic::format_ts(t.last_modified_at)} }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",

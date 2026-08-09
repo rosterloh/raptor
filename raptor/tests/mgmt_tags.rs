@@ -101,6 +101,7 @@ async fn target_tag_crud() {
     assert_eq!(created[0]["name"], "beta");
     assert_eq!(created[0]["description"], "early access");
     assert_eq!(created[0]["colour"], "#00ff00");
+    assert_eq!(created[0]["assignedCount"], 0);
     assert!(created[0]["createdAt"].as_i64().unwrap() > 0);
     assert_eq!(
         created[0]["_links"]["assignedTargets"]["href"],
@@ -222,6 +223,10 @@ async fn target_tag_assign_and_unassign() {
     .await;
     assert_eq!(assigned["total"], 3);
 
+    // the bulk list reports the same count without a per-tag fan-out
+    let list = json_of(&app, "GET", "/rest/v1/targettags", None).await;
+    assert_eq!(list["content"][0]["assignedCount"], 3);
+
     // paging and FIQL narrow the assigned list
     let assigned = json_of(
         &app,
@@ -269,6 +274,8 @@ async fn target_tag_assign_and_unassign() {
     )
     .await;
     assert_eq!(assigned["total"], 0);
+    let one = json_of(&app, "GET", &format!("/rest/v1/targettags/{tag}"), None).await;
+    assert_eq!(one["assignedCount"], 0);
 
     // unknown target / unknown tag
     let resp = call(

@@ -20,9 +20,11 @@ use axum::routing::{get, post};
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
 use sea_orm::sea_query::{Expr as SqlExpr, Query as SqlQuery, SelectStatement, SimpleExpr};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait,
+    QueryFilter, QuerySelect,
 };
 use serde_json::json;
+use std::collections::HashMap;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -72,7 +74,7 @@ pub fn routes() -> Router<AppState> {
 // JSON rendering (hawkBit `MgmtTag` shape)
 // --------------------------------------------------------------------------
 
-fn target_tag_rest(t: &target_tag::Model) -> TagRest {
+fn target_tag_rest(t: &target_tag::Model, assigned_count: i64) -> TagRest {
     let base = format!("/rest/v1/targettags/{}", t.id);
     TagRest {
         id: t.id,
@@ -81,6 +83,7 @@ fn target_tag_rest(t: &target_tag::Model) -> TagRest {
         colour: t.colour.clone(),
         created_at: t.created_at,
         last_modified_at: t.updated_at,
+        assigned_count,
         links: json!({
             "self": {"href": base},
             "assignedTargets": {"href": format!("{base}/assigned")},
@@ -88,7 +91,7 @@ fn target_tag_rest(t: &target_tag::Model) -> TagRest {
     }
 }
 
-fn ds_tag_rest(t: &ds_tag::Model) -> TagRest {
+fn ds_tag_rest(t: &ds_tag::Model, assigned_count: i64) -> TagRest {
     let base = format!("/rest/v1/distributionsettags/{}", t.id);
     TagRest {
         id: t.id,
@@ -97,11 +100,53 @@ fn ds_tag_rest(t: &ds_tag::Model) -> TagRest {
         colour: t.colour.clone(),
         created_at: t.created_at,
         last_modified_at: t.updated_at,
+        assigned_count,
         links: json!({
             "self": {"href": base},
             "assignedDistributionSets": {"href": format!("{base}/assigned")},
         }),
     }
+}
+
+/// `tag_id -> assigned count` for a set of target tags, via `GROUP BY`.
+/// Tags with zero assignments are simply absent from the map.
+async fn target_tag_counts(
+    db: &sea_orm::DatabaseConnection,
+    ids: &[i64],
+) -> Result<HashMap<i64, i64>, AppError> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows: Vec<(i64, i64)> = target_tag_assignment::Entity::find()
+        .select_only()
+        .column(target_tag_assignment::Column::TagId)
+        .column_as(target_tag_assignment::Column::TargetId.count(), "cnt")
+        .filter(target_tag_assignment::Column::TagId.is_in(ids.to_vec()))
+        .group_by(target_tag_assignment::Column::TagId)
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// The distribution-set counterpart of [`target_tag_counts`].
+async fn ds_tag_counts(
+    db: &sea_orm::DatabaseConnection,
+    ids: &[i64],
+) -> Result<HashMap<i64, i64>, AppError> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows: Vec<(i64, i64)> = ds_tag_assignment::Entity::find()
+        .select_only()
+        .column(ds_tag_assignment::Column::TagId)
+        .column_as(ds_tag_assignment::Column::DsId.count(), "cnt")
+        .filter(ds_tag_assignment::Column::TagId.is_in(ids.to_vec()))
+        .group_by(ds_tag_assignment::Column::TagId)
+        .into_tuple()
+        .all(db)
+        .await?;
+    Ok(rows.into_iter().collect())
 }
 
 fn target_tag_fiql(f: &str) -> Option<target_tag::Column> {
@@ -275,8 +320,12 @@ pub async fn target_tag_list(
     }
     sel = apply_sort(sel, &p.sort, &target_tag_fiql)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
+    let ids: Vec<i64> = rows.iter().map(|t| t.id).collect();
+    let counts = target_tag_counts(&st.db, &ids).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(target_tag_rest).collect(),
+        rows.iter()
+            .map(|t| target_tag_rest(t, counts.get(&t.id).copied().unwrap_or(0)))
+            .collect(),
         total,
     )))
 }
@@ -285,7 +334,13 @@ pub async fn target_tag_one(
     State(st): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<TagRest>, AppError> {
-    Ok(Json(target_tag_rest(&load_target_tag(&st, id).await?)))
+    let t = load_target_tag(&st, id).await?;
+    let count = target_tag_counts(&st.db, &[t.id])
+        .await?
+        .get(&t.id)
+        .copied()
+        .unwrap_or(0);
+    Ok(Json(target_tag_rest(&t, count)))
 }
 
 pub async fn target_tag_create(
@@ -326,7 +381,7 @@ pub async fn target_tag_create(
         }
         .insert(&st.db)
         .await?;
-        out.push(target_tag_rest(&t));
+        out.push(target_tag_rest(&t, 0));
     }
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -359,7 +414,14 @@ pub async fn target_tag_update(
         am.colour = Set(Some(c));
     }
     am.updated_at = Set(now_ms());
-    Ok(Json(target_tag_rest(&am.update(&st.db).await?)))
+    let tag_id = id;
+    let updated = am.update(&st.db).await?;
+    let count = target_tag_counts(&st.db, &[tag_id])
+        .await?
+        .get(&tag_id)
+        .copied()
+        .unwrap_or(0);
+    Ok(Json(target_tag_rest(&updated, count)))
 }
 
 /// Deleting a tag drops its assignments; the tagged targets stay.
@@ -420,8 +482,12 @@ pub async fn tags_of_target(
         link,
     ));
     let (rows, total) = page(&st.db, apply_sort(sel, &p.sort, &target_tag_fiql)?, &p).await?;
+    let ids: Vec<i64> = rows.iter().map(|t| t.id).collect();
+    let counts = target_tag_counts(&st.db, &ids).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(target_tag_rest).collect(),
+        rows.iter()
+            .map(|t| target_tag_rest(t, counts.get(&t.id).copied().unwrap_or(0)))
+            .collect(),
         total,
     )))
 }
@@ -551,8 +617,12 @@ pub async fn ds_tag_list(
     }
     sel = apply_sort(sel, &p.sort, &ds_tag_fiql)?;
     let (rows, total) = page(&st.db, sel, &p).await?;
+    let ids: Vec<i64> = rows.iter().map(|t| t.id).collect();
+    let counts = ds_tag_counts(&st.db, &ids).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(ds_tag_rest).collect(),
+        rows.iter()
+            .map(|t| ds_tag_rest(t, counts.get(&t.id).copied().unwrap_or(0)))
+            .collect(),
         total,
     )))
 }
@@ -561,7 +631,13 @@ pub async fn ds_tag_one(
     State(st): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<TagRest>, AppError> {
-    Ok(Json(ds_tag_rest(&load_ds_tag(&st, id).await?)))
+    let t = load_ds_tag(&st, id).await?;
+    let count = ds_tag_counts(&st.db, &[t.id])
+        .await?
+        .get(&t.id)
+        .copied()
+        .unwrap_or(0);
+    Ok(Json(ds_tag_rest(&t, count)))
 }
 
 pub async fn ds_tag_create(
@@ -601,7 +677,7 @@ pub async fn ds_tag_create(
         }
         .insert(&st.db)
         .await?;
-        out.push(ds_tag_rest(&t));
+        out.push(ds_tag_rest(&t, 0));
     }
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -634,7 +710,14 @@ pub async fn ds_tag_update(
         am.colour = Set(Some(c));
     }
     am.updated_at = Set(now_ms());
-    Ok(Json(ds_tag_rest(&am.update(&st.db).await?)))
+    let tag_id = id;
+    let updated = am.update(&st.db).await?;
+    let count = ds_tag_counts(&st.db, &[tag_id])
+        .await?
+        .get(&tag_id)
+        .copied()
+        .unwrap_or(0);
+    Ok(Json(ds_tag_rest(&updated, count)))
 }
 
 pub async fn ds_tag_delete(
@@ -689,8 +772,12 @@ pub async fn tags_of_ds(
         link,
     ));
     let (rows, total) = page(&st.db, apply_sort(sel, &p.sort, &ds_tag_fiql)?, &p).await?;
+    let ids: Vec<i64> = rows.iter().map(|t| t.id).collect();
+    let counts = ds_tag_counts(&st.db, &ids).await?;
     Ok(Json(Paged::new(
-        rows.iter().map(ds_tag_rest).collect(),
+        rows.iter()
+            .map(|t| ds_tag_rest(t, counts.get(&t.id).copied().unwrap_or(0)))
+            .collect(),
         total,
     )))
 }
