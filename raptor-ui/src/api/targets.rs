@@ -3,7 +3,7 @@
 use raptor_api_types::*;
 use std::collections::BTreeMap;
 
-use super::{ApiResult, delete, get_json, get_opt, list_path, post_json};
+use super::{ApiResult, delete, get_json, get_opt, list_path, post_json, post_nothing};
 
 pub async fn list_targets(
     offset: u64,
@@ -83,4 +83,16 @@ pub async fn cancel_action(cid: &str, aid: i64, force: bool) -> ApiResult<()> {
 
 pub async fn delete_target(cid: &str) -> ApiResult<()> {
     delete(&format!("/rest/v1/targets/{cid}")).await
+}
+
+pub async fn auto_confirm_status(cid: &str) -> ApiResult<AutoConfirmState> {
+    get_json(&format!("/rest/v1/targets/{cid}/autoConfirm")).await
+}
+
+pub async fn activate_auto_confirm(cid: &str) -> ApiResult<()> {
+    post_nothing(&format!("/rest/v1/targets/{cid}/autoConfirm/activate")).await
+}
+
+pub async fn deactivate_auto_confirm(cid: &str) -> ApiResult<()> {
+    post_nothing(&format!("/rest/v1/targets/{cid}/autoConfirm/deactivate")).await
 }

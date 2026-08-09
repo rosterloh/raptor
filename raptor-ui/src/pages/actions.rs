@@ -67,9 +67,9 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                                 }
                                 td { class: TD, "{a.action_type}" }
                                 td { class: TD, "{a.status}" }
-                                td { class: TD, "{a.detail_status}" }
+                                td { class: TD, StatusBadge { status: a.detail_status.clone() } }
                                 td { class: TD, {logic::format_ts(a.last_modified_at)} }
-                                td { class: TD,
+                                td { class: "{TD} space-x-3",
                                     if a.status == "pending" {
                                         if let Some(cid) = a.target.clone() {
                                             button {
@@ -86,6 +86,27 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                                                     });
                                                 },
                                                 "Cancel"
+                                            }
+                                        }
+                                    }
+                                    // The only operator path the API supports today for a
+                                    // waiting action: releasing it via the target's
+                                    // auto-confirm flag.
+                                    if a.detail_status == "wait_for_confirmation" {
+                                        if let Some(cid) = a.target.clone() {
+                                            button {
+                                                class: "text-xs text-primary hover:underline",
+                                                onclick: move |_| {
+                                                    let cid = cid.clone();
+                                                    spawn(async move {
+                                                        match api::activate_auto_confirm(&cid).await {
+                                                            Ok(()) => toast_ok(format!("auto-confirm activated for {cid}")),
+                                                            Err(e) => toast_error(e.to_string()),
+                                                        }
+                                                        actions.restart();
+                                                    });
+                                                },
+                                                "Activate auto-confirm"
                                             }
                                         }
                                     }
