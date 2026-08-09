@@ -5,7 +5,7 @@ resolver = "3"
 
 # Inherited by members via `<field>.workspace = true`.
 [workspace.package]
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 # The crates.io name `raptor` belongs to an unrelated crate, and the other
 # members are internal — nothing here is publishable. Distribution is the .deb
