@@ -157,6 +157,11 @@ pub fn ModuleDetail(id: i64) -> Element {
                 None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
             }
         }
+        // --- metadata panel (issue #35) ---
+        Card { class: "mt-4",
+            MetadataPanel { prefix: format!("/rest/v1/softwaremodules/{id}/metadata"), show_visible: true }
+        }
+        // --- end metadata panel ---
         ConfirmDialog {
             title: "Delete module".to_string(),
             message: "Delete this module and all its artifacts?".to_string(),

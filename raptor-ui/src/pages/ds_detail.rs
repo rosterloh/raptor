@@ -71,6 +71,11 @@ pub fn DsDetail(id: i64) -> Element {
                 Card { class: "mt-4",
                     EntityTags { kind: TagKind::Ds, entity_key: id.to_string(), tags }
                 }
+                // --- metadata panel (issue #35) ---
+                Card { class: "mt-4",
+                    MetadataPanel { prefix: format!("/rest/v1/distributionsets/{id}/metadata") }
+                }
+                // --- end metadata panel ---
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| ds.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },

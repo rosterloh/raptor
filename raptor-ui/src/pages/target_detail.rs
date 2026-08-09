@@ -134,6 +134,7 @@ pub fn TargetDetail(cid: String) -> Element {
                     "Attributes".to_string(),
                     "Action history".to_string(),
                     "Tags".to_string(),
+                    "Metadata".to_string(),
                 ],
                 selected: tab,
 
@@ -281,6 +282,12 @@ pub fn TargetDetail(cid: String) -> Element {
                 TabPanel { index: 3, selected: tab,
                     EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
                 }
+
+                // --- metadata panel (issue #35) ---
+                TabPanel { index: 4, selected: tab,
+                    MetadataPanel { prefix: format!("/rest/v1/targets/{}/metadata", cid_s()) }
+                }
+                // --- end metadata panel ---
             }
         }
 
