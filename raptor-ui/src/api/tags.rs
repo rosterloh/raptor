@@ -25,18 +25,6 @@ pub async fn delete_tag(prefix: &str, id: i64) -> ApiResult<()> {
     delete(&format!("{prefix}/{id}")).await
 }
 
-/// How many entities carry a tag — a one-row page read for its `total`.
-pub async fn count_tagged(prefix: &str, id: i64) -> ApiResult<u64> {
-    get_json::<PagedList<serde_json::Value>>(&list_path(
-        &format!("{prefix}/{id}/assigned"),
-        0,
-        1,
-        None,
-    ))
-    .await
-    .map(|p| p.total)
-}
-
 /// The tags carried by one target (raptor extension: `/targets/{cid}/tags`).
 pub async fn target_tags(cid: &str) -> ApiResult<Vec<TagRest>> {
     get_json::<PagedList<TagRest>>(&format!("/rest/v1/targets/{cid}/tags?sort=name:ASC"))

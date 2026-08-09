@@ -15,6 +15,9 @@ pub struct TagRest {
     pub colour: Option<String>,
     pub created_at: i64,
     pub last_modified_at: i64,
+    /// How many targets (or distribution sets) carry this tag (raptor
+    /// extension, not in hawkBit's `MgmtTag`).
+    pub assigned_count: i64,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }

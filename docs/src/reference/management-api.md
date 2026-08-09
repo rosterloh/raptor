@@ -164,6 +164,11 @@ and distribution-set lists. Deleting a tag removes its assignments; the tagged
 targets and sets are untouched. Assignment is idempotent — re-assigning an
 already-tagged entity succeeds without creating a duplicate.
 
+Every `TagRest` carries `assignedCount` (raptor extension, not in hawkBit's
+`MgmtTag`) — how many targets (or distribution sets) carry that tag, computed
+with a `GROUP BY` over the assignment table so the tag list stays a single
+request regardless of page size.
+
 | Method | Path | Description |
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/targettags` | create (array body) / list |

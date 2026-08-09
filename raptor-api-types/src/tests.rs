@@ -311,7 +311,7 @@ fn target_rest_carries_set_and_tag_refs() {
 fn tag_rest_shape() {
     round_trip::<TagRest>(json!({
         "id": 3, "name": "beta", "description": null, "colour": "#00ff00",
-        "createdAt": 1, "lastModifiedAt": 2,
+        "createdAt": 1, "lastModifiedAt": 2, "assignedCount": 5,
         "_links": {"self": {"href": "/rest/v1/targettags/3"}}
     }));
 }
