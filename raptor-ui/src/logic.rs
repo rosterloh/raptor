@@ -178,6 +178,9 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
         "confirmed" => ("confirmed", Tone::Info),
         "rejected" => ("rejected", Tone::Error),
         "denied" => ("denied", Tone::Error),
+        // An action parked pending operator/device confirmation — not yet
+        // deploying, so it must not read as "running" (Tone::Pending).
+        "wait_for_confirmation" => ("waiting for confirmation", Tone::Info),
         _ => ("unknown", Tone::Neutral),
     }
 }
@@ -404,6 +407,9 @@ mod tests {
         assert_eq!(status_style("rejected").1, Tone::Error);
         assert_eq!(status_style("denied").1, Tone::Error);
         assert_eq!(status_style("confirmed").1, Tone::Info);
+        // Waiting for confirmation is paused, not running — it must not share
+        // the running/pending tone.
+        assert_ne!(status_style("wait_for_confirmation").1, Tone::Pending);
         // `closed` alone does not mean success — a failed install closes too, so
         // it must never render as Ok.
         assert_ne!(status_style("closed").1, Tone::Ok);

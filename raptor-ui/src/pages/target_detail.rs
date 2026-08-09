@@ -3,7 +3,7 @@ use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
 use crate::{Route, api, logic};
 use dioxus::prelude::*;
-use raptor_api_types::{ActionRest, DsRest};
+use raptor_api_types::{ActionRest, AutoConfirmState, DsRest};
 
 const ACTION_ROWS: u64 = 20;
 /// A single action's history is short — assignment through to finished is a
@@ -20,6 +20,8 @@ pub fn TargetDetail(cid: String) -> Element {
     let mut actions =
         use_resource(move || async move { api::target_actions(&cid_s(), 0, ACTION_ROWS).await });
     let tags = use_resource(move || async move { api::target_tags(&cid_s()).await });
+    let mut auto_confirm =
+        use_resource(move || async move { api::auto_confirm_status(&cid_s()).await });
     use_polling(actions);
 
     let mut show_assign = use_signal(|| false);
@@ -46,6 +48,8 @@ pub fn TargetDetail(cid: String) -> Element {
                             span { class: "text-foreground", "{t.controller_id}" }
                             "·"
                             StatusBadge { status: t.update_status.clone() }
+                            "·"
+                            AutoConfirmBadge { state: auto_confirm.read_unchecked().clone() }
                         }
                     },
                     _ => rsx! {
@@ -60,6 +64,35 @@ pub fn TargetDetail(cid: String) -> Element {
                     variant: ButtonVariant::Outline,
                     onclick: move |_| confirm_delete.set(true),
                     "Delete target"
+                }
+                if let Some(Ok(state)) = &*auto_confirm.read_unchecked() {
+                    {
+                        let active = state.active;
+                        rsx! {
+                            Button {
+                                variant: ButtonVariant::Outline,
+                                onclick: move |_| {
+                                    let cid = cid_s();
+                                    spawn(async move {
+                                        let result = if active {
+                                            api::deactivate_auto_confirm(&cid).await
+                                        } else {
+                                            api::activate_auto_confirm(&cid).await
+                                        };
+                                        match result {
+                                            Ok(()) => toast_ok(
+                                                if active { "auto-confirm deactivated" } else { "auto-confirm activated" },
+                                            ),
+                                            Err(e) => toast_error(e.to_string()),
+                                        }
+                                        auto_confirm.restart();
+                                        actions.restart();
+                                    });
+                                },
+                                if active { "Deactivate auto-confirm" } else { "Activate auto-confirm" }
+                            }
+                        }
+                    }
                 }
                 Button { onclick: move |_| show_assign.set(true), "Assign update" }
             }
@@ -232,7 +265,10 @@ pub fn TargetDetail(cid: String) -> Element {
                                         key: "{a.id}",
                                         cid: cid_s(),
                                         action: a,
-                                        on_cancelled: move |_| actions.restart(),
+                                        on_changed: move |_| {
+                                            actions.restart();
+                                            auto_confirm.restart();
+                                        },
                                     }
                                 }
                             }
@@ -279,10 +315,11 @@ pub fn TargetDetail(cid: String) -> Element {
 /// and what the device said on the way. Fetched only when expanded, so a target
 /// with twenty actions costs one request until you ask about a specific one.
 #[component]
-fn ActionRow(cid: String, action: ActionRest, on_cancelled: EventHandler<()>) -> Element {
+fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> Element {
     let mut open = use_signal(|| false);
     let aid = action.id;
     let cid_for_history = cid.clone();
+    let cid_for_release = cid.clone();
     let history = use_resource(move || {
         let cid = cid_for_history.clone();
         async move {
@@ -294,6 +331,7 @@ fn ActionRow(cid: String, action: ActionRest, on_cancelled: EventHandler<()>) ->
         }
     });
     let cancellable = action.status == "pending";
+    let waiting = action.detail_status == "wait_for_confirmation";
     rsx! {
         div { class: "py-3",
             div { class: "flex flex-wrap items-center gap-3",
@@ -327,10 +365,29 @@ fn ActionRow(cid: String, action: ActionRest, on_cancelled: EventHandler<()>) ->
                                     Ok(()) => toast_ok(format!("cancel requested for action #{aid}")),
                                     Err(e) => toast_error(e.to_string()),
                                 }
-                                on_cancelled.call(());
+                                on_changed.call(());
                             });
                         },
                         "Cancel"
+                    }
+                }
+                // The only operator path the API supports today for a waiting
+                // action: releasing it via the target's auto-confirm flag.
+                if waiting {
+                    button {
+                        r#type: "button",
+                        class: "font-mono text-[11px] text-primary hover:underline",
+                        onclick: move |_| {
+                            let cid = cid_for_release.clone();
+                            spawn(async move {
+                                match api::activate_auto_confirm(&cid).await {
+                                    Ok(()) => toast_ok("auto-confirm activated"),
+                                    Err(e) => toast_error(e.to_string()),
+                                }
+                                on_changed.call(());
+                            });
+                        },
+                        "Activate auto-confirm"
                     }
                 }
             }
@@ -378,6 +435,21 @@ fn ActionRow(cid: String, action: ActionRest, on_cancelled: EventHandler<()>) ->
                 }
             }
         }
+    }
+}
+
+/// The target's auto-confirm flag, next to its update status — the state that
+/// decides whether a future assignment will pause for confirmation at all.
+#[component]
+fn AutoConfirmBadge(state: Option<api::ApiResult<AutoConfirmState>>) -> Element {
+    let (label, tone) = match &state {
+        Some(Ok(s)) if s.active => ("auto-confirm active", logic::Tone::Ok),
+        Some(Ok(_)) => ("auto-confirm inactive", logic::Tone::Neutral),
+        Some(Err(_)) => ("auto-confirm —", logic::Tone::Neutral),
+        None => ("auto-confirm …", logic::Tone::Neutral),
+    };
+    rsx! {
+        span { class: "inline-block rounded border px-2 py-0.5 text-xs {tone_badge(tone)}", "{label}" }
     }
 }
 
