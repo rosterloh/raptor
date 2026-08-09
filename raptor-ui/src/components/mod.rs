@@ -205,3 +205,74 @@ fn tab_hidden() -> bool {
         false
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+const THEME_KEY: &str = "raptor-theme";
+
+/// The resolved dark/light state, plus a callback that flips it and persists
+/// an explicit override. Absent a stored override, `tailwind.css`'s
+/// `prefers-color-scheme` media query alone decides the theme — this only
+/// needs to read that resolved state once (for the toggle button's icon) and
+/// write an override when the operator picks one, mirroring it onto
+/// `<html class="theme-light">` / `class="theme-dark">` so the CSS activation
+/// rules in `tailwind.css` see it. Mounting can't beat first paint (the WASM
+/// module loads after the page does), so a console loaded with an explicit
+/// override briefly shows the OS-preferred theme before this effect runs.
+pub fn use_theme() -> (Signal<bool>, Callback<()>) {
+    let mut is_dark = use_signal(|| true);
+    use_effect(move || {
+        spawn(async move {
+            if let Ok(dark) = theme_init().await {
+                is_dark.set(dark);
+            }
+        });
+    });
+    let toggle = Callback::new(move |()| {
+        let next = !is_dark();
+        is_dark.set(next);
+        theme_apply(next);
+    });
+    (is_dark, toggle)
+}
+
+/// Applies any stored override to `<html>` and reports the resolved dark/light
+/// state — `stored`, or the OS preference when there is none.
+#[cfg(target_arch = "wasm32")]
+async fn theme_init() -> Result<bool, ()> {
+    let js = format!(
+        r#"(() => {{
+            const stored = localStorage.getItem('{THEME_KEY}');
+            const html = document.documentElement;
+            html.classList.remove('theme-light', 'theme-dark');
+            if (stored === 'light' || stored === 'dark') {{
+                html.classList.add('theme-' + stored);
+                return stored === 'dark';
+            }}
+            return !window.matchMedia('(prefers-color-scheme: light)').matches;
+        }})()"#
+    );
+    document::eval(&js).join::<bool>().await.map_err(|_| ())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn theme_init() -> Result<bool, ()> {
+    Ok(true)
+}
+
+/// Persists an explicit override and mirrors it onto `<html>`.
+#[cfg(target_arch = "wasm32")]
+fn theme_apply(dark: bool) {
+    let value = if dark { "dark" } else { "light" };
+    let js = format!(
+        r#"(() => {{
+            const html = document.documentElement;
+            html.classList.remove('theme-light', 'theme-dark');
+            html.classList.add('theme-{value}');
+            localStorage.setItem('{THEME_KEY}', '{value}');
+        }})()"#
+    );
+    document::eval(&js);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn theme_apply(_dark: bool) {}

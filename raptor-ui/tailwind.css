@@ -96,6 +96,171 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* ─── Light theme ────────────────────────────────────────────────────────
+ * A second token block, not a redesign: same names, same roles, values
+ * re-picked for a white canvas instead of the navy one above. Every value
+ * below was checked against WCAG AA — 4.5:1 for body text (`fg-dim`, the
+ * status colours used as plain text) and links/buttons (`primary`), 3:1 for
+ * large text and the UI-component pairs that actually gate on contrast
+ * (`border` as an input/control edge, `primary` as a focus ring, the status
+ * colours as solid dots/progress-bar fills). Decorative dividers
+ * (`border-soft`, `border-subtle`, the badge borders) stay low-contrast on
+ * purpose, matching the dark palette above, which doesn't hit 3:1 on those
+ * either — badges already carry their meaning via the tinted fill plus a
+ * text label, never colour alone.
+ *
+ * Two activation rules, not one, because "respect the OS, but let the
+ * operator override it" needs both: the media query covers "OS says light,
+ * no override", and `:root.theme-light` covers "operator chose light
+ * regardless of OS" — the latter needs a `.theme-dark` counterpart too, or
+ * choosing dark while the OS prefers light would lose to the media query.
+ * Both class selectors carry higher specificity than the bare `:root` the
+ * media query and `@theme` output use, so they win outright rather than by
+ * source order. Values are duplicated between the two light-activation
+ * rules (media query vs. explicit class) — plain CSS custom properties have
+ * no "same value, different trigger" shorthand, and one extra token block
+ * didn't earn an indirection layer.
+ * ─────────────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-background: #f4f6f9;
+    --color-card: #ffffff;
+    --color-accent: #e7ecf2;
+    --color-secondary: #dde4ec;
+
+    --color-foreground: #101823;
+    --color-fg-dim: #3c4a5a;
+    --color-muted-foreground: #5b6b7d;
+    --color-accent-foreground: #101823;
+    --color-secondary-foreground: #101823;
+
+    --color-border: #64748b;
+    --color-border-soft: #b6c2d1;
+    --color-border-subtle: #e2e8f0;
+    --color-input: #64748b;
+
+    --color-primary: #0f766e;
+    --color-primary-foreground: #f2fdfb;
+    --color-primary-hover: #0c5f58;
+    --color-ring: #0f766e;
+    --color-destructive: #c81e1e;
+
+    --color-ok: #0f6b40;
+    --color-pend: #92620a;
+    --color-err: #c81e1e;
+    --color-info: #1e4faa;
+    --color-neutral: #48566a;
+
+    --color-ok-bg: #e7f7ef;
+    --color-ok-border: #86d9b3;
+    --color-ok-fg: #0f6b40;
+    --color-pend-bg: #fdf3d9;
+    --color-pend-border: #e8c468;
+    --color-pend-fg: #92620a;
+    --color-err-bg: #fde8e8;
+    --color-err-border: #f3a6a6;
+    --color-err-fg: #b42318;
+    --color-info-bg: #e3edfd;
+    --color-info-border: #a8c5f5;
+    --color-info-fg: #1e4faa;
+    --color-neutral-bg: #eef1f4;
+    --color-neutral-border: #c3ccd6;
+    --color-neutral-fg: #48566a;
+  }
+}
+
+:root.theme-light {
+  --color-background: #f4f6f9;
+  --color-card: #ffffff;
+  --color-accent: #e7ecf2;
+  --color-secondary: #dde4ec;
+
+  --color-foreground: #101823;
+  --color-fg-dim: #3c4a5a;
+  --color-muted-foreground: #5b6b7d;
+  --color-accent-foreground: #101823;
+  --color-secondary-foreground: #101823;
+
+  --color-border: #64748b;
+  --color-border-soft: #b6c2d1;
+  --color-border-subtle: #e2e8f0;
+  --color-input: #64748b;
+
+  --color-primary: #0f766e;
+  --color-primary-foreground: #f2fdfb;
+  --color-primary-hover: #0c5f58;
+  --color-ring: #0f766e;
+  --color-destructive: #c81e1e;
+
+  --color-ok: #0f6b40;
+  --color-pend: #92620a;
+  --color-err: #c81e1e;
+  --color-info: #1e4faa;
+  --color-neutral: #48566a;
+
+  --color-ok-bg: #e7f7ef;
+  --color-ok-border: #86d9b3;
+  --color-ok-fg: #0f6b40;
+  --color-pend-bg: #fdf3d9;
+  --color-pend-border: #e8c468;
+  --color-pend-fg: #92620a;
+  --color-err-bg: #fde8e8;
+  --color-err-border: #f3a6a6;
+  --color-err-fg: #b42318;
+  --color-info-bg: #e3edfd;
+  --color-info-border: #a8c5f5;
+  --color-info-fg: #1e4faa;
+  --color-neutral-bg: #eef1f4;
+  --color-neutral-border: #c3ccd6;
+  --color-neutral-fg: #48566a;
+}
+
+:root.theme-dark {
+  --color-background: #06090f;
+  --color-card: #0e141c;
+  --color-accent: #131b26;
+  --color-secondary: #18222f;
+
+  --color-foreground: #eef3f8;
+  --color-fg-dim: #b8c4d2;
+  --color-muted-foreground: #7d8b9c;
+  --color-accent-foreground: #eef3f8;
+  --color-secondary-foreground: #eef3f8;
+
+  --color-border: #263544;
+  --color-border-soft: #1a2430;
+  --color-border-subtle: #131b26;
+  --color-input: #263544;
+
+  --color-primary: #3ddbd9;
+  --color-primary-foreground: #04231f;
+  --color-primary-hover: #5fe5e3;
+  --color-ring: #3ddbd9;
+  --color-destructive: #ef5350;
+
+  --color-ok: #21c08b;
+  --color-pend: #f0b429;
+  --color-err: #ef5350;
+  --color-info: #4f9cf9;
+  --color-neutral: #55677a;
+
+  --color-ok-bg: #08241c;
+  --color-ok-border: #14624a;
+  --color-ok-fg: #6ee7b7;
+  --color-pend-bg: #2a1e05;
+  --color-pend-border: #7a5a12;
+  --color-pend-fg: #fcd34d;
+  --color-err-bg: #2b0f10;
+  --color-err-border: #7f2426;
+  --color-err-fg: #fca5a5;
+  --color-info-bg: #0b1c33;
+  --color-info-border: #1e4a80;
+  --color-info-fg: #93c5fd;
+  --color-neutral-bg: #131b26;
+  --color-neutral-border: #263544;
+  --color-neutral-fg: #b8c4d2;
+}
+
 /* A calibrated scale under a measurement. One gradient, and a panel reads as
    instrumentation rather than as a generic card — the detail carried over from
    the "Instrument" direction that lost the overall pick. Needs `relative` on the
