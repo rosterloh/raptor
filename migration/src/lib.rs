@@ -15,6 +15,7 @@ mod m20260726_000001_tags;
 mod m20260727_000001_request_attributes;
 mod m20260727_000002_action_type;
 mod m20260727_000003_rollout_action_type;
+mod m20260809_000001_action_deployment_fetch_count;
 
 pub struct Migrator;
 
@@ -33,6 +34,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260727_000001_request_attributes::Migration),
             Box::new(m20260727_000002_action_type::Migration),
             Box::new(m20260727_000003_rollout_action_type::Migration),
+            Box::new(m20260809_000001_action_deployment_fetch_count::Migration),
         ]
     }
 }

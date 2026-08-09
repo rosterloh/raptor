@@ -22,6 +22,12 @@ pub struct Model {
     pub rollout_group_id: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// `deploymentBase` fetches since the last feedback report — a device
+    /// stuck re-fetching without ever reporting `proceeding`/a terminal
+    /// status looks identical to a slow install otherwise. See
+    /// [`crate::domain::deployment::apply_feedback`], which resets this.
+    #[sea_orm(default_value = 0)]
+    pub deployment_fetch_count: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -185,6 +185,21 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
     }
 }
 
+/// A repeated-fetch-with-no-feedback warning for an active action (#77): a
+/// device stuck re-fetching `deploymentBase` without ever reporting back looks
+/// identical to a slow install otherwise. `count` is fetches since the last
+/// feedback; a couple is normal (a fresh poll after a restart, say), so the
+/// threshold sits just above that.
+const FETCH_STALL_THRESHOLD: i32 = 3;
+
+pub fn fetch_stall_label(status: &str, count: i32) -> Option<String> {
+    if status == "pending" && count >= FETCH_STALL_THRESHOLD {
+        Some(format!("fetched {count}×, no feedback"))
+    } else {
+        None
+    }
+}
+
 /// Which field of the target-filter form an API write error belongs to. The
 /// server validates FIQL at write time (400) and rejects duplicate names (409),
 /// so the status alone says where the message goes; anything else is a
@@ -480,5 +495,17 @@ mod tests {
         // unknown keys have no friendly label and show as sent
         assert_eq!(config_label("pollingTime"), "Polling interval");
         assert_eq!(config_label("some.future.key"), "some.future.key");
+    }
+
+    #[test]
+    fn fetch_stall_label_needs_pending_and_a_few_fetches() {
+        assert_eq!(
+            fetch_stall_label("pending", 3),
+            Some("fetched 3×, no feedback".into())
+        );
+        assert_eq!(fetch_stall_label("pending", 0), None);
+        assert_eq!(fetch_stall_label("pending", 2), None);
+        // a finished action re-fetching installedBase isn't a stall
+        assert_eq!(fetch_stall_label("finished", 9), None);
     }
 }

@@ -28,6 +28,12 @@ pub struct ActionRest {
     /// raptor extension (additive, not in hawkBit): target controllerId.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub target: Option<String>,
+    /// raptor extension (additive, not in hawkBit): `deploymentBase` fetches
+    /// since the last feedback report of any kind. A device stuck re-fetching
+    /// without ever reporting back looks identical to a slow install
+    /// otherwise — a run of these with zero feedback is the diagnostic.
+    #[serde(default)]
+    pub deployment_fetch_count: i32,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }

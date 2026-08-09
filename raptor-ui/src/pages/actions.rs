@@ -68,7 +68,18 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                                 }
                                 td { class: TD, "{a.action_type}" }
                                 td { class: TD, "{a.status}" }
-                                td { class: TD, StatusBadge { status: a.detail_status.clone() } }
+                                td { class: TD,
+                                    div { class: "flex items-center gap-1.5",
+                                        StatusBadge { status: a.detail_status.clone() }
+                                        if let Some(label) = logic::fetch_stall_label(&a.status, a.deployment_fetch_count) {
+                                            span {
+                                                class: "rounded border border-pend-border bg-pend-bg px-1.5 py-0.5 font-mono text-[11px] text-pend-fg",
+                                                title: "Repeatedly re-downloading the update without ever reporting progress back — check the device's client, not the server.",
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
                                 td { class: TD, {logic::format_ts(a.last_modified_at)} }
                                 td { class: "{TD} space-x-3",
                                     if a.status == "pending" {

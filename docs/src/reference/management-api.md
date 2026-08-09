@@ -114,6 +114,13 @@ says whether a given device class can install that set at all.
 | `GET` / `PUT` / `DELETE` | `/rest/v1/system/configs/{key}` | one config key (writes → 403) |
 | `GET` | `/rest/v1/system/statistics` | fleet counters (targets/actions/…), optional `q=` |
 
+Every action carries `deploymentFetchCount` (raptor extension, not in hawkBit):
+`deploymentBase` fetches since the last feedback report of any kind. A device
+stuck re-fetching without ever reporting progress back looks identical to a
+slow install otherwise — the web console flags an active action once this
+passes a small threshold with a "fetched N×, no feedback" badge, distinguishing
+a client-side reinstall loop from a healthy in-progress update at a glance.
+
 ### Scoping statistics to a filter
 
 `/rest/v1/system/statistics` accepts an optional FIQL `q=`, the same query the
