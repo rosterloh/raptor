@@ -29,6 +29,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | `confirmationBase` confirmation flow | ✅ |
 | Maintenance windows | ❌ ([#7](https://github.com/rosterloh/raptor/issues/7)) |
 | DMF (AMQP) device path | ❌ ([#11](https://github.com/rosterloh/raptor/issues/11)) |
+| Per-target polling interval override | ❌ ([#91](https://github.com/rosterloh/raptor/issues/91)) |
 
 ¹ hawkBit 0.8 removed anonymous controller support and anonymous download.
 raptor keeps anonymous mode as a **raptor extension** (useful for dev/lab
@@ -43,8 +44,11 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Distribution sets CRUD + module composition | ✅ |
 | Actions (per-target and fleet-wide list/filter) | ✅ |
 | Rollouts (create/start/pause/resume/delete, deploy groups) | ✅ |
+| Rollout stop | ❌ ([#90](https://github.com/rosterloh/raptor/issues/90)) |
 | Target filters + auto-assignment | ✅ |
 | Per-target auto-confirm | ✅ |
+| FIQL filter targets by auto-confirm status | ❌ ([#92](https://github.com/rosterloh/raptor/issues/92)) |
+| Target groups (`group` attribute, `q=group==`) | ❌ ([#89](https://github.com/rosterloh/raptor/issues/89)) |
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |
 | Target / distribution-set **tags** CRUD, assign/unassign, `q=tag==x` | ✅ |
