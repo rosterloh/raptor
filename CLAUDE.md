@@ -52,6 +52,11 @@ cargo build --release --features embed-ui
 utility class must commit the regenerated stylesheet — CI diffs it, because a
 missing class compiles, lints, and tests clean while silently rendering wrong.
 
+For iterating on the UI itself, use `dx serve --package raptor-ui` alongside
+`cargo run -- serve --config raptor.toml` instead of the full build loop above
+— see [Developing the console](docs/src/guides/web-console.md#developing-the-console)
+for the proxy setup and a known issue with `--hotpatch` on 0.7.10.
+
 Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
 (OTLP traces/metrics/logs). Both off by default; CI lints/tests both.
 
