@@ -10,8 +10,8 @@ mod logic;
 mod pages;
 
 use pages::{
-    Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, RolloutDetail,
-    Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets, Types,
+    Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, NotFound,
+    RolloutDetail, Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets, Types,
 };
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
@@ -49,6 +49,8 @@ pub enum Route {
         RolloutDetail { id: i64 },
         #[route("/actions?:filter&:offset")]
         Actions { filter: String, offset: u64 },
+        #[route("/:..route")]
+        NotFound { route: Vec<String> },
 }
 
 impl Route {
