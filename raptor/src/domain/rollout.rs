@@ -1,7 +1,7 @@
 //! Rollout lifecycle: creating groups from a target-filter query, starting
 //! the first group, and the success/error-threshold evaluation that advances
-//! or pauses subsequent groups. `evaluate_rollouts` is the entry point called
-//! by the background sweep in `main`.
+//! or pauses subsequent groups, plus the stop operation. `evaluate_rollouts`
+//! is the entry point called by the background sweep in `main`.
 
 use crate::entity::{
     action, distribution_set, rollout, rollout_group, rollout_target_group, target,
@@ -11,8 +11,8 @@ use crate::state::AppState;
 use crate::util::now_ms;
 use raptor_api_types::{RolloutCreate, RolloutTargetsPerStatus as TargetsPerStatus};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 
@@ -200,6 +200,94 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
     Ok(r)
 }
 
+/// Stops a rollout: soft-cancels the actions it issued and takes the rollout to
+/// the terminal `stopped` status. This is the "abort this bad update now" lever
+/// — unlike `pause_rollout`, which leaves already-issued actions running, and
+/// unlike `delete_rollout`, which destroys the record an operator needs for the
+/// post-mortem.
+///
+/// hawkBit models this as `STOPPING` -> `STOPPED`: the rollout sits in
+/// `stopping` while the cancellations propagate to devices over DDI, and
+/// reaches `stopped` once none of its actions is active any more.
+/// `evaluate_rollouts` performs that second transition on each sweep.
+///
+/// Cancellation is soft: actions go to `canceling` and are served to the device
+/// as `cancelAction`, so a device that has already downloaded can stop cleanly
+/// and report the outcome back. `delete_rollout` hard-cancels instead, because
+/// it is removing the very record that feedback would attach to.
+pub async fn stop_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
+    if !matches!(r.status.as_str(), "running" | "paused") {
+        return Err(AppError::BadRequest(format!(
+            "cannot stop rollout in status {}",
+            r.status
+        )));
+    }
+
+    // Actions already in `canceling` are left alone: re-issuing the cancel would
+    // add a duplicate status entry without changing what the device is told.
+    let actions = action::Entity::find()
+        .filter(action::Column::RolloutId.eq(r.id))
+        .filter(action::Column::Active.eq(true))
+        .filter(action::Column::Status.ne("canceling"))
+        .all(&st.db)
+        .await?;
+    for a in actions {
+        let aid = a.id;
+        let mut am: action::ActiveModel = a.into();
+        am.status = Set("canceling".into());
+        am.updated_at = Set(now_ms());
+        am.update(&st.db).await?;
+        crate::domain::deployment::add_action_status(
+            &st.db,
+            aid,
+            "canceling",
+            &["rollout stopped".into()],
+        )
+        .await?;
+    }
+
+    // Groups that never ran, or were mid-flight, are stopped with the rollout.
+    // Groups that already finished keep their outcome.
+    for g in rollout_group::Entity::find()
+        .filter(rollout_group::Column::RolloutId.eq(r.id))
+        .filter(rollout_group::Column::Status.ne("finished"))
+        .all(&st.db)
+        .await?
+    {
+        let mut gm: rollout_group::ActiveModel = g.into();
+        gm.status = Set("stopped".into());
+        gm.updated_at = Set(now_ms());
+        gm.update(&st.db).await?;
+    }
+
+    let mut rm: rollout::ActiveModel = r.into();
+    rm.status = Set("stopping".into());
+    rm.updated_at = Set(now_ms());
+    let r = rm.update(&st.db).await?;
+
+    // A rollout with nothing in flight (never started, or every device already
+    // done) settles now rather than waiting for the next evaluator sweep.
+    settle_stopping(st, r).await
+}
+
+/// `stopping` -> `stopped`, once no action the rollout issued is still active.
+/// Devices leave `canceling` by reporting cancel feedback over DDI (or by being
+/// force-canceled), so this is driven by the evaluator rather than by a timer.
+async fn settle_stopping(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
+    let in_flight = action::Entity::find()
+        .filter(action::Column::RolloutId.eq(r.id))
+        .filter(action::Column::Active.eq(true))
+        .count(&st.db)
+        .await?;
+    if in_flight > 0 {
+        return Ok(r);
+    }
+    let mut rm: rollout::ActiveModel = r.into();
+    rm.status = Set("stopped".into());
+    rm.updated_at = Set(now_ms());
+    Ok(rm.update(&st.db).await?)
+}
+
 pub async fn delete_rollout(st: &AppState, r: rollout::Model) -> Result<(), AppError> {
     let groups = rollout_group::Entity::find()
         .filter(rollout_group::Column::RolloutId.eq(r.id))
@@ -248,6 +336,16 @@ pub async fn evaluate_rollouts(st: &AppState) -> Result<(), AppError> {
         .await?;
     for r in running {
         evaluate_rollout(st, &r).await?;
+    }
+
+    // Rollouts an operator stopped stay in `stopping` until the cancels they
+    // issued have drained out of the devices.
+    for r in rollout::Entity::find()
+        .filter(rollout::Column::Status.eq("stopping"))
+        .all(&st.db)
+        .await?
+    {
+        settle_stopping(st, r).await?;
     }
     Ok(())
 }

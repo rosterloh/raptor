@@ -11,18 +11,20 @@ pub fn RolloutDetail(id: i64) -> Element {
     use_polling(groups);
 
     let mut confirm_delete = use_signal(|| false);
+    let mut confirm_stop = use_signal(|| false);
     let nav = use_navigator();
 
-    // Lifecycle transition (start/pause/resume) with toast + refresh.
+    // Lifecycle transition (start/pause/resume/stop) with toast + refresh.
     let run = move |op: &'static str| {
         spawn(async move {
-            let res = match op {
-                "start" => api::start_rollout(id).await,
-                "pause" => api::pause_rollout(id).await,
-                _ => api::resume_rollout(id).await,
+            let (res, done) = match op {
+                "start" => (api::start_rollout(id).await, "started"),
+                "pause" => (api::pause_rollout(id).await, "paused"),
+                "stop" => (api::stop_rollout(id).await, "stopped"),
+                _ => (api::resume_rollout(id).await, "resumed"),
             };
             match res {
-                Ok(_) => toast_ok(format!("rollout {op}ed")),
+                Ok(_) => toast_ok(format!("rollout {done}")),
                 Err(e) => toast_error(e.to_string()),
             }
             rollout.restart();
@@ -48,6 +50,15 @@ pub fn RolloutDetail(id: i64) -> Element {
                     }
                     if r.status == "paused" {
                         Button { onclick: move |_| run("resume"), "Resume" }
+                    }
+                    // Stop is the escalation from either live state: pause
+                    // leaves already-issued updates running on devices.
+                    if r.status == "running" || r.status == "paused" {
+                        Button {
+                            variant: ButtonVariant::Destructive,
+                            onclick: move |_| confirm_stop.set(true),
+                            "Stop"
+                        }
                     }
                     Button {
                         variant: ButtonVariant::Destructive,
@@ -87,6 +98,14 @@ pub fn RolloutDetail(id: i64) -> Element {
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| rollout.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
+        }
+        ConfirmDialog {
+            title: "Stop rollout".to_string(),
+            message: "Stop this rollout and cancel the updates it has already sent out? \
+                Devices are asked to cancel and report back; the rollout cannot be resumed."
+                .to_string(),
+            open: confirm_stop,
+            on_confirm: move |_| run("stop"),
         }
         ConfirmDialog {
             title: "Delete rollout".to_string(),

@@ -42,6 +42,10 @@ pub async fn resume_rollout(id: i64) -> ApiResult<RolloutRest> {
     post_empty(&format!("/rest/v1/rollouts/{id}/resume")).await
 }
 
+pub async fn stop_rollout(id: i64) -> ApiResult<RolloutRest> {
+    post_empty(&format!("/rest/v1/rollouts/{id}/stop")).await
+}
+
 pub async fn delete_rollout(id: i64) -> ApiResult<()> {
     delete(&format!("/rest/v1/rollouts/{id}")).await
 }
