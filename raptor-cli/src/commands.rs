@@ -69,6 +69,9 @@ pub enum TargetCmd {
         name: Option<String>,
         #[arg(long)]
         description: Option<String>,
+        /// Organisational group, `/`-separated for hierarchy (plant-a/line-3)
+        #[arg(long)]
+        group: Option<String>,
     },
     /// Update a target's mutable fields
     Set {
@@ -79,6 +82,9 @@ pub enum TargetCmd {
         description: Option<String>,
         #[arg(long)]
         request_attributes: bool,
+        /// Move the target into a group; omitting it leaves the current one
+        #[arg(long)]
+        group: Option<String>,
     },
     /// Delete a target
     Delete { controller_id: String },
@@ -179,6 +185,7 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
             controller_id,
             name,
             description,
+            group,
         } => {
             let body = TargetCreate {
                 controller_id,
@@ -186,6 +193,7 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 description,
                 security_token: None,
                 target_type: None,
+                group,
             };
             let t = api::targets::create(c, &body).await?;
             if json {
@@ -198,12 +206,14 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
             name,
             description,
             request_attributes,
+            group,
         } => {
             let body = TargetUpdate {
                 name,
                 description,
                 security_token: None,
                 request_attributes: request_attributes.then_some(true),
+                group,
             };
             let t = api::targets::update(c, &controller_id, &body).await?;
             if json {

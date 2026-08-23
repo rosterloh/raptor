@@ -44,6 +44,7 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> Ta
         last_controller_request_at: t.last_poll_at,
         poll_status,
         target_type: t.type_id,
+        group: t.group_name.clone(),
         request_attributes: t.request_attributes,
         // Left empty here and filled by the caller. Resolving them needs extra
         // queries, and this mapper is used by endpoints that create or tag

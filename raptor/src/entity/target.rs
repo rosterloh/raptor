@@ -19,6 +19,12 @@ pub struct Model {
     pub installed_ds_id: Option<i64>,
     /// Optional target type constraining which DS types may be assigned.
     pub type_id: Option<i64>,
+    /// hawkBit `group`: single-valued organisational placement, `/`-separated
+    /// for hierarchy. Unlike tags a target has at most one, and unlike the
+    /// target type it constrains nothing — it is purely an operator's axis for
+    /// slicing the fleet. Stored as `group_name` because `GROUP` is reserved in
+    /// SQLite and Postgres.
+    pub group_name: Option<String>,
     /// When true, assignments skip the confirmation wait state even if the
     /// DDI confirmation flow is enabled.
     #[sea_orm(default_value = false)]

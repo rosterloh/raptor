@@ -22,6 +22,46 @@ fn target_shape() {
 }
 
 #[test]
+fn target_group_round_trips_on_every_body() {
+    // hawkBit spells it `group` on both the representation and the
+    // create/update body (MgmtTarget.group, MgmtTargetRequestBody.group,
+    // example "Asia"). The column behind it is `group_name`, so this pins that
+    // the rename never leaks onto the wire.
+    round_trip::<TargetRest>(json!({
+        "controllerId": "d1", "name": "device one", "description": null,
+        "updateStatus": "in_sync", "securityToken": "abc123",
+        "createdAt": 1, "lastModifiedAt": 2, "address": null, "ipAddress": null,
+        "lastControllerRequestAt": null, "pollStatus": null,
+        "group": "plant-a/line-3",
+        "requestAttributes": false,
+        "_links": {"self": {"href": "http://x/rest/v1/targets/d1"}}
+    }));
+    round_trip::<TargetCreate>(json!({"controllerId": "d1", "group": "Asia"}));
+    round_trip::<TargetUpdate>(json!({"group": "Asia"}));
+
+    // Unset stays absent rather than serialising as null, so a target with no
+    // group is byte-identical to one from before the field existed.
+    let t: TargetRest = serde_json::from_value(json!({
+        "controllerId": "d1", "name": "d", "description": null,
+        "updateStatus": "unknown", "securityToken": "t",
+        "createdAt": 1, "lastModifiedAt": 1, "address": null, "ipAddress": null,
+        "lastControllerRequestAt": null, "pollStatus": null,
+        "requestAttributes": false, "_links": {}
+    }))
+    .unwrap();
+    assert_eq!(t.group, None);
+    let encoded = serde_json::to_value(&t).unwrap();
+    assert!(
+        encoded.get("group").is_none(),
+        "unset group must be omitted, got {encoded}"
+    );
+
+    // Omitted on a PUT means "leave the group alone", not "clear it".
+    let u: TargetUpdate = serde_json::from_value(json!({"name": "d1"})).unwrap();
+    assert_eq!(u.group, None);
+}
+
+#[test]
 fn target_update_carries_request_attributes() {
     round_trip::<TargetUpdate>(json!({"requestAttributes": true}));
     // omitted stays omitted, so a PUT that doesn't mention it leaves it alone
@@ -339,6 +379,7 @@ fn target_type_field_omitted_when_none() {
         description: None,
         update_status: "unknown".into(),
         security_token: "x".into(),
+        group: None,
         created_at: 1,
         last_modified_at: 2,
         address: None,

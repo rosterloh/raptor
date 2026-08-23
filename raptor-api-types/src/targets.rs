@@ -34,6 +34,11 @@ pub struct TargetRest {
     /// Assigned target type id, if any (hawkBit `targetType`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub target_type: Option<i64>,
+    /// hawkBit `group`: the target's organisational placement, `/`-separated for
+    /// hierarchy (`plant-a/line-3`). Omitted when unset, so a target with no
+    /// group serialises exactly as it did before this field existed.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub group: Option<String>,
     /// Whether the DDI base poll is currently asking this device to (re-)send
     /// its attributes (hawkBit `requestAttributes`).
     #[serde(default)]
@@ -72,6 +77,9 @@ pub struct TargetCreate {
     pub security_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub target_type: Option<i64>,
+    /// hawkBit `group` (`MgmtTargetRequestBody.group`).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub group: Option<String>,
 }
 
 /// Body of `PUT /rest/v1/targets/{id}`. Omitted fields are left unchanged.
@@ -89,6 +97,11 @@ pub struct TargetUpdate {
     /// `MgmtTargetRequestBody.requestAttributes`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub request_attributes: Option<bool>,
+    /// Move the target into a group. Omitting it leaves the current group
+    /// alone; as with `description`, there is no way to clear one back to unset
+    /// through this body.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub group: Option<String>,
 }
 
 /// Body of `POST /rest/v1/targettypes` (hawkBit
