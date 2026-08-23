@@ -43,8 +43,7 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Software modules CRUD + multipart artifact upload/list/download/delete | ✅ |
 | Distribution sets CRUD + module composition | ✅ |
 | Actions (per-target and fleet-wide list/filter) | ✅ |
-| Rollouts (create/start/pause/resume/delete, deploy groups) | ✅ |
-| Rollout stop | ❌ ([#90](https://github.com/rosterloh/raptor/issues/90)) |
+| Rollouts (create/start/pause/resume/stop/delete, deploy groups) | ✅ |
 | Target filters + auto-assignment | ✅ |
 | Per-target auto-confirm | ✅ |
 | FIQL filter targets by auto-confirm status | ❌ ([#92](https://github.com/rosterloh/raptor/issues/92)) |

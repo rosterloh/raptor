@@ -163,6 +163,8 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
         "finished" => ("finished", Tone::Ok),
         "canceled" => ("canceled", Tone::Neutral),
         "canceling" | "cancelling" => ("cancelling", Tone::Pending),
+        // Cancels are out to the devices but not all acknowledged yet.
+        "stopping" => ("stopping", Tone::Pending),
         "stopped" => ("stopped", Tone::Error),
         // Action-status history entries. These are the `execution` values a
         // device reports over DDI, so the set is whatever the client sends.
@@ -411,6 +413,8 @@ mod tests {
         // tone as the states they can ignore.
         assert_eq!(status_style("error").1, Tone::Error);
         assert_eq!(status_style("stopped").1, Tone::Error);
+        // Still draining, so it must not read as already-terminal.
+        assert_eq!(status_style("stopping").1, Tone::Pending);
         assert_eq!(status_style("in_sync").1, Tone::Ok);
         assert_eq!(status_style("???").1, Tone::Neutral);
 

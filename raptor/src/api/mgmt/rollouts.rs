@@ -22,6 +22,7 @@ pub fn routes() -> Router<AppState> {
         .route("/rest/v1/rollouts/{id}/start", post(start))
         .route("/rest/v1/rollouts/{id}/pause", post(pause))
         .route("/rest/v1/rollouts/{id}/resume", post(resume))
+        .route("/rest/v1/rollouts/{id}/stop", post(stop))
         .route("/rest/v1/rollouts/{id}/deploygroups", get(groups))
         .route("/rest/v1/rollouts/{id}/deploygroups/{gid}", get(group_one))
         .route(
@@ -137,6 +138,20 @@ pub async fn resume(
 ) -> Result<Json<RolloutRest>, AppError> {
     let r = find_rollout(&st, id).await?;
     let r = crate::domain::rollout::resume_rollout(&st, r).await?;
+    let base = base_url(&st.cfg, &headers);
+    Ok(Json(one_rest(&st, &r, &base).await?))
+}
+
+/// Terminates a running or paused rollout and soft-cancels the actions it
+/// issued (hawkBit `POST /rest/v1/rollouts/{id}/stop`). The response carries the
+/// rollout in `stopping`, or already in `stopped` when nothing was in flight.
+pub async fn stop(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<RolloutRest>, AppError> {
+    let r = find_rollout(&st, id).await?;
+    let r = crate::domain::rollout::stop_rollout(&st, r).await?;
     let base = base_url(&st.cfg, &headers);
     Ok(Json(one_rest(&st, &r, &base).await?))
 }

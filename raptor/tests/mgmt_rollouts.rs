@@ -1,6 +1,7 @@
 mod common;
 
-use axum::http::StatusCode;
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
 use raptor::domain::rollout::evaluate_rollouts;
 use raptor::entity::action;
 use raptor::state::AppState;
@@ -619,4 +620,274 @@ async fn rollout_rejects_an_unknown_action_type() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+/// The one action `dev-{i}` has, as `(id, detailStatus)`.
+async fn device_action(app: &axum::Router, i: usize) -> (i64, String) {
+    let page = get_json(app, &format!("/rest/v1/targets/dev-{i}/actions")).await;
+    let a = &page["content"][0];
+    (
+        a["id"].as_i64().unwrap(),
+        a["detailStatus"].as_str().unwrap().to_string(),
+    )
+}
+
+fn ddi_cancel_feedback(cid: &str, action_id: i64) -> Request<Body> {
+    let body = json!({
+        "id": action_id.to_string(),
+        "time": "20260704T120000",
+        "status": {"execution": "closed", "result": {"finished": "success"}, "details": []}
+    });
+    Request::post(format!(
+        "/DEFAULT/controller/v1/{cid}/cancelAction/{action_id}/feedback"
+    ))
+    .header(header::CONTENT_TYPE, "application/json")
+    .body(Body::from(body.to_string()))
+    .unwrap()
+}
+
+/// Stop soft-cancels the actions the rollout issued — devices are told over DDI
+/// rather than having the action yanked out from under them — and the rollout
+/// only reaches the terminal `stopped` once they have all confirmed.
+#[tokio::test]
+async fn stop_cancels_issued_actions_and_settles_once_devices_confirm() {
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(create_body(ds, 1, "100", None)),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/stop"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    // Devices still have the cancel to pick up, so this is not terminal yet.
+    assert_eq!(common::body_json(resp).await["status"], "stopping");
+
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    assert_eq!(groups["content"][0]["status"], "stopped");
+
+    // Both actions are cancelling and still active — a hard cancel would have
+    // closed them out without ever telling the device.
+    let (a0, s0) = device_action(&app, 0).await;
+    let (a1, s1) = device_action(&app, 1).await;
+    assert_eq!((s0.as_str(), s1.as_str()), ("canceling", "canceling"));
+
+    // A polling device is served the cancel over DDI.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/DEFAULT/controller/v1/dev-0/cancelAction/{a0}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        common::body_json(resp).await["cancelAction"]["stopId"],
+        a0.to_string()
+    );
+
+    // One device confirming is not enough to settle the rollout.
+    app.clone()
+        .oneshot(ddi_cancel_feedback("dev-0", a0))
+        .await
+        .unwrap();
+    evaluate_rollouts(&st).await.unwrap();
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "stopping"
+    );
+
+    app.clone()
+        .oneshot(ddi_cancel_feedback("dev-1", a1))
+        .await
+        .unwrap();
+    evaluate_rollouts(&st).await.unwrap();
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "stopped"
+    );
+    assert_eq!(device_action(&app, 0).await.1, "canceled");
+}
+
+/// A rollout with nothing in flight has nothing to wait for, so it does not
+/// linger in `stopping`.
+#[tokio::test]
+async fn stop_settles_immediately_when_no_action_is_in_flight() {
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(create_body(ds, 1, "100", None)),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Both devices are done; the rollout just has not been evaluated yet.
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    let g0 = groups["content"][0]["id"].as_i64().unwrap();
+    finish_group_actions(&st, g0, false).await;
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/stop"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(common::body_json(resp).await["status"], "stopped");
+}
+
+/// Stopping abandons the groups that had not finished yet without rewriting the
+/// history of the ones that had.
+#[tokio::test]
+async fn stop_leaves_already_finished_groups_alone() {
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(create_body(ds, 2, "100", None)),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    // Drive the first group to completion so the second one is scheduled.
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    let g0 = groups["content"][0]["id"].as_i64().unwrap();
+    finish_group_actions(&st, g0, false).await;
+    evaluate_rollouts(&st).await.unwrap();
+
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/stop"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let groups = get_json(&app, &format!("/rest/v1/rollouts/{id}/deploygroups")).await;
+    assert_eq!(groups["content"][0]["status"], "finished");
+    assert_eq!(groups["content"][1]["status"], "stopped");
+    // The second group's device still has a cancel to acknowledge.
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "stopping"
+    );
+}
+
+/// Stop is an operation on a live rollout: legal from `running` and `paused`,
+/// rejected everywhere else — including a second stop.
+#[tokio::test]
+async fn stop_is_rejected_outside_running_and_paused() {
+    let (app, _) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let stop = |id: i64| {
+        let app = app.clone();
+        async move {
+            app.oneshot(common::req(
+                "POST",
+                &format!("/rest/v1/rollouts/{id}/stop"),
+                None,
+            ))
+            .await
+            .unwrap()
+            .status()
+        }
+    };
+    let create = |body: serde_json::Value| {
+        let app = app.clone();
+        async move {
+            common::body_json(
+                app.oneshot(common::req("POST", "/rest/v1/rollouts", Some(body)))
+                    .await
+                    .unwrap(),
+            )
+            .await["id"]
+                .as_i64()
+                .unwrap()
+        }
+    };
+
+    // `ready` — never started, so there is nothing to abort.
+    let id = create(create_body(ds, 1, "100", None)).await;
+    assert_eq!(stop(id).await, StatusCode::BAD_REQUEST);
+
+    // `paused` is a live rollout: stop is the escalation from it.
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/pause"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(stop(id).await, StatusCode::OK);
+
+    // Already stopping — the cancels are out, a second stop is a no-op error.
+    assert_eq!(stop(id).await, StatusCode::BAD_REQUEST);
 }

@@ -156,6 +156,7 @@ fn draw_rollouts(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
                 "running" => "▶",
                 "paused" => "‖",
                 "finished" => "✓",
+                "stopping" | "stopped" => "✕",
                 _ => "○",
             };
             let s = &r.total_targets_per_status;

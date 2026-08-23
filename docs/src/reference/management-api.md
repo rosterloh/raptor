@@ -200,6 +200,7 @@ request regardless of page size.
 | `POST` | `/rest/v1/rollouts/{id}/start` | start (schedules first group) |
 | `POST` | `/rest/v1/rollouts/{id}/pause` | pause |
 | `POST` | `/rest/v1/rollouts/{id}/resume` | resume |
+| `POST` | `/rest/v1/rollouts/{id}/stop` | stop (cancels the updates it issued) |
 | `GET` | `/rest/v1/rollouts/{id}/deploygroups` | list groups |
 | `GET` | `/rest/v1/rollouts/{id}/deploygroups/{gid}` | one group |
 | `GET` | `/rest/v1/rollouts/{id}/deploygroups/{gid}/targets` | controllerIds in a group |

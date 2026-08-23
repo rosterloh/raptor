@@ -50,13 +50,41 @@ The rollout starts in `ready`.
 curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/start
 curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/pause
 curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/resume
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts/1/stop
 curl -u admin:pw -X DELETE localhost:8088/rest/v1/rollouts/1
 ```
 
 - **start** — `ready` → `running`; schedules the first group.
 - **pause** — `running` → `paused`; the evaluator ignores paused rollouts.
 - **resume** — `paused` → `running`; re-evaluates immediately.
+- **stop** — `running` or `paused` → `stopping` → `stopped`; see below.
 - **delete** — cancels any active actions in the rollout and removes it.
+
+### Stopping a rollout
+
+Pause only stops raptor from scheduling *more* groups — the updates already sent
+out keep running on the devices that have them. Stop is the abort: it cancels
+those in-flight updates as well, and is terminal (a stopped rollout cannot be
+resumed; create a new one).
+
+The cancellation is soft, so devices are told rather than cut off:
+
+1. Every active action the rollout issued moves to `canceling` and is served to
+   the device as `cancelAction` on its next poll. Groups that had not finished
+   are marked `stopped`; ones that already finished keep their outcome.
+2. The rollout reports `stopping` while those cancels are outstanding.
+3. As each device acknowledges over DDI, its action becomes `canceled`. Once
+   none are left active the rollout settles to `stopped`.
+
+A rollout with nothing left in flight — every device it reached is already
+finished — goes straight to `stopped`.
+
+A device that is offline holds the rollout in `stopping` until it polls again.
+That is the honest state: the update has not been called off out in the fleet
+yet. To close one out without waiting, force-cancel its action
+(`DELETE /rest/v1/targets/{cid}/actions/{aid}?force=true`).
+
+Stop is rejected with `400` from any other status, including a second stop.
 
 ## Inspecting groups
 
