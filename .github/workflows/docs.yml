@@ -23,8 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: cargo-bins/cargo-binstall@v1.21.1
-      - run: cargo binstall mdbook --no-confirm --force --disable-strategies compile
+      # mdbook is in install-action's own manifest, so it downloads a known
+      # release asset (checksum-verified) instead of querying api.github.com to
+      # resolve one. Plain `cargo binstall` did resolve through the API
+      # unauthenticated, which shares a 60/hour limit per runner IP across all
+      # of Actions — that 403'd and failed this job on #114, and on runs 44, 46
+      # and 47 before it. Matches the nextest install in ci.yml.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
       - run: mdbook build docs
       - uses: actions/upload-pages-artifact@v5
         with:
