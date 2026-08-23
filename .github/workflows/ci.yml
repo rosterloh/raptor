@@ -39,6 +39,13 @@ jobs:
       # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
       # which makes binstall skip a reinstall and leaves `dx` missing on PATH
       - run: cargo binstall dioxus-cli@0.7.10 --no-confirm --force
+        env:
+          # binstall resolves the release through api.github.com, where
+          # unauthenticated calls share 60/hour per runner IP across all of
+          # Actions — the 403 that failed the docs job. dioxus-cli isn't in
+          # install-action's manifest, so this keeps binstall (and the --force
+          # workaround above) and just authenticates the lookup.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
       - run: cargo test -p raptor --features embed-ui --test ui_serving

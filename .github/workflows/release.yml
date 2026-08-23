@@ -20,12 +20,21 @@ jobs:
       # target/dx/raptor-ui/release/web/public, which the `embed-ui` feature
       # embeds into the raptor binary. --disable-strategies compile forces the
       # prebuilt dx binary (avoids a slow, occasionally-broken source build).
+      # GITHUB_TOKEN on both binstall steps: they resolve releases through
+      # api.github.com, where unauthenticated calls share 60/hour per runner IP
+      # across all of Actions. That 403'd the docs job, and with
+      # --disable-strategies compile there is no fallback — on a tagged release
+      # it would fail the build outright rather than fall back to a slow one.
       - run: cargo binstall dioxus-cli@0.7.10 --no-confirm --force --disable-strategies compile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: dx build --release --package raptor-ui
 
       # cargo-deb builds `raptor` in release with the embed-ui feature (per
       # [package.metadata.deb] in raptor/Cargo.toml) and packages it.
       - run: cargo binstall cargo-deb --no-confirm --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo deb -p raptor
       - run: ls -la target/debian/
 
