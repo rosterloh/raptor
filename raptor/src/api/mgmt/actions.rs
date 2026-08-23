@@ -81,6 +81,7 @@ pub async fn assign(
             item.id,
             item.assign_type.as_deref(),
             item.forcetime,
+            item.maintenance_window.as_ref(),
         )
         .await?;
         match r.action_id {

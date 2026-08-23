@@ -86,10 +86,46 @@ fn action_target_field_omitted_when_none() {
         last_modified_at: 2,
         target: None,
         deployment_fetch_count: 0,
+        maintenance_window: None,
         links: serde_json::Value::Null,
     };
     let v = serde_json::to_value(&a).unwrap();
     assert!(v.get("target").is_none());
+    // An assignment without a window must not grow the field at all.
+    assert!(v.get("maintenanceWindow").is_none());
+}
+
+#[test]
+fn action_with_maintenance_window_shape() {
+    round_trip::<ActionRest>(json!({
+        "id": 1, "type": "update", "status": "pending", "detailStatus": "running",
+        "forceType": "forced",
+        "createdAt": 1, "lastModifiedAt": 2, "deploymentFetchCount": 0,
+        "maintenanceWindow": {
+            "schedule": "0 0 2 * * ?", "duration": "02:00:00", "timezone": "+02:00",
+            "nextStartAt": 1_700_000_000_000_i64
+        },
+        "_links": {"self": {"href": "http://x/rest/v1/actions/1"}}
+    }));
+}
+
+#[test]
+fn maintenance_window_request_shape() {
+    round_trip::<MaintenanceWindowRequest>(json!({
+        "schedule": "0 15 10 * * ? 2018", "duration": "02:00:00", "timezone": "+02:00"
+    }));
+}
+
+#[test]
+fn ds_assignment_carries_an_optional_maintenance_window() {
+    round_trip::<DsAssignment>(json!({
+        "id": 4, "type": "downloadonly", "forcetime": 1_700_000_000_000_i64,
+        "maintenanceWindow": {
+            "schedule": "0 0 2 * * ?", "duration": "02:00:00", "timezone": "+02:00"
+        }
+    }));
+    // The bare form stays exactly as it was.
+    round_trip::<DsAssignment>(json!({"id": 4}));
 }
 
 #[test]
@@ -410,6 +446,7 @@ fn assignment_request_shape() {
         id: 5,
         assign_type: Some("forced".into()),
         forcetime: None,
+        maintenance_window: None,
     };
     assert_eq!(
         serde_json::to_value(&a).unwrap(),

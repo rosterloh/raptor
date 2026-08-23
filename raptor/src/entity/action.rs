@@ -28,6 +28,13 @@ pub struct Model {
     /// [`crate::domain::deployment::apply_feedback`], which resets this.
     #[sea_orm(default_value = 0)]
     pub deployment_fetch_count: i32,
+    /// Maintenance window: the device downloads immediately but only installs
+    /// while the window is open. Quartz cron schedule, `HH:mm:ss` duration and
+    /// `±HH:mm` timezone offset — all three set together, or all `None`. See
+    /// [`crate::domain::maintenance`].
+    pub maintenance_schedule: Option<String>,
+    pub maintenance_duration: Option<String>,
+    pub maintenance_timezone: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

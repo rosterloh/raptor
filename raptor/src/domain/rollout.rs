@@ -124,12 +124,15 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
+        // Rollouts carry no maintenance window: hawkBit puts one on the
+        // rollout record, which raptor's rollouts do not model yet.
         let res = crate::domain::deployment::assign_ds(
             st,
             &t,
             r.ds_id,
             Some(&r.action_type),
             r.forced_time,
+            None,
         )
         .await?;
         if let Some(action_id) = res.action_id {

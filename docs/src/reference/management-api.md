@@ -34,7 +34,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |
 
 | `GET` / `PUT` / `DELETE` | `/rest/v1/targets/{cid}/metadata/{key}` | get / update / delete one entry |
-| `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action) |
+| `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action); optional `maintenanceWindow` |
 | `GET` | `/rest/v1/targets/{cid}/assignedDS` | currently assigned DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/actions` | actions for this target |
