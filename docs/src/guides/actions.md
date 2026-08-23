@@ -39,6 +39,67 @@ hawkBit's default of `0`). Note the request body spells it all-lowercase
 `forcetime` while the action response uses `forceTime`; that asymmetry is
 hawkBit's and raptor mirrors it.
 
+### Maintenance windows
+
+A maintenance window splits download from install: the device fetches the
+artifacts as soon as the action is assigned, but is told to hold the install
+until the window opens. Use it when the update itself is disruptive — a vehicle
+that must not reboot mid-journey, a machine that may only restart overnight.
+
+```bash
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/assignedDS \
+  -H 'Content-Type: application/json' -d '{
+    "id": 1, "type": "forced",
+    "maintenanceWindow": {
+      "schedule": "0 0 2 ? * MON",
+      "duration": "02:00:00",
+      "timezone": "+02:00"
+    }
+  }'
+```
+
+That window opens at 02:00 every Monday, in UTC+02:00, and stays open for two
+hours.
+
+- **`schedule`** — [Quartz cron][quartz], **not** Unix cron. It leads with a
+  seconds field (six fields, or seven with a trailing year), accepts `?` as the
+  "no specific value" wildcard in the two day fields, and numbers weekdays
+  **1 = Sunday through 7 = Saturday**. A Unix-cron five-field expression is
+  rejected rather than silently misread, but a *valid* expression using the
+  other weekday numbering is not detectable — `2` means Monday here and Tuesday
+  in Unix cron, so double-check day-of-week schedules.
+- **`duration`** — how long the window stays open, `HH:mm:ss`, up to `23:59:59`.
+- **`timezone`** — offset from UTC as `±HH:mm`. It is a fixed offset, not a
+  named zone, so it does not follow daylight-saving transitions: a window set
+  at `+01:00` in winter opens an hour early once summer time starts.
+
+While the window is shut the device's `deploymentBase` reports
+`update: "skip"` alongside `maintenanceWindow: "unavailable"`, with `download`
+left at the action's real mode. Once it opens, `update` becomes the action's
+real mode and `maintenanceWindow` reads `"available"`. Nothing is scheduled
+server-side — the state is computed per request, the same way `timeforced`
+works — so a device simply polls and finds the window open.
+
+The action echoes its window back to operators, with the next opening:
+
+```json
+"maintenanceWindow": {
+  "schedule": "0 0 2 ? * MON", "duration": "02:00:00",
+  "timezone": "+02:00", "nextStartAt": 1767225600000
+}
+```
+
+A window the server cannot evaluate — a malformed schedule, a duration that is
+not `HH:mm:ss`, an offset that is not `±HH:mm`, or a schedule pinned to a year
+already past — is rejected with `400` at assignment time, so a device is never
+handed a window that would leave it waiting forever.
+
+Windows currently apply to direct assignments only; rollouts and target-filter
+auto-assignment do not carry one yet ([#7]).
+
+[quartz]: https://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html
+[#7]: https://github.com/rosterloh/raptor/issues/7
+
 A **`downloadonly`** action completes when the device reports `downloaded`
 feedback rather than `closed`. Because nothing was installed, the target's
 `installedDS` is deliberately left untouched — only `assignedDS` reflects the

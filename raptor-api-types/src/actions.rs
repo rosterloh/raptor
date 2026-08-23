@@ -5,6 +5,35 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// A maintenance window as an operator supplies it (hawkBit
+/// `MgmtMaintenanceWindowRequestBody`): the device downloads as soon as the
+/// action is assigned, but only installs while the window is open.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaintenanceWindowRequest {
+    /// Quartz cron, seconds first, with an optional trailing year and `?` as
+    /// the day-field wildcard — `0 15 10 * * ? 2018` is 10:15 every day of
+    /// 2018. Note Quartz numbers weekdays 1 = Sunday, unlike Unix cron.
+    pub schedule: String,
+    /// Window length as `HH:mm:ss`, e.g. `02:00:00` for two hours.
+    pub duration: String,
+    /// Offset from UTC as `±HH:mm`, e.g. `+02:00`.
+    pub timezone: String,
+}
+
+/// A maintenance window as reported back (hawkBit `MgmtMaintenanceWindow`):
+/// the operator's three fields plus the derived next start.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaintenanceWindowRest {
+    pub schedule: String,
+    pub duration: String,
+    pub timezone: String,
+    /// Epoch millis of the next window start at or after now.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub next_start_at: Option<i64>,
+}
+
 /// A deployment action against a target (hawkBit `MgmtAction`): created when
 /// a distribution set is assigned to a target.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,6 +63,9 @@ pub struct ActionRest {
     /// otherwise — a run of these with zero feedback is the diagnostic.
     #[serde(default)]
     pub deployment_fetch_count: i32,
+    /// Present only when the assignment carried one.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub maintenance_window: Option<MaintenanceWindowRest>,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }

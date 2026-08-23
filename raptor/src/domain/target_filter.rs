@@ -26,7 +26,9 @@ async fn maybe_assign(
     if active_action(&st.db, target.id).await?.is_some() {
         return Ok(());
     }
-    assign_ds(st, target, ds_id, action_type, None).await?;
+    // Auto-assignment carries no maintenance window: hawkBit puts one on the
+    // filter itself, which raptor's target filters do not model yet.
+    assign_ds(st, target, ds_id, action_type, None, None).await?;
     Ok(())
 }
 

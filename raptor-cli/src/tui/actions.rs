@@ -172,6 +172,7 @@ fn spawn_assign(app: &App, cid: String, ds_id: i64) {
             id: ds_id,
             assign_type: None,
             forcetime: None,
+            maintenance_window: None,
         };
         let r = api::actions::assign(&client, &cid, &body).await.map(|res| {
             format!(

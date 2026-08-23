@@ -112,6 +112,15 @@ pub struct DsAssignment {
     /// response uses `forceTime` — mirrored deliberately, don't "fix" it.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub forcetime: Option<i64>,
+    /// Separates download from install: the device fetches immediately and
+    /// installs only inside this recurring window. This struct has no
+    /// `rename_all`, so the camelCase wire name is spelled out.
+    #[serde(
+        rename = "maintenanceWindow",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub maintenance_window: Option<crate::MaintenanceWindowRequest>,
 }
 
 /// Body of `POST /rest/v1/distributionsettypes` (hawkBit

@@ -247,6 +247,7 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 id: ds,
                 assign_type: force,
                 forcetime: None,
+                maintenance_window: None,
             };
             let r = api::actions::assign(c, &controller_id, &body).await?;
             if json {

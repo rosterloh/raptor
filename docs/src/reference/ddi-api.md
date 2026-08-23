@@ -100,6 +100,27 @@ once the deadline passes. See [Assignments & Actions](../guides/actions.md) for
 the operator side. The `confirmationBase` response is identical but keyed
 `confirmation` instead of `deployment`.
 
+### maintenanceWindow
+
+An action assigned with a
+[maintenance window](../guides/actions.md#maintenance-windows) adds one more
+field inside `deployment`:
+
+```json
+"deployment": { "download": "forced", "update": "skip",
+                "maintenanceWindow": "unavailable", "chunks": [] }
+```
+
+- `"unavailable"` — the window is shut. `update` is forced to `skip` whatever
+  the action type says, so the device downloads and waits.
+- `"available"` — the window is open. `update` is the action's real mode.
+
+The key is **omitted entirely** for an action without a window, so payloads for
+ordinary assignments are unchanged. Like the modes above it is computed per
+request, so a device polling across the window boundary sees it flip with no
+server-side scheduling involved. `installedBase` replays a finished action and
+never carries the field.
+
 A chunk's `metadata` array carries any software-module metadata marked
 `targetVisible` (see the Management API). The key is omitted entirely when a
 module has no visible metadata.

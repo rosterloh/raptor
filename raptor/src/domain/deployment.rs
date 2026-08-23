@@ -123,8 +123,14 @@ pub async fn assign_ds(
     ds_id: i64,
     action_type: Option<&str>,
     forced_time: Option<i64>,
+    maintenance: Option<&raptor_api_types::MaintenanceWindowRequest>,
 ) -> Result<AssignResult, AppError> {
     let action_type = parse_action_type(action_type)?;
+    // Validated before anything is written, so a malformed window is a 400 on
+    // the assignment rather than a device that never installs.
+    if let Some(w) = maintenance {
+        crate::domain::maintenance::validate_assignable(w)?;
+    }
     let ds = distribution_set::Entity::find_by_id(ds_id)
         .one(&st.db)
         .await?
@@ -188,6 +194,9 @@ pub async fn assign_ds(
         active: Set(true),
         action_type: Set(action_type.into()),
         forced_time: Set(forced_time),
+        maintenance_schedule: Set(maintenance.map(|w| w.schedule.clone())),
+        maintenance_duration: Set(maintenance.map(|w| w.duration.clone())),
+        maintenance_timezone: Set(maintenance.map(|w| w.timezone.clone())),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -378,6 +387,14 @@ pub fn action_rest(
     base: &str,
 ) -> raptor_api_types::ActionRest {
     let is_cancel = matches!(a.status.as_str(), "canceling" | "canceled");
+    let maintenance_window = crate::domain::maintenance::window_for(a).map(|w| {
+        raptor_api_types::MaintenanceWindowRest {
+            schedule: a.maintenance_schedule.clone().unwrap_or_default(),
+            duration: a.maintenance_duration.clone().unwrap_or_default(),
+            timezone: a.maintenance_timezone.clone().unwrap_or_default(),
+            next_start_at: w.next_start_at(now_ms()),
+        }
+    });
     raptor_api_types::ActionRest {
         id: a.id,
         action_type: if is_cancel { "cancel" } else { "update" }.to_string(),
@@ -389,6 +406,7 @@ pub fn action_rest(
         last_modified_at: a.updated_at,
         target: target_cid.map(str::to_string),
         deployment_fetch_count: a.deployment_fetch_count,
+        maintenance_window,
         links: serde_json::json!({
             "self": {"href": format!("{base}/rest/v1/actions/{}", a.id)},
             "distributionset": {"href": format!("{base}/rest/v1/distributionsets/{}", a.ds_id)}

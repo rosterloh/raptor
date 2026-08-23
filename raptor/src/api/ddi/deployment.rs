@@ -158,13 +158,31 @@ pub async fn deployment_json_keyed(
         .map(|s| s.status.to_uppercase())
         .unwrap_or_else(|| "RUNNING".into());
 
-    let (download, update) = crate::domain::deployment::ddi_modes(a, crate::util::now_ms());
+    let now = crate::util::now_ms();
+    let (download, mut update) = crate::domain::deployment::ddi_modes(a, now);
+
+    // A maintenance window gates the install only: the device is told to
+    // download as usual and to skip the update until the window opens. Only
+    // live actions are gated — `installedBase` replays a finished action, where
+    // the window that once held it back is history.
+    let maintenance = a
+        .active
+        .then(|| crate::domain::maintenance::availability(a, now))
+        .flatten();
+    if maintenance == Some("unavailable") {
+        update = "skip";
+    }
+
+    let mut deployment = json!({"download": download, "update": update, "chunks": chunks});
+    // Omitted entirely for an action without a window, so those payloads stay
+    // byte-identical to what stock clients see today.
+    if let Some(m) = maintenance {
+        deployment["maintenanceWindow"] = json!(m);
+    }
+
     let mut out = serde_json::Map::new();
     out.insert("id".into(), json!(a.id.to_string()));
-    out.insert(
-        top_key.to_string(),
-        json!({"download": download, "update": update, "chunks": chunks}),
-    );
+    out.insert(top_key.to_string(), deployment);
     out.insert(
         "actionHistory".into(),
         json!({"status": history_status, "messages": messages}),
