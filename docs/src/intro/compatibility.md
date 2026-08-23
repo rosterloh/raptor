@@ -54,7 +54,7 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Metadata endpoints (targets / modules / DS, `targetVisible` on module entries) | ✅ |
 | All four action types + force escalation (`PUT .../actions/{id}`) and force-quit (`DELETE ...?force=true`) | ✅ |
 | Rollout approval workflow ([#17](https://github.com/rosterloh/raptor/issues/17)), dynamic rollouts ([#18](https://github.com/rosterloh/raptor/issues/18)) | ❌ |
-| Maintenance windows on assignments | ✅ (on rollouts / auto-assign: ❌ [#7](https://github.com/rosterloh/raptor/issues/7)) |
+| Maintenance windows on assignments | ✅ (on rollouts / auto-assign: ❌ [#116](https://github.com/rosterloh/raptor/issues/116)) |
 | Multi-assignment / action weights | removed upstream in hawkBit 0.10; not planned ([#10](https://github.com/rosterloh/raptor/issues/10)) |
 
 **Wire-format alignment with hawkBit 0.10:** successful deletes return `204 No
