@@ -55,6 +55,12 @@ pub fn fiql_map(f: &str) -> Option<target::Column> {
         "name" => Some(target::Column::Name),
         "description" => Some(target::Column::Description),
         "updateStatus" => Some(target::Column::UpdateStatus),
+        // hawkBit's RSQL name is `group` (their polling-override docs filter
+        // with `group == 'eu'`); the column behind it is `group_name`.
+        // Wildcards go through the shared `*` -> LIKE path, so
+        // `q=group==plant-a/*` does hierarchical prefix matching with no
+        // special-casing here.
+        "group" => Some(target::Column::GroupName),
         "lastControllerRequestAt" => Some(target::Column::LastPollAt),
         "address" => Some(target::Column::Address),
         _ => None,
@@ -156,6 +162,7 @@ pub async fn create(
             security_token: Set(c.security_token.unwrap_or_else(random_token)),
             update_status: Set("unknown".into()),
             type_id: Set(c.target_type),
+            group_name: Set(c.group),
             auto_confirm: Set(st.cfg.ddi.auto_confirm_default),
             created_at: Set(now),
             updated_at: Set(now),
@@ -336,6 +343,9 @@ pub async fn update(
     }
     if let Some(v) = u.request_attributes {
         am.request_attributes = Set(v);
+    }
+    if let Some(v) = u.group {
+        am.group_name = Set(Some(v));
     }
     am.updated_at = Set(now_ms());
     let t = am.update(&st.db).await?;

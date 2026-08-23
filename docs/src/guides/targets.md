@@ -46,8 +46,53 @@ curl -u admin:pw 'localhost:8088/rest/v1/targets?q=updateStatus==error'
 ```
 
 Filterable fields include `controllerId` (alias `id`), `name`, `description`,
-`updateStatus`, `lastControllerRequestAt`, and `address`. See
+`updateStatus`, `lastControllerRequestAt`, `address`, and `group`. See
 [Filtering with FIQL](./fiql.md).
+
+## Groups
+
+A target can carry one **group**: its organisational placement in the fleet —
+which plant, which customer, which vehicle line. It is a plain string, and a
+`/` in it is just a character, so nesting is a naming convention rather than a
+structure the server enforces.
+
+```bash
+# set one at registration, or move a device later
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets \
+  -H 'Content-Type: application/json' \
+  -d '[{"controllerId": "dev-1", "group": "plant-a/line-3"}]'
+
+curl -u admin:pw -X PUT localhost:8088/rest/v1/targets/dev-1 \
+  -H 'Content-Type: application/json' -d '{"group": "plant-b/line-1"}'
+```
+
+Because `==` supports `*` wildcards, the naming convention is what makes a
+hierarchy queryable — `plant-a/*` matches every line in plant A:
+
+```bash
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=group==plant-a/*'
+curl -u admin:pw 'localhost:8088/rest/v1/targets?q=group==plant-a/*;updateStatus==error'
+```
+
+The same query works in a saved [target filter](./target-filters.md) and in a
+rollout, since all three share one FIQL compiler.
+
+### Groups vs. tags vs. types
+
+The three look similar and answer different questions:
+
+| | How many per target | Constrains anything | Answers |
+|---|---|---|---|
+| **Group** | at most one | no | *where does this device sit in the fleet* |
+| **[Tags](./tags.md)** | many | no | *what is true about this device right now* |
+| **[Target type](./distribution-sets.md)** | at most one | yes — which DS types may be assigned | *what kind of device is it* |
+
+A device belongs to one plant but can be both `beta` and `field-trial`; the type
+is the only one of the three that can refuse an assignment.
+
+Omitting `group` from a `PUT` leaves the current one unchanged. As with
+`description`, there is no way to clear it back to unset through the update
+body.
 
 ## Last-seen address
 

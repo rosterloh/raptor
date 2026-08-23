@@ -47,7 +47,7 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Target filters + auto-assignment | ✅ |
 | Per-target auto-confirm | ✅ |
 | FIQL filter targets by auto-confirm status | ❌ ([#92](https://github.com/rosterloh/raptor/issues/92)) |
-| Target groups (`group` attribute, `q=group==`) | ❌ ([#89](https://github.com/rosterloh/raptor/issues/89)) |
+| Target groups (`group` attribute, `q=group==`) | ✅ (console: ❌ [#117](https://github.com/rosterloh/raptor/issues/117)) |
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |
 | Target / distribution-set **tags** CRUD, assign/unassign, `q=tag==x` | ✅ |

@@ -50,7 +50,7 @@ Each resource exposes its own field map; an unknown field returns `400 Bad
 Request`. Common maps:
 
 - **targets** — `id`/`controllerId`, `name`, `description`, `updateStatus`,
-  `lastControllerRequestAt`, `address`, `tag`, `attribute.<key>`
+  `lastControllerRequestAt`, `address`, `group`, `tag`, `attribute.<key>`
 - **distribution sets** — `id`, `name`, `version`, `description`, `complete`,
   `tag`
 - **target tags / DS tags** — `id`, `name`, `description`, `colour`
