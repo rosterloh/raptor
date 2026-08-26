@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Config first: telemetry init needs the [otel] section, and it
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
+            validate_polling_schedule(&cfg)?;
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
             if let Some(u) = &cfg.ddi.artifact_http_url
                 && !u.starts_with("http://")
@@ -106,6 +107,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Rejects a malformed `[ddi] polling_interval` at startup rather than at
+/// poll time: parses the grammar, then compiles every override rule's RSQL
+/// through the same path a device poll evaluates it with
+/// (`api::mgmt::targets::condition`), so an unknown field name fails here
+/// too, not silently the first time a device happens to match it.
+fn validate_polling_schedule(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let schedule = cfg
+        .ddi
+        .polling_schedule()
+        .map_err(|e| format!("[ddi] polling_interval: {e}"))?;
+    for rule in &schedule.rules {
+        raptor::api::mgmt::targets::condition(&rule.filter)
+            .map_err(|e| format!("[ddi] polling_interval override {:?}: {e:?}", rule.filter))?;
+    }
+    Ok(())
+}
+
 /// Snapshot fleet state (targets by `update_status`, active actions) into the
 /// metrics gauges.
 async fn observe_fleet(state: &AppState) -> Result<(), sea_orm::DbErr> {
@@ -148,5 +166,58 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::result_large_err)] // figment::Jail::expect_with's closure error type is fixed by the crate
+mod tests {
+    use super::*;
+
+    fn assert_polling_interval(polling_interval: &str, expect_ok: bool) {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!(
+                    "database_url = \"sqlite::memory:\"\n\
+                     artifact_dir = \"/tmp\"\n\
+                     [ddi]\n\
+                     polling_interval = {polling_interval:?}\n\
+                     [mgmt]\n\
+                     username = \"admin\"\n\
+                     password_hash = \"x\"\n"
+                ),
+            )?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            assert_eq!(
+                validate_polling_schedule(&cfg).is_ok(),
+                expect_ok,
+                "polling_interval = {polling_interval:?}"
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn accepts_a_well_formed_schedule() {
+        assert_polling_interval("00:05:00, group==eu -> 00:01:00", true);
+    }
+
+    #[test]
+    fn rejects_malformed_grammar() {
+        assert_polling_interval("not-a-time", false);
+    }
+
+    #[test]
+    fn rejects_a_rule_with_an_unknown_field() {
+        assert_polling_interval("00:05:00, nope==1 -> 00:01:00", false);
+    }
+
+    /// hawkBit's own PR examples write RSQL with spaces around the operator;
+    /// raptor's FIQL dialect doesn't accept that. Catching it here, at
+    /// startup, is the whole point of this function.
+    #[test]
+    fn rejects_hawkbit_style_whitespace_around_the_operator() {
+        assert_polling_interval("00:05:00, group == 'eu' -> 00:01:00", false);
     }
 }

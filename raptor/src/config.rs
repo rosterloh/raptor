@@ -116,18 +116,172 @@ impl Default for DdiConfig {
 }
 
 impl DdiConfig {
-    /// Parse "HH:MM:SS"; falls back to 5 minutes on malformed input.
-    pub fn polling_duration(&self) -> std::time::Duration {
-        let parts: Vec<u64> = self
-            .polling_interval
-            .split(':')
-            .filter_map(|p| p.parse().ok())
-            .collect();
-        match parts.as_slice() {
-            [h, m, s] => std::time::Duration::from_secs(h * 3600 + m * 60 + s),
-            _ => std::time::Duration::from_secs(300),
-        }
+    /// Parses `polling_interval` into a [`PollingSchedule`]. See
+    /// [`parse_polling_schedule`] for the grammar.
+    pub fn polling_schedule(&self) -> Result<PollingSchedule, String> {
+        parse_polling_schedule(&self.polling_interval)
     }
+
+    /// The default interval's base duration — no jitter, no override rules.
+    /// Used only for the Management API's `pollStatus.overdue` estimate,
+    /// which hawkBit itself computes from the default interval regardless of
+    /// which override (if any) a target currently matches — a documented
+    /// upstream limitation (eclipse-hawkbit/hawkbit#2533: "overdue time is
+    /// calculated according to the default polling time"), mirrored here
+    /// rather than fixed, since fixing it would mean re-evaluating every
+    /// target's rules on every list page just for a cosmetic figure.
+    /// Falls back to 5 minutes on malformed input, matching this method's
+    /// pre-override behavior.
+    pub fn polling_duration(&self) -> std::time::Duration {
+        self.polling_schedule()
+            .map(|s| s.default.duration)
+            .unwrap_or(std::time::Duration::from_secs(300))
+    }
+}
+
+/// A single `HH:MM:SS` interval with an optional `~NN%` jitter, `N` in
+/// `0..=99` — hawkBit's `pollingTime` grammar (PR
+/// eclipse-hawkbit/hawkbit#2533), minus the `d+:HH:mm:ss` and ISO-8601
+/// duration forms: raptor's incident-shaped use case ("poll this device
+/// faster while I'm watching it") doesn't need day-scale intervals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PollingInterval {
+    pub duration: std::time::Duration,
+    pub deviation_percent: u8,
+}
+
+impl PollingInterval {
+    /// Applies `~NN%` jitter — fresh randomness on every call, matching
+    /// hawkBit's own `Random.nextLong` per-evaluation behavior rather than
+    /// something derived from the target (source: `PollingTime.PollingInterval
+    /// #getFormattedIntervalWithDeviation`) — and formats the result as
+    /// `HH:MM:SS` for the DDI poll response.
+    pub fn resolve(&self) -> String {
+        let millis = self.duration.as_millis() as i64;
+        let jittered = if self.deviation_percent > 0 {
+            use rand::RngExt;
+            let max_dev = millis * self.deviation_percent as i64 / 100;
+            millis + rand::rng().random_range(-max_dev..=max_dev)
+        } else {
+            millis
+        };
+        format_hhmmss(std::time::Duration::from_millis(jittered.max(0) as u64))
+    }
+}
+
+/// One `<RSQL> -> <interval>` override rule, evaluated in written order —
+/// first match wins.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PollingRule {
+    pub filter: String,
+    pub interval: PollingInterval,
+}
+
+/// A default [`PollingInterval`] plus ordered override [`PollingRule`]s.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PollingSchedule {
+    pub default: PollingInterval,
+    pub rules: Vec<PollingRule>,
+}
+
+/// Caps the number of override rules a config may declare. Rules are
+/// evaluated with one indexed query each on every DDI poll (see
+/// `api::ddi::root::resolve_polling_interval`); this bounds the worst case
+/// for what's meant to be a handful of incident-shaped overrides, not a
+/// per-device routing table.
+const MAX_POLLING_RULES: usize = 20;
+
+/// Parses hawkBit's `pollingTime` value grammar:
+/// `<default>[, <RSQL, no top-level commas> -> <interval>]*`. A plain
+/// `str::split(',')` is safe here because hawkBit's own override grammar
+/// (`OVERRIDE_PATTERN`'s `qlStr` group is `[^,]*`) already forbids a comma
+/// inside an override's RSQL filter — so there is nothing this parser needs
+/// to reimplement from the FIQL grammar just to find the split points.
+///
+/// The filter itself is *not* parsed here — only extracted as a substring —
+/// and is later compiled through `api::mgmt::targets::condition`, i.e.
+/// raptor's own FIQL dialect (used everywhere raptor accepts a `q=` filter),
+/// not the fuller Spring RSQL grammar hawkBit's PR examples are written in.
+/// In particular raptor's parser does not tolerate whitespace around an
+/// operator: hawkBit's own doc example `group == 'eu'` must be written
+/// `group==eu` here.
+fn parse_polling_schedule(raw: &str) -> Result<PollingSchedule, String> {
+    let mut segments = raw.split(',');
+    let default = parse_polling_interval(segments.next().unwrap_or("").trim())
+        .map_err(|e| format!("invalid default pollingTime: {e}"))?;
+
+    let mut rules = Vec::new();
+    for segment in segments {
+        let segment = segment.trim();
+        let (filter, interval) = segment
+            .split_once("->")
+            .ok_or_else(|| format!("invalid pollingTime override {segment:?}: missing '->'"))?;
+        let filter = filter.trim();
+        if filter.is_empty() {
+            return Err(format!(
+                "invalid pollingTime override {segment:?}: empty filter"
+            ));
+        }
+        let interval = parse_polling_interval(interval.trim())
+            .map_err(|e| format!("invalid pollingTime override {segment:?}: {e}"))?;
+        rules.push(PollingRule {
+            filter: filter.to_string(),
+            interval,
+        });
+    }
+    if rules.len() > MAX_POLLING_RULES {
+        return Err(format!(
+            "pollingTime declares {} override rules, more than the {MAX_POLLING_RULES} supported",
+            rules.len()
+        ));
+    }
+    Ok(PollingSchedule { default, rules })
+}
+
+/// Parses one `HH:MM:SS` or `HH:MM:SS~NN%` interval.
+fn parse_polling_interval(s: &str) -> Result<PollingInterval, String> {
+    let (time, pct) = match s.split_once('~') {
+        Some((t, p)) => (t.trim(), Some(p.trim())),
+        None => (s, None),
+    };
+    let parts: Vec<&str> = time.split(':').collect();
+    let [h, m, sec] = parts.as_slice() else {
+        return Err(format!("{s:?}: expected HH:MM:SS"));
+    };
+    let h: u64 = h.parse().map_err(|_| format!("{s:?}: invalid hours"))?;
+    let m: u64 = m.parse().map_err(|_| format!("{s:?}: invalid minutes"))?;
+    let sec: u64 = sec.parse().map_err(|_| format!("{s:?}: invalid seconds"))?;
+    let duration = std::time::Duration::from_secs(h * 3600 + m * 60 + sec);
+
+    let deviation_percent = match pct {
+        None => 0,
+        Some(p) => {
+            let digits = p
+                .strip_suffix('%')
+                .ok_or_else(|| format!("{s:?}: expected ~NN%"))?;
+            let n: u8 = digits
+                .parse()
+                .map_err(|_| format!("{s:?}: invalid deviation percent"))?;
+            if n > 99 {
+                return Err(format!("{s:?}: deviation percent must be 0-99"));
+            }
+            n
+        }
+    };
+    Ok(PollingInterval {
+        duration,
+        deviation_percent,
+    })
+}
+
+fn format_hhmmss(d: std::time::Duration) -> String {
+    let total = d.as_secs();
+    format!(
+        "{:02}:{:02}:{:02}",
+        total / 3600,
+        (total % 3600) / 60,
+        total % 60
+    )
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -264,5 +418,128 @@ password_hash = "$argon2id$fake"
             ddi.polling_duration(),
             std::time::Duration::from_secs(3600 + 30 * 60 + 10)
         );
+    }
+
+    #[test]
+    fn polling_schedule_bare_interval_has_no_rules() {
+        let schedule = parse_polling_schedule("00:05:00").unwrap();
+        assert_eq!(
+            schedule.default.duration,
+            std::time::Duration::from_secs(300)
+        );
+        assert_eq!(schedule.default.deviation_percent, 0);
+        assert!(schedule.rules.is_empty());
+    }
+
+    #[test]
+    fn polling_schedule_parses_default_jitter() {
+        let schedule = parse_polling_schedule("01:00:00~10%").unwrap();
+        assert_eq!(
+            schedule.default.duration,
+            std::time::Duration::from_secs(3600)
+        );
+        assert_eq!(schedule.default.deviation_percent, 10);
+    }
+
+    /// The exact string from hawkBit's own PR description (eclipse-hawkbit/hawkbit#2533).
+    #[test]
+    fn polling_schedule_parses_hawkbit_example_verbatim() {
+        let schedule = parse_polling_schedule(
+            "01:00:00~10%, group == 'eu' -> 00:02:00~15%, status != in_sync -> 00:05:00",
+        )
+        .unwrap();
+        assert_eq!(
+            schedule.default.duration,
+            std::time::Duration::from_secs(3600)
+        );
+        assert_eq!(schedule.default.deviation_percent, 10);
+        assert_eq!(schedule.rules.len(), 2);
+        assert_eq!(schedule.rules[0].filter, "group == 'eu'");
+        assert_eq!(
+            schedule.rules[0].interval.duration,
+            std::time::Duration::from_secs(120)
+        );
+        assert_eq!(schedule.rules[0].interval.deviation_percent, 15);
+        assert_eq!(schedule.rules[1].filter, "status != in_sync");
+        assert_eq!(
+            schedule.rules[1].interval.duration,
+            std::time::Duration::from_secs(300)
+        );
+        assert_eq!(schedule.rules[1].interval.deviation_percent, 0);
+    }
+
+    /// Whitespace variants from hawkBit's own `PollingTimeTest` (PR #2533).
+    #[test]
+    fn polling_schedule_tolerates_hawkbit_whitespace_variants() {
+        for s in [
+            "01:00:00~10%, group == 'eu'  -> 00:02:00~15%, status != in_sync ->00:05:00",
+            " 01:00:00~10%, group == 'eu'  -> 00:02:00~15%, status != in_sync ->00:05:00  ",
+            " 01:00:00~10% , group == 'eu'  -> 00:02:00 ~15%, status != in_sync ->00:05:00  ",
+        ] {
+            let schedule = parse_polling_schedule(s).unwrap();
+            assert_eq!(schedule.rules.len(), 2, "input: {s:?}");
+        }
+    }
+
+    #[test]
+    fn polling_schedule_rejects_malformed_input() {
+        for bad in [
+            "not-a-time",
+            "01:00:00, group == 'eu'",               // rule missing '->'
+            "01:00:00, -> 00:05:00",                 // empty filter
+            "01:00:00, group == 'eu' -> not-a-time", // bad rule interval
+            "01:00:00~120%",                         // deviation out of 0-99 range
+        ] {
+            assert!(
+                parse_polling_schedule(bad).is_err(),
+                "expected {bad:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn polling_schedule_rejects_too_many_rules() {
+        let rules = (0..=MAX_POLLING_RULES)
+            .map(|i| format!("controllerId == 'dev-{i}' -> 00:01:00"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        assert!(parse_polling_schedule(&format!("00:05:00, {rules}")).is_err());
+    }
+
+    #[test]
+    fn polling_interval_resolve_without_jitter_is_exact_and_zero_padded() {
+        let interval = PollingInterval {
+            duration: std::time::Duration::from_secs(300),
+            deviation_percent: 0,
+        };
+        assert_eq!(interval.resolve(), "00:05:00");
+    }
+
+    #[test]
+    fn polling_interval_resolve_with_jitter_stays_in_bounds() {
+        let interval = PollingInterval {
+            duration: std::time::Duration::from_secs(1000),
+            deviation_percent: 10,
+        };
+        for _ in 0..200 {
+            let resolved = interval.resolve();
+            let parts: Vec<u64> = resolved.split(':').map(|p| p.parse().unwrap()).collect();
+            let secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            assert!(
+                (900..=1100).contains(&secs),
+                "{resolved} out of ±10% bounds"
+            );
+        }
+    }
+
+    /// A no-rules, no-jitter config must round-trip byte-identically through
+    /// `resolve()` — the DDI golden-fixture guarantee this feature must not
+    /// break for stock clients (SWUpdate, rauc-hawkbit-updater).
+    #[test]
+    fn polling_schedule_default_resolves_byte_identical_to_configured_string() {
+        for configured in ["00:05:00", "01:30:10", "23:59:59"] {
+            let schedule = parse_polling_schedule(configured).unwrap();
+            assert_eq!(schedule.default.resolve(), configured);
+        }
     }
 }

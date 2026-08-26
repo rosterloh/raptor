@@ -49,6 +49,13 @@ in `root.rs`, deployment/installed base in `deployment.rs`, feedback/cancel in
 }
 ```
 
+`config.polling.sleep` is not always the configured default: `[ddi]
+polling_interval` can carry RSQL-matched override rules (hawkBit 0.10's
+`pollingTime` grammar) that give a slice of the fleet — or one device during
+an incident — a different interval, with optional jitter. See [Polling time
+overrides](configuration.md#polling-time-overrides) in the configuration
+reference.
+
 Which `_links` appear depends on the target's state: `deploymentBase` when an
 action is `running`, `confirmationBase` when it's `wait_for_confirmation`,
 `cancelAction` when it's `canceling`, and `installedBase` once something has been
