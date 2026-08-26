@@ -63,6 +63,14 @@ pub fn fiql_map(f: &str) -> Option<target::Column> {
         "group" => Some(target::Column::GroupName),
         "lastControllerRequestAt" => Some(target::Column::LastPollAt),
         "address" => Some(target::Column::Address),
+        // hawkBit 1.1's RSQL field is `AUTOCONFIRM` (matched
+        // case-insensitively server-side; spelled camelCase here to match
+        // this map's convention). hawkBit models it as a `@OneToMany`
+        // relation and needs a LEFT JOIN + NULL check to fake a boolean
+        // (eclipse-hawkbit/hawkbit#3145); raptor already stores it as a
+        // plain column, so it's a direct comparison like `active` on
+        // actions — no join needed.
+        "autoConfirm" => Some(target::Column::AutoConfirm),
         _ => None,
     }
 }
