@@ -29,7 +29,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | `confirmationBase` confirmation flow | ✅ |
 | Maintenance windows (`deployment.maintenanceWindow`) | ✅ |
 | DMF (AMQP) device path | ❌ ([#11](https://github.com/rosterloh/raptor/issues/11)) |
-| Per-target polling interval override | ❌ ([#91](https://github.com/rosterloh/raptor/issues/91)) |
+| `pollingTime` RSQL-matched overrides (hawkBit 0.10) | ✅ |
 
 ¹ hawkBit 0.8 removed anonymous controller support and anonymous download.
 raptor keeps anonymous mode as a **raptor extension** (useful for dev/lab
