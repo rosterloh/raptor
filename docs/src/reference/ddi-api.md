@@ -4,12 +4,12 @@ The device-facing API, under `/{tenant}/controller/v1/{controllerId}`. Requests
 are authenticated by target token, gateway token, or anonymous mode — see
 [Authentication](../guides/authentication.md).
 
-> **Configure clients with tenant `DEFAULT`.** raptor is single-tenant: the
-> `tenant` path segment is accepted and ignored, and every emitted link says
-> `DEFAULT`. A device configured with anything else (Zephyr:
-> `CONFIG_HAWKBIT_TENANT`) still works — it just follows hrefs that disagree with
-> its own config, and it would break if multi-tenancy landed later. raptor logs a
-> warning the first time it sees a non-`DEFAULT` poll.
+> **Configure clients with tenant `DEFAULT`.** raptor answers to exactly one
+> tenant, set by the `tenant` config key (default `DEFAULT`, matched
+> case-insensitively). A device configured with any other tenant — Zephyr's
+> `CONFIG_HAWKBIT_TENANT` in particular — gets `404` on every DDI request. If
+> your fleet is genuinely configured with a non-default tenant name, set
+> `tenant` to match rather than reconfiguring every device.
 
 Response JSON matches the hawkBit DDI v1 schemas field-for-field.
 

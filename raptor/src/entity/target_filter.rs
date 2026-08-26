@@ -7,7 +7,6 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    #[sea_orm(unique)]
     pub name: String,
     /// FIQL query string evaluated against targets.
     pub query: String,
@@ -17,6 +16,9 @@ pub struct Model {
     pub auto_assign_action_type: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
+    #[sea_orm(default_value = "DEFAULT")]
+    pub tenant: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

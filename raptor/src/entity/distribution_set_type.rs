@@ -7,10 +7,12 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    #[sea_orm(unique)]
     pub key: String,
     pub name: String,
     pub description: Option<String>,
+    /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
+    #[sea_orm(default_value = "DEFAULT")]
+    pub tenant: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

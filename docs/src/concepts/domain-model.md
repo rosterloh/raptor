@@ -65,5 +65,10 @@ created by the initial migration:
 
 ## Tenancy
 
-There is no tenant column. raptor is single-tenant; the DDI tenant URL segment is
-accepted and ignored, and all generated links use `DEFAULT`.
+raptor is single-tenant: every query-root table carries a `tenant` column
+(default `DEFAULT`), but nothing filters on it yet — it exists so real
+isolation can land later without a schema migration, not to isolate data
+today. The DDI tenant URL segment must match the configured `tenant` (default
+`DEFAULT`) or the request is rejected. See
+[the design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md)
+for the full rationale.

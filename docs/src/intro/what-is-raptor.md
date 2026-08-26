@@ -33,9 +33,9 @@ poll, download, and report just as before.
   artifacts, and records their feedback.
 - A **fleet management API**: create targets, upload firmware, compose
   distribution sets, assign updates, and run staged rollouts over REST.
-- A **single-fleet, single-tenant** server. It accepts (and ignores) hawkBit's
-  tenant URL segment, so clients configured for a tenant still work, but there
-  is no tenant isolation. Run one raptor per fleet.
+- A **single-fleet, single-tenant** server. It answers to exactly one tenant
+  name on hawkBit's DDI tenant URL segment (default `DEFAULT`) and rejects any
+  other; there is no tenant isolation. Run one raptor per fleet.
 
 ## What raptor is not (yet)
 

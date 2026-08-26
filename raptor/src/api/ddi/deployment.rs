@@ -81,7 +81,7 @@ pub async fn deployment_json_keyed(
     base: &str,
     top_key: &str,
 ) -> Result<Value, AppError> {
-    let ddi = super::ddi_base(base, cid);
+    let ddi = super::ddi_base(base, &st.cfg.tenant, cid);
     let https = base.starts_with("https://");
     let http_ddi = super::ddi_http_base(&st.cfg, cid);
     let keys = crate::api::mgmt::software_modules::type_keys(&st.db).await?;

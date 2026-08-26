@@ -71,14 +71,14 @@ See [Authentication](./authentication.md) for the full picture. `[ddi] anonymous
 = true` disables DDI auth entirely — convenient for a bring-up on a lab network,
 never in production.
 
-## Footgun 1: the tenant must be `DEFAULT`
+## Footgun 1: the tenant must match
 
-Zephyr's `CONFIG_HAWKBIT_TENANT` defaults to `"default"`, and raptor is
-single-tenant: it accepts any tenant segment but emits `DEFAULT` in every link it
-returns. Case doesn't matter (`default` and `DEFAULT` are the same tenant here),
-but anything else leaves the device following hrefs that disagree with its own
-configuration, and would break outright if multi-tenancy ever lands. raptor logs a
-warning the first time it sees one. Set it to `DEFAULT` and move on.
+Zephyr's `CONFIG_HAWKBIT_TENANT` defaults to `"default"`. raptor answers to
+exactly one tenant, set by the `tenant` config key (default `DEFAULT`, matched
+case-insensitively, so the Zephyr default just works out of the box) — any
+other segment gets `404` on every DDI request. If your fleet is genuinely
+configured with a non-default tenant name, set `tenant` in `raptor.toml` to
+match rather than reconfiguring every device.
 
 ## Footgun 2: don't enable the confirmation flow
 
@@ -120,7 +120,7 @@ strict JSON descriptors require.
 | `Range:` resume (`CONFIG_HAWKBIT_SAVE_PROGRESS`) | sends `bytes=N-` | ✅ verified — `206` + `Content-Range` |
 | Feedback `execution` / `result` | `closed`, `proceeding`, `canceled`, `scheduled`, `rejected`, `resumed`, `none` / `success`, `failure`, `none` | ✅ verified |
 | `Authorization: TargetToken` / `GatewayToken` | either, chosen at build time | ✅ verified |
-| Multi-tenancy | `CONFIG_HAWKBIT_TENANT` | ⚠️ single-tenant, `DEFAULT` only (footgun 1) |
+| Multi-tenancy | `CONFIG_HAWKBIT_TENANT` | ⚠️ single-tenant, must match configured `tenant` (footgun 1) |
 
 ## Verifying against a real device
 

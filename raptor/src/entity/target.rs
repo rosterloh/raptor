@@ -7,7 +7,6 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    #[sea_orm(unique)]
     pub controller_id: String,
     pub name: String,
     pub description: Option<String>,
@@ -36,6 +35,12 @@ pub struct Model {
     pub request_attributes: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Tenant this row belongs to. raptor is single-tenant: every row is
+    /// `DEFAULT` and no query filters on it yet — the column and the
+    /// composite unique keys exist so isolation can land without a table
+    /// rebuild. See docs/superpowers/specs/2026-08-26-multi-tenancy-design.md.
+    #[sea_orm(default_value = "DEFAULT")]
+    pub tenant: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -73,7 +73,12 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
   working unchanged.
 - **Schema changes**: new migration file in `migration/src/` (never edit an
   existing migration) + matching entity change; must work on both SQLite and
-  Postgres. Migrations run automatically at startup.
+  Postgres. Migrations run automatically at startup. New tables needing a
+  uniquely-named column must express it as a named composite index including
+  `tenant`, never `sea_orm_migration`'s inline `unique_key()` — SQLite has no
+  `ALTER TABLE ... DROP CONSTRAINT`, so an inline unique constraint can only be
+  widened later via a full table rebuild (see
+  `docs/superpowers/specs/2026-08-26-multi-tenancy-design.md`).
 - **Layering**: handlers validate and translate; rules live in `src/domain/`;
   artifact bytes stream through `storage.rs`, never through the DB.
 - Keep `cargo fmt` and `clippy -D warnings` clean — CI enforces both.

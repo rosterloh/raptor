@@ -235,19 +235,47 @@ async fn poll_records_address_only_from_a_trusted_proxy_header() {
 }
 
 #[tokio::test]
-async fn poll_with_foreign_tenant_still_serves_default_links() {
+async fn poll_with_foreign_tenant_is_rejected() {
     let (app, _) = common::setup().await;
+    let resp = app
+        .clone()
+        .oneshot(ddi_get("/OTHER/controller/v1/wrong-tenant"))
+        .await
+        .unwrap();
+    // raptor answers to exactly one tenant (DEFAULT here) — matches hawkBit's
+    // own 404-on-unknown-tenant rather than silently folding every segment
+    // into one fleet (see docs/superpowers/specs/2026-08-26-multi-tenancy-design.md).
+    assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn configured_tenant_is_accepted_and_echoed_in_links() {
+    let (_, state) = common::setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.tenant = "acme".into();
+    let app = raptor::app::build_app(raptor::state::AppState::new(
+        state.db.clone(),
+        cfg,
+        state.store.clone(),
+    ));
+
+    let resp = app
+        .clone()
+        .oneshot(ddi_get("/DEFAULT/controller/v1/acme-dev"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+
     let body = common::body_json(
         app.clone()
-            .oneshot(ddi_get("/OTHER/controller/v1/wrong-tenant"))
+            .oneshot(ddi_get("/acme/controller/v1/acme-dev"))
             .await
             .unwrap(),
     )
     .await;
-    // accepted (single-tenant server), but every emitted link says DEFAULT
     assert_eq!(
         body["_links"]["configData"]["href"],
-        "http://localhost:8080/DEFAULT/controller/v1/wrong-tenant/configData"
+        "http://localhost:8080/acme/controller/v1/acme-dev/configData"
     );
 }
 

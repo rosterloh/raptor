@@ -86,9 +86,13 @@ the device is not acknowledging with `DELETE …/actions/{actionId}?force=true`.
 ## Tenancy
 
 raptor is **single-tenant** ([#12](https://github.com/rosterloh/raptor/issues/12)).
-The DDI URL's `/{tenant}/controller/v1/...` segment is accepted and ignored;
-all generated links use the tenant name `DEFAULT`. There is no per-tenant data
-isolation — run one raptor instance per fleet.
+It answers to exactly one tenant on the DDI URL's `/{tenant}/controller/v1/...`
+segment — the `tenant` config key, default `DEFAULT` — and rejects any other
+segment with `404`, matching hawkBit's own behavior. There is no per-tenant
+data isolation — run one raptor instance per fleet. The schema does carry a
+`tenant` column on every query-root table so isolation can land later without
+a migration; see the
+[design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md).
 
 > **Note:** Items marked ❌ link to their tracking issue on the [GitHub
 > repository](https://github.com/rosterloh/raptor/issues). The schema is
