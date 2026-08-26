@@ -368,3 +368,75 @@ async fn target_list_filters_by_attribute() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
 }
+
+// --------------------------------------------------------------------------
+// `autoConfirm` FIQL on targets (hawkBit 1.1, eclipse-hawkbit/hawkbit#3145)
+// --------------------------------------------------------------------------
+
+#[tokio::test]
+async fn target_list_filters_by_auto_confirm() {
+    let (app, _) = common::setup().await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([
+                {"controllerId": "dev-1"}, {"controllerId": "dev-2"}, {"controllerId": "dev-3"}
+            ])),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets/dev-2/autoConfirm/activate",
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let cids = |v: &serde_json::Value| -> Vec<String> {
+        let mut out: Vec<String> = v["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["controllerId"].as_str().unwrap().to_string())
+            .collect();
+        out.sort();
+        out
+    };
+    let get = |q: &'static str| {
+        let app = app.clone();
+        async move { common::body_json(app.oneshot(common::req("GET", q, None)).await.unwrap()).await }
+    };
+
+    let r = get("/rest/v1/targets?q=autoConfirm==true").await;
+    assert_eq!(cids(&r), ["dev-2"]);
+
+    let r = get("/rest/v1/targets?q=autoConfirm==false").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-3"]);
+
+    let r = get("/rest/v1/targets?q=autoConfirm!=true").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-3"]);
+
+    // combines with a plain column, same as any other field
+    let r = get("/rest/v1/targets?q=autoConfirm==true;controllerId==dev-2").await;
+    assert_eq!(cids(&r), ["dev-2"]);
+
+    // works the same way in a saved target filter (shares `targets::condition`)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targetfilters",
+            Some(json!({"name": "unconfirmed", "query": "autoConfirm==true"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
