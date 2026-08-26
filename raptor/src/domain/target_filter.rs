@@ -26,8 +26,10 @@ async fn maybe_assign(
     if active_action(&st.db, target.id).await?.is_some() {
         return Ok(());
     }
-    // Auto-assignment carries no maintenance window: hawkBit puts one on the
-    // filter itself, which raptor's target filters do not model yet.
+    // Auto-assignment carries no maintenance window: hawkBit's own
+    // Management API has no such field on target-filter auto-assignment to
+    // be at parity with (verified against MgmtTargetFilterQuery and its
+    // request body — see #116).
     assign_ds(st, target, ds_id, action_type, None, None).await?;
     Ok(())
 }

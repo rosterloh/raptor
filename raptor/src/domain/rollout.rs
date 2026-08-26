@@ -124,8 +124,10 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
-        // Rollouts carry no maintenance window: hawkBit puts one on the
-        // rollout record, which raptor's rollouts do not model yet.
+        // Rollouts carry no maintenance window: hawkBit's own Management API
+        // has no maintenanceWindow field on rollout creation to be at parity
+        // with (verified against MgmtRolloutRestRequestBodyPost/Put and
+        // AbstractMgmtRolloutConditionsEntity — see #116).
         let res = crate::domain::deployment::assign_ds(
             st,
             &t,
