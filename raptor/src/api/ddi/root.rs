@@ -19,29 +19,6 @@ use sea_orm::{
 use serde_json::{Map, Value, json};
 use std::net::SocketAddr;
 
-/// raptor is single-tenant and always emits tenant `DEFAULT` in its links, so a
-/// device polling `/{other}/controller/v1/...` still works — it just follows
-/// hrefs that disagree with its own configuration. Say so once per process
-/// (checked on the base poll only, which every DDI session starts with) rather
-/// than on every poll of every device in the fleet.
-fn warn_foreign_tenant(tenant: &str, cid: &str) {
-    static WARNED: std::sync::Once = std::sync::Once::new();
-    // Case-insensitive: Zephyr's CONFIG_HAWKBIT_TENANT defaults to "default",
-    // which is the same tenant, so warning about it would be noise on the most
-    // common stock client.
-    if !tenant.eq_ignore_ascii_case("DEFAULT") {
-        WARNED.call_once(|| {
-            tracing::warn!(
-                tenant,
-                controller_id = cid,
-                "DDI poll for a non-DEFAULT tenant: raptor is single-tenant and emits DEFAULT in \
-                 every link. Set the client's tenant to DEFAULT (Zephyr: \
-                 CONFIG_HAWKBIT_TENANT=\"DEFAULT\"). Further occurrences are not logged."
-            );
-        });
-    }
-}
-
 /// Looks up (or auto-registers) the polling target and stamps `last_poll_at`.
 /// `address` is the device's source address, recorded so a DDI-registered target
 /// shows a last-seen address without an operator setting one by hand.
@@ -106,12 +83,11 @@ pub async fn poll(
     // puts the same value in extensions. Absent under `Router::oneshot` in tests.
     peer: Option<Extension<ConnectInfo<SocketAddr>>>,
     headers: HeaderMap,
-    Path((tenant, cid)): Path<(String, String)>,
+    Path((_tenant, cid)): Path<(String, String)>,
 ) -> Result<Json<Value>, AppError> {
-    warn_foreign_tenant(&tenant, &cid);
     let addr = client_address(&st.cfg, &headers, peer.map(|Extension(ConnectInfo(p))| p));
     let t = get_or_register(&st, &cid, auth, addr.as_deref()).await?;
-    let base = super::ddi_base(&base_url(&st.cfg, &headers), &cid);
+    let base = super::ddi_base(&base_url(&st.cfg, &headers), &st.cfg.tenant, &cid);
 
     let mut links = Map::new();
     // Only ask for attributes when we actually want them: clients such as the

@@ -15,6 +15,7 @@ environment variable; nested tables use a `__` separator (e.g.
 | `max_artifact_size` | integer (bytes) | `1073741824` (1 GiB) | maximum artifact upload size |
 | `url` | string | *(unset)* | external base URL for `_links`; derived from the `Host` header when unset |
 | `rollout_eval_interval_secs` | integer | `5` | how often the background evaluator / auto-assign sweep runs |
+| `tenant` | string | `DEFAULT` | tenant name this instance answers to on the DDI `/{tenant}/...` path segment (matched case-insensitively); any other segment gets `404` |
 
 ## `[ddi]` — device-facing API
 

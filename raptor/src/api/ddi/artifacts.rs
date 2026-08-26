@@ -22,7 +22,7 @@ pub async fn list(
     Path((_tenant, cid, module_id)): Path<(String, String, i64)>,
 ) -> Result<Json<Vec<Value>>, AppError> {
     let base = base_url(&st.cfg, &headers);
-    let ddi = super::ddi_base(&base, &cid);
+    let ddi = super::ddi_base(&base, &st.cfg.tenant, &cid);
     let https = base.starts_with("https://");
     let http_ddi = super::ddi_http_base(&st.cfg, &cid);
     let rows = artifact::Entity::find()

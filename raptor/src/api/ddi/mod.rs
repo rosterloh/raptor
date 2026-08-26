@@ -15,9 +15,12 @@ use axum::Router;
 use axum::middleware;
 use axum::routing::{get, post, put};
 
-/// Canonical DDI base for a controller; raptor always emits tenant DEFAULT in links.
-pub fn ddi_base(base: &str, cid: &str) -> String {
-    format!("{base}/DEFAULT/controller/v1/{cid}")
+/// Canonical DDI base for a controller. Emits the configured `tenant` — the
+/// same spelling `ddi_auth` accepted the request under — rather than the
+/// request's own casing, so links are canonical regardless of how the device
+/// spelled its tenant.
+pub fn ddi_base(base: &str, tenant: &str, cid: &str) -> String {
+    format!("{base}/{tenant}/controller/v1/{cid}")
 }
 
 /// DDI base for the plain-HTTP artifact links (`download-http`), from
@@ -27,7 +30,7 @@ pub fn ddi_http_base(cfg: &crate::config::Config, cid: &str) -> Option<String> {
     cfg.ddi
         .artifact_http_url
         .as_deref()
-        .map(|u| ddi_base(u.trim_end_matches('/'), cid))
+        .map(|u| ddi_base(u.trim_end_matches('/'), &cfg.tenant, cid))
 }
 
 pub fn router(state: AppState) -> Router<AppState> {

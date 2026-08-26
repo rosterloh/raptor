@@ -25,6 +25,16 @@ pub async fn ddi_auth(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    // Checked once here rather than per handler: raptor answers to exactly
+    // one tenant (`[tenant]`, default `DEFAULT`), matching hawkBit's own
+    // 404-on-unknown-tenant behaviour rather than silently folding every
+    // segment into one fleet. Case-insensitive: Zephyr's
+    // CONFIG_HAWKBIT_TENANT defaults to lowercase "default".
+    let tenant = params.iter().find(|(k, _)| *k == "tenant").map(|(_, v)| v);
+    if !tenant.is_some_and(|t| t.eq_ignore_ascii_case(&state.cfg.tenant)) {
+        return Err(AppError::NotFound("tenant"));
+    }
+
     let kind = match authenticate(&state, &params, req.headers()).await {
         Ok(kind) => kind,
         Err(e) => {

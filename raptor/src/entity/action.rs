@@ -35,6 +35,9 @@ pub struct Model {
     pub maintenance_schedule: Option<String>,
     pub maintenance_duration: Option<String>,
     pub maintenance_timezone: Option<String>,
+    /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
+    #[sea_orm(default_value = "DEFAULT")]
+    pub tenant: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

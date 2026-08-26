@@ -20,9 +20,11 @@ No. raptor implements only the HTTP-based DDI device path, not hawkBit's DMF
 
 ## Can I run multiple tenants on one raptor?
 
-No. raptor is single-tenant. It accepts and ignores the tenant segment in DDI
-URLs (so tenant-configured clients still work), but there is no data isolation.
-Run one raptor instance per fleet.
+No. raptor is single-tenant: it answers to exactly one tenant name (the
+`tenant` config key, default `DEFAULT`) and rejects any other DDI tenant
+segment with `404`. Run one raptor instance per fleet. See
+[the design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md)
+for why.
 
 ## How do devices authenticate?
 
