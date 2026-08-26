@@ -36,7 +36,14 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy -p raptor --features otel --all-targets -- -D warnings
 cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings
+cargo llvm-cov nextest --workspace         # coverage report (informational, CI's `coverage` job)
 ```
+
+CI's `coverage` job (`.github/workflows/ci.yml`) is informational only —
+`continue-on-error: true`, no threshold, never blocks a merge. raptor's tests
+are already the high-value kind (integration tests per feature against a real
+app+DB); a hard coverage gate tends to reward padding numbers with low-value
+tests over testing edge cases, which this project deliberately avoids.
 
 Web console (only needed for `embed-ui` work; pinned `dioxus-cli` version must
 match the crate's `dioxus = "=0.7.10"` — bump both together):

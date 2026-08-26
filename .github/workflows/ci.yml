@@ -27,6 +27,39 @@ jobs:
       # The OTLP telemetry test is gated behind the `otel` feature.
       - run: cargo nextest run -p raptor --features otel --test telemetry
 
+  # Informational only: never gates a merge (continue-on-error at the job
+  # level), and only covers the SQLite path — the point is a rough per-file
+  # signal for "did anything just add an untested branch", not a threshold
+  # to hit. See CLAUDE.md for why this project doesn't enforce a coverage
+  # gate: raptor's tests are already the high-value kind (integration tests
+  # per feature against a real app+DB), and a hard percentage tends to reward
+  # padding numbers with low-value tests over testing edge cases.
+  coverage:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: llvm-tools }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "nextest,cargo-llvm-cov" }
+      - run: cargo llvm-cov nextest --workspace --no-report
+      - name: coverage summary
+        run: |
+          {
+            echo '### Coverage (SQLite, informational — not a gate)'
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - run: cargo llvm-cov report --html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: target/llvm-cov/html
+          retention-days: 14
+
   ui:
     runs-on: ubuntu-latest
     steps:
