@@ -45,6 +45,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `target list/get/create/set/delete` | target CRUD |
 | `target attributes <cid>` | reported device attributes |
 | `target tag add\|rm <cid> <tag>` | tag/untag a target |
+| `target type list/set/clear` | target types, and a target's constraint |
 | `tag list/create/delete [--ds]` | tag CRUD (target tags, or `--ds` for set tags) |
 | `target assign <cid> --ds <id> [--force ...]` | assign a distribution set |
 | `target actions <cid>` | a target's action history |
@@ -105,6 +106,28 @@ never-created tag are distinguishable:
 $ raptorctl target tag add dev-042 zephry
 error: no target tag named 'zephry' — existing: zephyr, prod. Create it with 'raptorctl tag create zephry'.
 ```
+
+### Target types
+
+A target type constrains which *distribution-set* types the target will
+accept, so it is a correctness setting rather than an organisational one — an
+incompatible assignment is rejected at assign time.
+
+```console
+$ raptorctl target type list
+ID  NAME     DESCRIPTION  ACCEPTS_DS_TYPES
+1   gateway  -            os
+$ raptorctl target type set dev-042 gateway
+dev-042 is now target type gateway (1)
+$ raptorctl target get dev-042 | grep targetType
+targetType    gateway
+$ raptorctl target assign dev-042 --ds 7
+error: distribution set type 'app' is not compatible with target type 'gateway', which accepts: os (HTTP 400)
+```
+
+`raptorctl target type clear <cid>` removes the constraint. Creating target
+types themselves is not in the CLI yet — use the console or
+`POST /rest/v1/targettypes`.
 
 ### End-to-end example
 

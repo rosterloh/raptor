@@ -94,6 +94,8 @@ pub enum TargetCmd {
     Attributes { controller_id: String },
     #[command(subcommand)]
     Tag(TargetTagCmd),
+    #[command(subcommand)]
+    Type(TargetTypeCmd),
     /// Assign a distribution set to a target
     Assign {
         controller_id: String,
@@ -111,6 +113,22 @@ pub enum TargetCmd {
 pub enum TargetTagCmd {
     Add { controller_id: String, tag: String },
     Rm { controller_id: String, tag: String },
+}
+
+/// A target's type constrains which distribution-set types it will accept, so
+/// it is a correctness setting, not just an organisational one.
+#[derive(Subcommand)]
+pub enum TargetTypeCmd {
+    /// List the target types the server knows, with the distribution-set
+    /// types each one accepts
+    List,
+    /// Constrain a target to a target type, by name
+    Set {
+        controller_id: String,
+        target_type: String,
+    },
+    /// Drop a target's type constraint, letting it accept any set type
+    Clear { controller_id: String },
 }
 
 pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
@@ -158,6 +176,20 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
             println!("name          {}", t.name);
             println!("description   {}", opt(&t.description));
             println!("updateStatus  {}", t.update_status);
+            // The DTO carries only the type's id; resolve it to a name, since
+            // the id is not what any other command takes.
+            println!(
+                "targetType    {}",
+                match t.target_type {
+                    None => "-".to_string(),
+                    Some(id) => api::types::target_types(c)
+                        .await?
+                        .into_iter()
+                        .find(|tt| tt.id == id)
+                        .map(|tt| tt.name)
+                        .unwrap_or_else(|| format!("{id} (unknown)")),
+                }
+            );
             println!(
                 "installedDS   {}",
                 t.installed_ds
@@ -248,6 +280,45 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 let id = api::tags::find_id(c, api::tags::Kind::Target, &tag).await?;
                 api::tags::unassign(c, api::tags::Kind::Target, id, &controller_id).await?;
                 println!("untagged {controller_id} from {tag}");
+            }
+        },
+        TargetCmd::Type(type_cmd) => match type_cmd {
+            TargetTypeCmd::List => {
+                let types = api::types::target_types(c).await?;
+                if json {
+                    return print_json(&types);
+                }
+                let mut rows = Vec::with_capacity(types.len());
+                for t in &types {
+                    let compatible = api::types::target_type_compatible(c, t.id)
+                        .await?
+                        .iter()
+                        .map(|d| d.key.clone())
+                        .collect::<Vec<_>>();
+                    rows.push(vec![
+                        t.id.to_string(),
+                        t.name.clone(),
+                        opt(&t.description),
+                        if compatible.is_empty() {
+                            "-".into()
+                        } else {
+                            compatible.join(", ")
+                        },
+                    ]);
+                }
+                table(&["ID", "NAME", "DESCRIPTION", "ACCEPTS_DS_TYPES"], &rows);
+            }
+            TargetTypeCmd::Set {
+                controller_id,
+                target_type,
+            } => {
+                let tt = api::types::find_target_type(c, &target_type).await?;
+                api::types::assign_target_type(c, &controller_id, tt.id).await?;
+                println!("{controller_id} is now target type {} ({})", tt.name, tt.id);
+            }
+            TargetTypeCmd::Clear { controller_id } => {
+                api::types::unassign_target_type(c, &controller_id).await?;
+                println!("{controller_id} is now untyped");
             }
         },
         TargetCmd::Assign {
