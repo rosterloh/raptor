@@ -50,10 +50,35 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `module list/create` | software module CRUD |
 | `artifact upload/list/delete <moduleId>` | artifact management |
 | `ds list/get/create` | distribution set CRUD |
+| `publish <file> --version <v>` | module + artifact + distribution set in one call |
 | `action list/status/cancel/force` | deployment action control |
 | `status` | fleet-wide statistics |
 
 Run `raptorctl <command> --help` for full flag lists.
+
+### `publish` and the two type vocabularies
+
+`publish` creates a software module, uploads the file to it, and wraps it in a
+distribution set. Those are typed from **two different** hawkBit vocabularies:
+
+| Flag | Vocabulary | Seeded values |
+|---|---|---|
+| `--module-type` (alias `--type`) | software-module types | `os`, `firmware`, `runtime`, `application` |
+| `--ds-type` | distribution-set types | `os`, `os_app`, `app` |
+
+`--ds-type` is optional: raptorctl reads `/rest/v1/softwaremoduletypes` and
+`/rest/v1/distributionsettypes` and derives it — an exact key match wins (`os`
+→ `os`), otherwise the one set type that requires exactly that module type
+(`application` → `app`). When neither applies (e.g. `--module-type firmware`,
+which no seeded set type requires) it errors and asks for `--ds-type` rather
+than guessing, because a wrong guess builds an *incomplete* distribution set
+that only fails later, at assign time.
+
+Both types are validated against the server before anything is written. That
+ordering matters: the sequence is create-module → upload → create-set, so a
+type rejected at the last step would leave an orphaned module and a
+multi-megabyte artifact behind, with no `module`/`ds` delete subcommand to
+clean them up.
 
 ### End-to-end example
 

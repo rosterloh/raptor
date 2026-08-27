@@ -532,7 +532,110 @@ pub struct PublishArgs {
     pub version: String,
     pub name: Option<String>,
     pub module_type: String,
+    pub ds_type: Option<String>,
     pub vendor: Option<String>,
+}
+
+/// The server's two type vocabularies as `publish` needs them: the
+/// software-module type keys, and every distribution-set type key with the
+/// module-type keys it makes mandatory.
+///
+/// They are *not* interchangeable — a module is `os`/`application`/`firmware`,
+/// the set wrapping it is `os`/`app`/`os_app` — which is why both are checked
+/// here rather than discovered one HTTP error at a time.
+#[derive(Debug, Default)]
+pub struct TypeCatalogue {
+    pub module_types: Vec<String>,
+    /// `(ds type key, its mandatory module-type keys)`
+    pub ds_types: Vec<(String, Vec<String>)>,
+}
+
+async fn fetch_type_catalogue(c: &Client) -> Result<TypeCatalogue> {
+    let module_types = api::types::sm_types(c)
+        .await?
+        .into_iter()
+        .map(|t| t.key)
+        .collect();
+    let mut ds_types = Vec::new();
+    for t in api::types::ds_types(c).await? {
+        let mandatory = api::types::ds_type_mandatory(c, t.id)
+            .await?
+            .into_iter()
+            .map(|m| m.key)
+            .collect();
+        ds_types.push((t.key, mandatory));
+    }
+    Ok(TypeCatalogue {
+        module_types,
+        ds_types,
+    })
+}
+
+fn join_keys(keys: impl IntoIterator<Item = impl AsRef<str>>) -> String {
+    let joined = keys
+        .into_iter()
+        .map(|k| k.as_ref().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if joined.is_empty() {
+        "(none configured)".into()
+    } else {
+        joined
+    }
+}
+
+/// Validate the module type and settle on a distribution-set type, before any
+/// write happens.
+///
+/// With no `--ds-type` the set type is derived: an exactly-matching key wins
+/// (`os` module → `os` set, which is also what `os_app` would match on
+/// mandatory composition alone), otherwise the single set type that requires
+/// exactly this module type (`application` → `app`). Anything ambiguous is an
+/// error asking for `--ds-type` rather than a guess, because guessing wrong
+/// produces an incomplete set that only fails much later, at assign time.
+fn resolve_publish_types(
+    cat: &TypeCatalogue,
+    module_type: &str,
+    ds_type: Option<&str>,
+) -> Result<String> {
+    let ds_keys = || join_keys(cat.ds_types.iter().map(|(k, _)| k));
+
+    if !cat.module_types.iter().any(|k| k == module_type) {
+        anyhow::bail!(
+            "unknown software-module type '{module_type}' — the server accepts: {}.\n\
+             (Distribution-set types are a separate vocabulary: {}. Pass one with --ds-type.)",
+            join_keys(&cat.module_types),
+            ds_keys(),
+        );
+    }
+
+    if let Some(d) = ds_type {
+        if !cat.ds_types.iter().any(|(k, _)| k == d) {
+            anyhow::bail!(
+                "unknown distribution-set type '{d}' — the server accepts: {}.\n\
+                 (Software-module types are a separate vocabulary: {}. Pass one with --module-type.)",
+                ds_keys(),
+                join_keys(&cat.module_types),
+            );
+        }
+        return Ok(d.to_string());
+    }
+
+    if let Some((k, _)) = cat.ds_types.iter().find(|(k, _)| k == module_type) {
+        return Ok(k.clone());
+    }
+    let mut fits = cat
+        .ds_types
+        .iter()
+        .filter(|(_, m)| m.len() == 1 && m[0] == module_type);
+    match (fits.next(), fits.next()) {
+        (Some((k, _)), None) => Ok(k.clone()),
+        _ => anyhow::bail!(
+            "cannot derive a distribution-set type for module type '{module_type}' — \
+             pass one with --ds-type. The server accepts: {}.",
+            ds_keys(),
+        ),
+    }
 }
 
 /// Defaults to the filename with a trailing `-<version>.swu` stripped —
@@ -554,6 +657,28 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
     let name = args
         .name
         .unwrap_or_else(|| default_publish_name(&args.file, &args.version));
+
+    // Resolve types first: everything after this point writes to the server,
+    // and a type rejected mid-sequence strands a module plus its artifact.
+    let ds_type = match fetch_type_catalogue(c).await {
+        Ok(cat) => resolve_publish_types(&cat, &args.module_type, args.ds_type.as_deref())?,
+        Err(e) => {
+            // Older server, or the catalogue is unreachable — fall back to the
+            // pre-validation behaviour rather than refusing to publish.
+            eprintln!(
+                "warning: could not read the server's type catalogue ({e:#}); skipping type validation"
+            );
+            args.ds_type
+                .clone()
+                .unwrap_or_else(|| args.module_type.clone())
+        }
+    };
+    if args.ds_type.is_none() && ds_type != args.module_type {
+        eprintln!(
+            "distribution set type: {ds_type} (derived from module type {})",
+            args.module_type
+        );
+    }
 
     let module = api::modules::create(
         c,
@@ -580,7 +705,7 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
         &DsCreate {
             name: name.clone(),
             version: args.version,
-            ds_type: args.module_type,
+            ds_type,
             description: None,
             required_migration_step: false,
             modules: vec![ModuleRef { id: module.id }],
@@ -737,6 +862,76 @@ mod tests {
         assert_eq!(
             default_publish_name(Path::new("firmware.bin"), "1.2.3"),
             "firmware"
+        );
+    }
+
+    /// The catalogue raptor seeds by default (see the initial migration).
+    fn seeded() -> TypeCatalogue {
+        TypeCatalogue {
+            module_types: ["os", "firmware", "runtime", "application"]
+                .map(String::from)
+                .to_vec(),
+            ds_types: vec![
+                ("os".into(), vec!["os".into()]),
+                ("os_app".into(), vec!["os".into()]),
+                ("app".into(), vec!["application".into()]),
+            ],
+        }
+    }
+
+    #[test]
+    fn ds_type_derives_from_an_exact_key_match() {
+        // `os` and `os_app` both make module type `os` mandatory; the exact
+        // key match settles it, which is also the pre-existing behaviour.
+        assert_eq!(resolve_publish_types(&seeded(), "os", None).unwrap(), "os");
+    }
+
+    #[test]
+    fn ds_type_derives_from_the_mandatory_composition() {
+        // No DS type is keyed `application`; `app` is the only one requiring it.
+        assert_eq!(
+            resolve_publish_types(&seeded(), "application", None).unwrap(),
+            "app"
+        );
+    }
+
+    #[test]
+    fn underivable_ds_type_asks_for_the_flag_instead_of_guessing() {
+        // Nothing requires a `firmware` module, so any guess would build an
+        // incomplete set that only fails later, at assign time.
+        let e = resolve_publish_types(&seeded(), "firmware", None).unwrap_err();
+        assert!(e.to_string().contains("--ds-type"), "{e}");
+        assert!(e.to_string().contains("os_app"), "{e}");
+    }
+
+    #[test]
+    fn a_module_type_is_rejected_where_a_ds_type_belongs() {
+        // The reported failure: `--type application` used for both, caught
+        // client-side now instead of after the artifact upload.
+        let e = resolve_publish_types(&seeded(), "os", Some("application")).unwrap_err();
+        let msg = e.to_string();
+        assert!(
+            msg.contains("unknown distribution-set type 'application'"),
+            "{msg}"
+        );
+        assert!(msg.contains("os, os_app, app"), "{msg}");
+        assert!(msg.contains("--module-type"), "{msg}");
+    }
+
+    #[test]
+    fn an_unknown_module_type_names_both_vocabularies() {
+        let e = resolve_publish_types(&seeded(), "app", None).unwrap_err();
+        let msg = e.to_string();
+        assert!(msg.contains("unknown software-module type 'app'"), "{msg}");
+        assert!(msg.contains("os, firmware, runtime, application"), "{msg}");
+        assert!(msg.contains("--ds-type"), "{msg}");
+    }
+
+    #[test]
+    fn an_explicit_ds_type_is_taken_as_given() {
+        assert_eq!(
+            resolve_publish_types(&seeded(), "application", Some("os_app")).unwrap(),
+            "os_app"
         );
     }
 }

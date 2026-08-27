@@ -60,10 +60,15 @@ enum Cmd {
         /// Defaults to the filename with a trailing `-<version>.swu` stripped.
         #[arg(long)]
         name: Option<String>,
-        /// os | application | firmware — used for both the module and the
-        /// distribution set it's wrapped in.
-        #[arg(long = "type", default_value = "os")]
+        /// Software-module type: os | application | firmware | … (whatever
+        /// `/rest/v1/softwaremoduletypes` lists). Also accepts `--type`.
+        #[arg(long = "module-type", visible_alias = "type", default_value = "os")]
         module_type: String,
+        /// Distribution-set type for the wrapping set: os | app | os_app — a
+        /// *different* vocabulary from the module type. Derived from the
+        /// module type when omitted.
+        #[arg(long = "ds-type")]
+        ds_type: Option<String>,
         #[arg(long)]
         vendor: Option<String>,
     },
@@ -125,6 +130,7 @@ async fn main() {
             version,
             name,
             module_type,
+            ds_type,
             vendor,
         } => {
             commands::publish(
@@ -134,6 +140,7 @@ async fn main() {
                     version,
                     name,
                     module_type,
+                    ds_type,
                     vendor,
                 },
                 cli.json,
