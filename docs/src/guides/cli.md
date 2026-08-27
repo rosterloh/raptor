@@ -45,11 +45,13 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `target list/get/create/set/delete` | target CRUD |
 | `target attributes <cid>` | reported device attributes |
 | `target tag add\|rm <cid> <tag>` | tag/untag a target |
+| `tag list/create/delete [--ds]` | tag CRUD (target tags, or `--ds` for set tags) |
 | `target assign <cid> --ds <id> [--force ...]` | assign a distribution set |
 | `target actions <cid>` | a target's action history |
 | `module list/create` | software module CRUD |
 | `artifact upload/list/delete <moduleId>` | artifact management |
 | `ds list/get/create` | distribution set CRUD |
+| `ds tag add\|rm <id> <tag>` | tag/untag a distribution set |
 | `publish <file> --version <v>` | module + artifact + distribution set in one call |
 | `action list/status/cancel/force` | deployment action control |
 | `status` | fleet-wide statistics |
@@ -79,6 +81,30 @@ ordering matters: the sequence is create-module → upload → create-set, so a
 type rejected at the last step would leave an orphaned module and a
 multi-megabyte artifact behind, with no `module`/`ds` delete subcommand to
 clean them up.
+
+### Tags
+
+`tag` manages the tag itself; `target tag`/`ds tag` only assign an existing one
+to something. `--ds` switches every `tag` subcommand from target tags to
+distribution-set tags.
+
+```console
+$ raptorctl tag create zephyr --description 'Zephyr firmware fleet' --colour '#4caf50'
+created target tag 3 (zephyr)
+$ raptorctl tag list
+ID  NAME    DESCRIPTION            ASSIGNED
+3   zephyr  Zephyr firmware fleet  0
+$ raptorctl target tag add dev-042 zephyr
+tagged dev-042 with zephyr
+```
+
+Assigning a tag that doesn't exist names the ones that do, so a typo and a
+never-created tag are distinguishable:
+
+```console
+$ raptorctl target tag add dev-042 zephry
+error: no target tag named 'zephry' — existing: zephyr, prod. Create it with 'raptorctl tag create zephry'.
+```
 
 ### End-to-end example
 

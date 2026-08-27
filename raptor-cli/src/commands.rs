@@ -9,7 +9,9 @@ use crate::config::Config;
 use crate::print::{opt, table};
 use anyhow::Result;
 use clap::Subcommand;
-use raptor_api_types::{DsAssignment, DsCreate, ModuleRef, SmCreate, TargetCreate, TargetUpdate};
+use raptor_api_types::{
+    DsAssignment, DsCreate, ModuleRef, SmCreate, TagCreate, TargetCreate, TargetUpdate,
+};
 
 fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(v)?);
@@ -238,13 +240,13 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
         }
         TargetCmd::Tag(tag_cmd) => match tag_cmd {
             TargetTagCmd::Add { controller_id, tag } => {
-                let id = api::tags::find_id(c, &tag).await?;
-                api::tags::assign(c, id, &controller_id).await?;
+                let id = api::tags::find_id(c, api::tags::Kind::Target, &tag).await?;
+                api::tags::assign(c, api::tags::Kind::Target, id, &controller_id).await?;
                 println!("tagged {controller_id} with {tag}");
             }
             TargetTagCmd::Rm { controller_id, tag } => {
-                let id = api::tags::find_id(c, &tag).await?;
-                api::tags::unassign(c, id, &controller_id).await?;
+                let id = api::tags::find_id(c, api::tags::Kind::Target, &tag).await?;
+                api::tags::unassign(c, api::tags::Kind::Target, id, &controller_id).await?;
                 println!("untagged {controller_id} from {tag}");
             }
         },
@@ -287,6 +289,93 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
             table(&["ID", "TYPE", "STATUS", "DETAIL"], &rows);
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------
+// tag
+// ---------------------------------------------------------------------
+
+/// Tag lifecycle, separate from `target tag add|rm` which only *assigns* an
+/// existing tag.
+#[derive(Subcommand)]
+pub enum TagCmd {
+    /// List tags
+    List {
+        /// Operate on distribution-set tags instead of target tags
+        #[arg(long)]
+        ds: bool,
+    },
+    /// Create a tag
+    Create {
+        name: String,
+        #[arg(long)]
+        description: Option<String>,
+        /// Display colour, e.g. `#4caf50` (hawkBit's British spelling)
+        #[arg(long)]
+        colour: Option<String>,
+        #[arg(long)]
+        ds: bool,
+    },
+    /// Delete a tag by name, unassigning it from everything that carries it
+    Delete {
+        name: String,
+        #[arg(long)]
+        ds: bool,
+    },
+}
+
+pub async fn tag(c: &Client, cmd: TagCmd, json: bool) -> Result<()> {
+    use api::tags::Kind;
+    match cmd {
+        TagCmd::List { ds } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let tags = api::tags::list(c, kind).await?;
+            if json {
+                return print_json(&tags);
+            }
+            let rows = tags
+                .iter()
+                .map(|t| {
+                    vec![
+                        t.id.to_string(),
+                        t.name.clone(),
+                        opt(&t.description),
+                        t.assigned_count.to_string(),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            table(&["ID", "NAME", "DESCRIPTION", "ASSIGNED"], &rows);
+        }
+        TagCmd::Create {
+            name,
+            description,
+            colour,
+            ds,
+        } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let t = api::tags::create(
+                c,
+                kind,
+                &TagCreate {
+                    name,
+                    description,
+                    colour,
+                },
+            )
+            .await?;
+            if json {
+                return print_json(&t);
+            }
+            println!("created {} tag {} ({})", kind.label(), t.id, t.name);
+        }
+        TagCmd::Delete { name, ds } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let id = api::tags::find_id(c, kind, &name).await?;
+            api::tags::delete(c, kind, id).await?;
+            println!("deleted {} tag {name}", kind.label());
         }
     }
     Ok(())
@@ -447,6 +536,16 @@ pub enum DsCmd {
         #[arg(long = "module")]
         modules: Vec<i64>,
     },
+    #[command(subcommand)]
+    Tag(DsTagCmd),
+}
+
+/// Assign/unassign an existing distribution-set tag — `raptorctl tag create
+/// --ds` makes the tag itself. Mirrors `target tag`.
+#[derive(Subcommand)]
+pub enum DsTagCmd {
+    Add { id: i64, tag: String },
+    Rm { id: i64, tag: String },
 }
 
 pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
@@ -515,6 +614,21 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
                 "created distribution set {} ({}:{})",
                 d.id, d.name, d.version
             );
+        }
+        DsCmd::Tag(tag_cmd) => {
+            use api::tags::Kind::Ds;
+            match tag_cmd {
+                DsTagCmd::Add { id, tag } => {
+                    let tag_id = api::tags::find_id(c, Ds, &tag).await?;
+                    api::tags::assign(c, Ds, tag_id, &id.to_string()).await?;
+                    println!("tagged distribution set {id} with {tag}");
+                }
+                DsTagCmd::Rm { id, tag } => {
+                    let tag_id = api::tags::find_id(c, Ds, &tag).await?;
+                    api::tags::unassign(c, Ds, tag_id, &id.to_string()).await?;
+                    println!("untagged distribution set {id} from {tag}");
+                }
+            }
         }
     }
     Ok(())

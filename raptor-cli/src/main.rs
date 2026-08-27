@@ -48,6 +48,9 @@ enum Cmd {
     Artifact(commands::ArtifactCmd),
     #[command(subcommand)]
     Ds(commands::DsCmd),
+    /// Create, list and delete tags (`target tag`/`ds tag` only assign them)
+    #[command(subcommand)]
+    Tag(commands::TagCmd),
     #[command(subcommand)]
     Action(commands::ActionCmd),
     /// Create a software module, upload its artifact, and create a
@@ -124,6 +127,7 @@ async fn main() {
         Cmd::Module(c) => commands::module(&client, c, cli.json).await,
         Cmd::Artifact(c) => commands::artifact(&client, c, cli.json).await,
         Cmd::Ds(c) => commands::ds(&client, c, cli.json).await,
+        Cmd::Tag(c) => commands::tag(&client, c, cli.json).await,
         Cmd::Action(c) => commands::action(&client, c, cli.json).await,
         Cmd::Publish {
             file,
