@@ -9,7 +9,9 @@ use crate::config::Config;
 use crate::print::{opt, table};
 use anyhow::Result;
 use clap::Subcommand;
-use raptor_api_types::{DsAssignment, DsCreate, ModuleRef, SmCreate, TargetCreate, TargetUpdate};
+use raptor_api_types::{
+    DsAssignment, DsCreate, ModuleRef, SmCreate, TagCreate, TargetCreate, TargetUpdate,
+};
 
 fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(v)?);
@@ -92,6 +94,8 @@ pub enum TargetCmd {
     Attributes { controller_id: String },
     #[command(subcommand)]
     Tag(TargetTagCmd),
+    #[command(subcommand)]
+    Type(TargetTypeCmd),
     /// Assign a distribution set to a target
     Assign {
         controller_id: String,
@@ -109,6 +113,22 @@ pub enum TargetCmd {
 pub enum TargetTagCmd {
     Add { controller_id: String, tag: String },
     Rm { controller_id: String, tag: String },
+}
+
+/// A target's type constrains which distribution-set types it will accept, so
+/// it is a correctness setting, not just an organisational one.
+#[derive(Subcommand)]
+pub enum TargetTypeCmd {
+    /// List the target types the server knows, with the distribution-set
+    /// types each one accepts
+    List,
+    /// Constrain a target to a target type, by name
+    Set {
+        controller_id: String,
+        target_type: String,
+    },
+    /// Drop a target's type constraint, letting it accept any set type
+    Clear { controller_id: String },
 }
 
 pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
@@ -156,6 +176,20 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
             println!("name          {}", t.name);
             println!("description   {}", opt(&t.description));
             println!("updateStatus  {}", t.update_status);
+            // The DTO carries only the type's id; resolve it to a name, since
+            // the id is not what any other command takes.
+            println!(
+                "targetType    {}",
+                match t.target_type {
+                    None => "-".to_string(),
+                    Some(id) => api::types::target_types(c)
+                        .await?
+                        .into_iter()
+                        .find(|tt| tt.id == id)
+                        .map(|tt| tt.name)
+                        .unwrap_or_else(|| format!("{id} (unknown)")),
+                }
+            );
             println!(
                 "installedDS   {}",
                 t.installed_ds
@@ -238,14 +272,53 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
         }
         TargetCmd::Tag(tag_cmd) => match tag_cmd {
             TargetTagCmd::Add { controller_id, tag } => {
-                let id = api::tags::find_id(c, &tag).await?;
-                api::tags::assign(c, id, &controller_id).await?;
+                let id = api::tags::find_id(c, api::tags::Kind::Target, &tag).await?;
+                api::tags::assign(c, api::tags::Kind::Target, id, &controller_id).await?;
                 println!("tagged {controller_id} with {tag}");
             }
             TargetTagCmd::Rm { controller_id, tag } => {
-                let id = api::tags::find_id(c, &tag).await?;
-                api::tags::unassign(c, id, &controller_id).await?;
+                let id = api::tags::find_id(c, api::tags::Kind::Target, &tag).await?;
+                api::tags::unassign(c, api::tags::Kind::Target, id, &controller_id).await?;
                 println!("untagged {controller_id} from {tag}");
+            }
+        },
+        TargetCmd::Type(type_cmd) => match type_cmd {
+            TargetTypeCmd::List => {
+                let types = api::types::target_types(c).await?;
+                if json {
+                    return print_json(&types);
+                }
+                let mut rows = Vec::with_capacity(types.len());
+                for t in &types {
+                    let compatible = api::types::target_type_compatible(c, t.id)
+                        .await?
+                        .iter()
+                        .map(|d| d.key.clone())
+                        .collect::<Vec<_>>();
+                    rows.push(vec![
+                        t.id.to_string(),
+                        t.name.clone(),
+                        opt(&t.description),
+                        if compatible.is_empty() {
+                            "-".into()
+                        } else {
+                            compatible.join(", ")
+                        },
+                    ]);
+                }
+                table(&["ID", "NAME", "DESCRIPTION", "ACCEPTS_DS_TYPES"], &rows);
+            }
+            TargetTypeCmd::Set {
+                controller_id,
+                target_type,
+            } => {
+                let tt = api::types::find_target_type(c, &target_type).await?;
+                api::types::assign_target_type(c, &controller_id, tt.id).await?;
+                println!("{controller_id} is now target type {} ({})", tt.name, tt.id);
+            }
+            TargetTypeCmd::Clear { controller_id } => {
+                api::types::unassign_target_type(c, &controller_id).await?;
+                println!("{controller_id} is now untyped");
             }
         },
         TargetCmd::Assign {
@@ -287,6 +360,93 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
             table(&["ID", "TYPE", "STATUS", "DETAIL"], &rows);
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------
+// tag
+// ---------------------------------------------------------------------
+
+/// Tag lifecycle, separate from `target tag add|rm` which only *assigns* an
+/// existing tag.
+#[derive(Subcommand)]
+pub enum TagCmd {
+    /// List tags
+    List {
+        /// Operate on distribution-set tags instead of target tags
+        #[arg(long)]
+        ds: bool,
+    },
+    /// Create a tag
+    Create {
+        name: String,
+        #[arg(long)]
+        description: Option<String>,
+        /// Display colour, e.g. `#4caf50` (hawkBit's British spelling)
+        #[arg(long)]
+        colour: Option<String>,
+        #[arg(long)]
+        ds: bool,
+    },
+    /// Delete a tag by name, unassigning it from everything that carries it
+    Delete {
+        name: String,
+        #[arg(long)]
+        ds: bool,
+    },
+}
+
+pub async fn tag(c: &Client, cmd: TagCmd, json: bool) -> Result<()> {
+    use api::tags::Kind;
+    match cmd {
+        TagCmd::List { ds } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let tags = api::tags::list(c, kind).await?;
+            if json {
+                return print_json(&tags);
+            }
+            let rows = tags
+                .iter()
+                .map(|t| {
+                    vec![
+                        t.id.to_string(),
+                        t.name.clone(),
+                        opt(&t.description),
+                        t.assigned_count.to_string(),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            table(&["ID", "NAME", "DESCRIPTION", "ASSIGNED"], &rows);
+        }
+        TagCmd::Create {
+            name,
+            description,
+            colour,
+            ds,
+        } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let t = api::tags::create(
+                c,
+                kind,
+                &TagCreate {
+                    name,
+                    description,
+                    colour,
+                },
+            )
+            .await?;
+            if json {
+                return print_json(&t);
+            }
+            println!("created {} tag {} ({})", kind.label(), t.id, t.name);
+        }
+        TagCmd::Delete { name, ds } => {
+            let kind = if ds { Kind::Ds } else { Kind::Target };
+            let id = api::tags::find_id(c, kind, &name).await?;
+            api::tags::delete(c, kind, id).await?;
+            println!("deleted {} tag {name}", kind.label());
         }
     }
     Ok(())
@@ -447,6 +607,16 @@ pub enum DsCmd {
         #[arg(long = "module")]
         modules: Vec<i64>,
     },
+    #[command(subcommand)]
+    Tag(DsTagCmd),
+}
+
+/// Assign/unassign an existing distribution-set tag — `raptorctl tag create
+/// --ds` makes the tag itself. Mirrors `target tag`.
+#[derive(Subcommand)]
+pub enum DsTagCmd {
+    Add { id: i64, tag: String },
+    Rm { id: i64, tag: String },
 }
 
 pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
@@ -516,6 +686,21 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
                 d.id, d.name, d.version
             );
         }
+        DsCmd::Tag(tag_cmd) => {
+            use api::tags::Kind::Ds;
+            match tag_cmd {
+                DsTagCmd::Add { id, tag } => {
+                    let tag_id = api::tags::find_id(c, Ds, &tag).await?;
+                    api::tags::assign(c, Ds, tag_id, &id.to_string()).await?;
+                    println!("tagged distribution set {id} with {tag}");
+                }
+                DsTagCmd::Rm { id, tag } => {
+                    let tag_id = api::tags::find_id(c, Ds, &tag).await?;
+                    api::tags::unassign(c, Ds, tag_id, &id.to_string()).await?;
+                    println!("untagged distribution set {id} from {tag}");
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -532,7 +717,110 @@ pub struct PublishArgs {
     pub version: String,
     pub name: Option<String>,
     pub module_type: String,
+    pub ds_type: Option<String>,
     pub vendor: Option<String>,
+}
+
+/// The server's two type vocabularies as `publish` needs them: the
+/// software-module type keys, and every distribution-set type key with the
+/// module-type keys it makes mandatory.
+///
+/// They are *not* interchangeable — a module is `os`/`application`/`firmware`,
+/// the set wrapping it is `os`/`app`/`os_app` — which is why both are checked
+/// here rather than discovered one HTTP error at a time.
+#[derive(Debug, Default)]
+pub struct TypeCatalogue {
+    pub module_types: Vec<String>,
+    /// `(ds type key, its mandatory module-type keys)`
+    pub ds_types: Vec<(String, Vec<String>)>,
+}
+
+async fn fetch_type_catalogue(c: &Client) -> Result<TypeCatalogue> {
+    let module_types = api::types::sm_types(c)
+        .await?
+        .into_iter()
+        .map(|t| t.key)
+        .collect();
+    let mut ds_types = Vec::new();
+    for t in api::types::ds_types(c).await? {
+        let mandatory = api::types::ds_type_mandatory(c, t.id)
+            .await?
+            .into_iter()
+            .map(|m| m.key)
+            .collect();
+        ds_types.push((t.key, mandatory));
+    }
+    Ok(TypeCatalogue {
+        module_types,
+        ds_types,
+    })
+}
+
+fn join_keys(keys: impl IntoIterator<Item = impl AsRef<str>>) -> String {
+    let joined = keys
+        .into_iter()
+        .map(|k| k.as_ref().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if joined.is_empty() {
+        "(none configured)".into()
+    } else {
+        joined
+    }
+}
+
+/// Validate the module type and settle on a distribution-set type, before any
+/// write happens.
+///
+/// With no `--ds-type` the set type is derived: an exactly-matching key wins
+/// (`os` module → `os` set, which is also what `os_app` would match on
+/// mandatory composition alone), otherwise the single set type that requires
+/// exactly this module type (`application` → `app`). Anything ambiguous is an
+/// error asking for `--ds-type` rather than a guess, because guessing wrong
+/// produces an incomplete set that only fails much later, at assign time.
+fn resolve_publish_types(
+    cat: &TypeCatalogue,
+    module_type: &str,
+    ds_type: Option<&str>,
+) -> Result<String> {
+    let ds_keys = || join_keys(cat.ds_types.iter().map(|(k, _)| k));
+
+    if !cat.module_types.iter().any(|k| k == module_type) {
+        anyhow::bail!(
+            "unknown software-module type '{module_type}' — the server accepts: {}.\n\
+             (Distribution-set types are a separate vocabulary: {}. Pass one with --ds-type.)",
+            join_keys(&cat.module_types),
+            ds_keys(),
+        );
+    }
+
+    if let Some(d) = ds_type {
+        if !cat.ds_types.iter().any(|(k, _)| k == d) {
+            anyhow::bail!(
+                "unknown distribution-set type '{d}' — the server accepts: {}.\n\
+                 (Software-module types are a separate vocabulary: {}. Pass one with --module-type.)",
+                ds_keys(),
+                join_keys(&cat.module_types),
+            );
+        }
+        return Ok(d.to_string());
+    }
+
+    if let Some((k, _)) = cat.ds_types.iter().find(|(k, _)| k == module_type) {
+        return Ok(k.clone());
+    }
+    let mut fits = cat
+        .ds_types
+        .iter()
+        .filter(|(_, m)| m.len() == 1 && m[0] == module_type);
+    match (fits.next(), fits.next()) {
+        (Some((k, _)), None) => Ok(k.clone()),
+        _ => anyhow::bail!(
+            "cannot derive a distribution-set type for module type '{module_type}' — \
+             pass one with --ds-type. The server accepts: {}.",
+            ds_keys(),
+        ),
+    }
 }
 
 /// Defaults to the filename with a trailing `-<version>.swu` stripped —
@@ -554,6 +842,28 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
     let name = args
         .name
         .unwrap_or_else(|| default_publish_name(&args.file, &args.version));
+
+    // Resolve types first: everything after this point writes to the server,
+    // and a type rejected mid-sequence strands a module plus its artifact.
+    let ds_type = match fetch_type_catalogue(c).await {
+        Ok(cat) => resolve_publish_types(&cat, &args.module_type, args.ds_type.as_deref())?,
+        Err(e) => {
+            // Older server, or the catalogue is unreachable — fall back to the
+            // pre-validation behaviour rather than refusing to publish.
+            eprintln!(
+                "warning: could not read the server's type catalogue ({e:#}); skipping type validation"
+            );
+            args.ds_type
+                .clone()
+                .unwrap_or_else(|| args.module_type.clone())
+        }
+    };
+    if args.ds_type.is_none() && ds_type != args.module_type {
+        eprintln!(
+            "distribution set type: {ds_type} (derived from module type {})",
+            args.module_type
+        );
+    }
 
     let module = api::modules::create(
         c,
@@ -580,7 +890,7 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
         &DsCreate {
             name: name.clone(),
             version: args.version,
-            ds_type: args.module_type,
+            ds_type,
             description: None,
             required_migration_step: false,
             modules: vec![ModuleRef { id: module.id }],
@@ -737,6 +1047,76 @@ mod tests {
         assert_eq!(
             default_publish_name(Path::new("firmware.bin"), "1.2.3"),
             "firmware"
+        );
+    }
+
+    /// The catalogue raptor seeds by default (see the initial migration).
+    fn seeded() -> TypeCatalogue {
+        TypeCatalogue {
+            module_types: ["os", "firmware", "runtime", "application"]
+                .map(String::from)
+                .to_vec(),
+            ds_types: vec![
+                ("os".into(), vec!["os".into()]),
+                ("os_app".into(), vec!["os".into()]),
+                ("app".into(), vec!["application".into()]),
+            ],
+        }
+    }
+
+    #[test]
+    fn ds_type_derives_from_an_exact_key_match() {
+        // `os` and `os_app` both make module type `os` mandatory; the exact
+        // key match settles it, which is also the pre-existing behaviour.
+        assert_eq!(resolve_publish_types(&seeded(), "os", None).unwrap(), "os");
+    }
+
+    #[test]
+    fn ds_type_derives_from_the_mandatory_composition() {
+        // No DS type is keyed `application`; `app` is the only one requiring it.
+        assert_eq!(
+            resolve_publish_types(&seeded(), "application", None).unwrap(),
+            "app"
+        );
+    }
+
+    #[test]
+    fn underivable_ds_type_asks_for_the_flag_instead_of_guessing() {
+        // Nothing requires a `firmware` module, so any guess would build an
+        // incomplete set that only fails later, at assign time.
+        let e = resolve_publish_types(&seeded(), "firmware", None).unwrap_err();
+        assert!(e.to_string().contains("--ds-type"), "{e}");
+        assert!(e.to_string().contains("os_app"), "{e}");
+    }
+
+    #[test]
+    fn a_module_type_is_rejected_where_a_ds_type_belongs() {
+        // The reported failure: `--type application` used for both, caught
+        // client-side now instead of after the artifact upload.
+        let e = resolve_publish_types(&seeded(), "os", Some("application")).unwrap_err();
+        let msg = e.to_string();
+        assert!(
+            msg.contains("unknown distribution-set type 'application'"),
+            "{msg}"
+        );
+        assert!(msg.contains("os, os_app, app"), "{msg}");
+        assert!(msg.contains("--module-type"), "{msg}");
+    }
+
+    #[test]
+    fn an_unknown_module_type_names_both_vocabularies() {
+        let e = resolve_publish_types(&seeded(), "app", None).unwrap_err();
+        let msg = e.to_string();
+        assert!(msg.contains("unknown software-module type 'app'"), "{msg}");
+        assert!(msg.contains("os, firmware, runtime, application"), "{msg}");
+        assert!(msg.contains("--ds-type"), "{msg}");
+    }
+
+    #[test]
+    fn an_explicit_ds_type_is_taken_as_given() {
+        assert_eq!(
+            resolve_publish_types(&seeded(), "application", Some("os_app")).unwrap(),
+            "os_app"
         );
     }
 }

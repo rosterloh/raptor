@@ -9,6 +9,7 @@ pub mod rollouts;
 pub mod system;
 pub mod tags;
 pub mod targets;
+pub mod types;
 
 /// Shared list-query flags, mirroring `raptor::api::paging::ListParams`.
 #[derive(Debug, Clone, Default)]

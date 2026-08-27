@@ -370,6 +370,15 @@ async fn typed_target_rejects_incompatible_ds() {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    // The message names both types and what the target type does accept — an
+    // operator only ever sees the keys, never the ids the check runs on.
+    let msg = common::body_json(resp).await["message"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(msg.contains("'app'"), "{msg}");
+    assert!(msg.contains("'gateway'"), "{msg}");
+    assert!(msg.contains("accepts: os"), "{msg}");
 }
 
 #[tokio::test]

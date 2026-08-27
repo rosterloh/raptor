@@ -217,8 +217,8 @@ fn spawn_tag(app: &App, cid: String, tag: String) {
     let tx = app.tx.clone();
     tokio::spawn(async move {
         let r = async {
-            let id = api::tags::find_id(&client, &tag).await?;
-            api::tags::assign(&client, id, &cid).await?;
+            let id = api::tags::find_id(&client, api::tags::Kind::Target, &tag).await?;
+            api::tags::assign(&client, api::tags::Kind::Target, id, &cid).await?;
             Ok(format!("tagged {cid} with {tag}"))
         }
         .await;

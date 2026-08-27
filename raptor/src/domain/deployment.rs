@@ -5,7 +5,8 @@
 //! mgmt and DDI handlers stay consistent.
 
 use crate::entity::{
-    action, action_status, action_status_message, distribution_set, target, target_type_ds_type,
+    action, action_status, action_status_message, distribution_set, distribution_set_type, target,
+    target_type, target_type_ds_type,
 };
 use crate::error::AppError;
 use crate::state::AppState;
@@ -114,6 +115,49 @@ pub async fn active_action(
         .await?)
 }
 
+/// Spell out a target-type/distribution-set-type mismatch: which set type was
+/// refused, by which target type, and what that target type does accept. The
+/// caller only has two ids, and neither appears anywhere the operator typed,
+/// so the bare "not compatible" this replaces left them guessing. Only runs on
+/// the failure path, so the extra queries cost nothing in the normal case.
+async fn incompatible_type_message(
+    st: &AppState,
+    target_type_id: i64,
+    ds_type_id: i64,
+) -> Result<String, AppError> {
+    let tt = target_type::Entity::find_by_id(target_type_id)
+        .one(&st.db)
+        .await?;
+    let dst = distribution_set_type::Entity::find_by_id(ds_type_id)
+        .one(&st.db)
+        .await?;
+    let allowed = target_type_ds_type::Entity::find()
+        .filter(target_type_ds_type::Column::TargetTypeId.eq(target_type_id))
+        .all(&st.db)
+        .await?;
+    let allowed_keys = distribution_set_type::Entity::find()
+        .filter(
+            distribution_set_type::Column::Id
+                .is_in(allowed.iter().map(|l| l.ds_type_id).collect::<Vec<_>>()),
+        )
+        .all(&st.db)
+        .await?
+        .into_iter()
+        .map(|t| t.key)
+        .collect::<Vec<_>>();
+    Ok(format!(
+        "distribution set type '{}' is not compatible with target type '{}', which accepts: {}",
+        dst.map(|t| t.key).unwrap_or_else(|| ds_type_id.to_string()),
+        tt.map(|t| t.name)
+            .unwrap_or_else(|| target_type_id.to_string()),
+        if allowed_keys.is_empty() {
+            "nothing".to_string()
+        } else {
+            allowed_keys.join(", ")
+        },
+    ))
+}
+
 /// `action_type` is validated here rather than at each call site, so no caller
 /// (mgmt assignment, rollout, filter auto-assign) can write an unknown type.
 #[tracing::instrument(skip_all, fields(target_id = target.id, ds_id, action_type))]
@@ -153,7 +197,7 @@ pub async fn assign_ds(
             .is_some();
         if !compatible {
             return Err(AppError::BadRequest(
-                "distribution set type is not compatible with the target type".into(),
+                incompatible_type_message(st, tt_id, ds.type_id).await?,
             ));
         }
     }
