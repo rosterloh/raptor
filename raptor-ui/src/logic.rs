@@ -64,6 +64,16 @@ pub fn format_ts(ms: i64) -> String {
         .unwrap_or_else(|| "-".into())
 }
 
+pub fn name_version_error(name: &str, version: &str) -> Option<&'static str> {
+    if name.trim().is_empty() {
+        Some("Name is required")
+    } else if version.trim().is_empty() {
+        Some("Version is required")
+    } else {
+        None
+    }
+}
+
 /// How long ago something happened, at a glance: `4s`, `16m`, `3h`, `12d`.
 ///
 /// The question an operator asks of a poll timestamp is "is this device stale",
@@ -511,5 +521,12 @@ mod tests {
         assert_eq!(fetch_stall_label("pending", 2), None);
         // a finished action re-fetching installedBase isn't a stall
         assert_eq!(fetch_stall_label("finished", 9), None);
+    }
+
+    #[test]
+    fn name_and_version_validation_is_specific() {
+        assert_eq!(name_version_error("", "1.0"), Some("Name is required"));
+        assert_eq!(name_version_error("fleet", ""), Some("Version is required"));
+        assert_eq!(name_version_error("fleet", "1.0"), None);
     }
 }

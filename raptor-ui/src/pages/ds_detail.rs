@@ -287,7 +287,8 @@ fn EditDsDialog(
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
                     let (n, v) = (name().trim().to_string(), version().trim().to_string());
-                    if n.is_empty() || v.is_empty() {
+                    if let Some(message) = logic::name_version_error(&n, &v) {
+                        error.set(Some(message.into()));
                         return;
                     }
                     error.set(None);
@@ -314,13 +315,21 @@ fn EditDsDialog(
                     });
                 },
                 h3 { class: "mb-3 text-lg font-semibold text-foreground", "Edit distribution set" }
-                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
-                    oninput: move |e: FormEvent| name.set(e.value()) }
-                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
-                    oninput: move |e: FormEvent| version.set(e.value()) }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Name" }
+                    Input { required: true, value: "{name}",
+                        oninput: move |e: FormEvent| name.set(e.value()) }
+                }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Version" }
+                    Input { required: true, value: "{version}",
+                        oninput: move |e: FormEvent| version.set(e.value()) }
+                }
                 FieldError { message: error() }
-                Input { class: "mb-3", placeholder: "Description", value: "{description}",
-                    oninput: move |e: FormEvent| description.set(e.value()) }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Description" }
+                    Input { value: "{description}", oninput: move |e: FormEvent| description.set(e.value()) }
+                }
                 label { class: "mb-4 flex items-center gap-2 text-sm",
                     input {
                         r#type: "checkbox",
@@ -336,7 +345,7 @@ fn EditDsDialog(
                         onclick: move |_| open.set(false),
                         "Cancel"
                     }
-                    Button { r#type: "submit", disabled: saving(), "Save" }
+                    Button { r#type: "submit", disabled: saving(), if saving() { "Saving…" } else { "Save" } }
                 }
             }
         }

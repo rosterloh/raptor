@@ -85,6 +85,8 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
     let mut name = use_signal(String::new);
     let mut version = use_signal(String::new);
     let mut module_type = use_signal(String::new);
+    let mut error = use_signal(|| None::<String>);
+    let mut busy = use_signal(|| false);
     // Fetched only while open, like AssignDsDialog's set list — this dialog is
     // always mounted, but the type catalogue only matters once it's shown.
     let types = use_resource(move || async move {
@@ -109,6 +111,12 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
             form {
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
+                    if let Some(message) = logic::name_version_error(&name(), &version()) {
+                        error.set(Some(message.into()));
+                        return;
+                    }
+                    error.set(None);
+                    busy.set(true);
                     let m = SmCreate {
                         name: name(),
                         version: version(),
@@ -117,7 +125,9 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                         description: None,
                     };
                     spawn(async move {
-                        match api::create_module(&m).await {
+                        let result = api::create_module(&m).await;
+                        busy.set(false);
+                        match result {
                             Ok(_) => {
                                 toast_ok("module created");
                                 open.set(false);
@@ -125,27 +135,39 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                                 version.set(String::new());
                                 on_created.call(());
                             }
-                            Err(e) => toast_error(e.to_string()),
+                            Err(e) => error.set(Some(e.to_string())),
                         }
                     });
                 },
                 h3 { class: "mb-3 text-lg font-semibold text-foreground", "New software module" }
-                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
-                    oninput: move |e: FormEvent| name.set(e.value()) }
-                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
-                    oninput: move |e: FormEvent| version.set(e.value()) }
-                select {
-                    class: SELECT,
-                    value: "{module_type}",
-                    onchange: move |e| module_type.set(e.value()),
-                    match &*types.read_unchecked() {
-                        Some(Ok(page)) => rsx! {
-                            for t in page.content.clone() {
-                                option { key: "{t.id}", value: "{t.key}", "{t.key}" }
-                            }
-                        },
-                        _ => rsx! {},
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Name" }
+                    Input { required: true, value: "{name}",
+                        oninput: move |e: FormEvent| name.set(e.value()) }
+                }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Version" }
+                    Input { required: true, value: "{version}",
+                        oninput: move |e: FormEvent| version.set(e.value()) }
+                }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Software module type" }
+                    select {
+                        class: SELECT,
+                        value: "{module_type}",
+                        onchange: move |e| module_type.set(e.value()),
+                        match &*types.read_unchecked() {
+                            Some(Ok(page)) => rsx! {
+                                for t in page.content.clone() {
+                                    option { key: "{t.id}", value: "{t.key}", "{t.key}" }
+                                }
+                            },
+                            _ => rsx! {},
+                        }
                     }
+                }
+                if let Some(message) = error() {
+                    p { class: "mb-3 text-sm text-err", role: "alert", "{message}" }
                 }
                 div { class: "flex justify-end gap-2",
                     button {
@@ -154,7 +176,7 @@ fn CreateModuleDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Eleme
                         onclick: move |_| open.set(false),
                         "Cancel"
                     }
-                    Button { r#type: "submit", "Create" }
+                    Button { r#type: "submit", disabled: busy(), if busy() { "Creating…" } else { "Create" } }
                 }
             }
         }
