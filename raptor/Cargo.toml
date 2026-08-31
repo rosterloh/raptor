@@ -79,7 +79,7 @@ sha1 = "0.11"
 sha2 = "0.11"
 md-5 = "0.11"
 hex = "0.4"
-argon2 = "0.5"
+argon2 = "0.6"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tracing = "0.1"
