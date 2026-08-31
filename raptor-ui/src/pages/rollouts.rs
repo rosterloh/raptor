@@ -30,7 +30,16 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
 
     rsx! {
         document::Title { "Rollouts — raptor" }
-        h1 { class: HEADING, "Rollouts" }
+        div { class: "mb-5",
+            h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Rollouts" }
+            p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                match &*rollouts.read_unchecked() {
+                    Some(Ok(page)) => rsx! { "{page.total} rollouts" },
+                    _ => rsx! { "…" },
+                }
+            }
+        }
+        SectionRule { label: "Filter" }
         div { class: "mb-3",
             SearchBox {
                 key: "{search_key}",
@@ -44,7 +53,9 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
         }
         match &*rollouts.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                p { class: "text-sm text-muted-foreground", "No rollouts yet. Create one via the Management API." }
+                div { class: "mt-4 border border-border-soft bg-card p-8 text-center",
+                    p { class: "text-sm text-muted-foreground", "No rollouts match this search. Rollouts are created through the Management API." }
+                }
             },
             Some(Ok(page)) => {
                 let mut rows = page.content.clone();
@@ -60,6 +71,7 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                 let created_mark = logic::sort_mark(&sort, "created");
                 let (pager_query, pager_sort) = (query.clone(), sort.clone());
                 rsx! {
+                div { class: "mt-4 overflow-x-auto border border-border-soft bg-card",
                 table { class: TABLE,
                     thead {
                         tr {
@@ -108,7 +120,7 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                             }
                         }
                     }
-                }
+                }}
                 Paginator {
                     offset,
                     limit: LIMIT,

@@ -39,8 +39,16 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
     };
     rsx! {
         document::Title { "Actions — raptor" }
-        div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Actions" }
+        div { class: "mb-5 flex items-end justify-between gap-4",
+            div {
+                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Actions" }
+                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                    match &*actions.read_unchecked() {
+                        Some(Ok(page)) => rsx! { "{page.total} actions" },
+                        _ => rsx! { "…" },
+                    }
+                }
+            }
             select {
                 class: "rounded border border-border bg-card px-3 py-1.5 text-sm",
                 value: "{select_value}",
@@ -54,6 +62,11 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
             }
         }
         match &*actions.read_unchecked() {
+            Some(Ok(page)) if page.content.is_empty() => rsx! {
+                div { class: "border border-border-soft bg-card p-8 text-center",
+                    p { class: "text-sm text-muted-foreground", "No actions match this status." }
+                }
+            },
             Some(Ok(page)) => {
                 let mut rows = page.content.clone();
                 match sort.trim_start_matches('-') {
@@ -66,6 +79,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                 let updated_mark = logic::sort_mark(&sort, "updated");
                 let (pager_filter, pager_sort) = (filter.clone(), sort.clone());
                 rsx! {
+                div { class: "overflow-x-auto border border-border-soft bg-card",
                 table { class: TABLE,
                     thead {
                         tr {
@@ -149,7 +163,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                             }
                         }
                     }
-                }
+                }}
                 Paginator {
                     offset,
                     limit: LIMIT,

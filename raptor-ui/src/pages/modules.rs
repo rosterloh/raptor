@@ -28,10 +28,19 @@ pub fn Modules(query: String, offset: u64) -> Element {
 
     rsx! {
         document::Title { "Modules — raptor" }
-        div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Modules" }
+        div { class: "mb-5 flex items-end justify-between gap-4",
+            div {
+                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Modules" }
+                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                    match &*modules.read_unchecked() {
+                        Some(Ok(page)) => rsx! { "{page.total} software modules" },
+                        _ => rsx! { "…" },
+                    }
+                }
+            }
             Button { onclick: move |_| show_create.set(true), "New module" }
         }
+        SectionRule { label: "Filter" }
         div { class: "mb-3",
             SearchBox {
                 key: "{search_key}",
@@ -41,7 +50,13 @@ pub fn Modules(query: String, offset: u64) -> Element {
             }
         }
         match &*modules.read_unchecked() {
+            Some(Ok(page)) if page.content.is_empty() => rsx! {
+                div { class: "mt-4 border border-border-soft bg-card p-8 text-center",
+                    p { class: "text-sm text-muted-foreground", "No software modules match this search." }
+                }
+            },
             Some(Ok(page)) => rsx! {
+                div { class: "mt-4 overflow-x-auto border border-border-soft bg-card",
                 table { class: TABLE,
                     thead {
                         tr {
@@ -65,7 +80,7 @@ pub fn Modules(query: String, offset: u64) -> Element {
                             }
                         }
                     }
-                }
+                }}
                 Paginator {
                     offset,
                     limit: LIMIT,
