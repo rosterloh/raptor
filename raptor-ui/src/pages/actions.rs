@@ -7,6 +7,11 @@ const LIMIT: u64 = 25;
 #[component]
 pub fn Actions(filter: String, offset: u64) -> Element {
     let nav = use_navigator();
+    let mut cancel_open = use_signal(|| false);
+    let mut cancel_target = use_signal(String::new);
+    let mut cancel_id = use_signal(|| 0i64);
+    let mut auto_confirm_open = use_signal(|| false);
+    let mut auto_confirm_target = use_signal(String::new);
     let goto = move |filter: String, offset: u64| {
         nav.replace(Route::Actions { filter, offset });
     };
@@ -87,15 +92,9 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                                             button {
                                                 class: "text-xs text-err hover:underline",
                                                 onclick: move |_| {
-                                                    let cid = cid.clone();
-                                                    let aid = a.id;
-                                                    spawn(async move {
-                                                        match api::cancel_action(&cid, aid, false).await {
-                                                            Ok(()) => toast_ok(format!("cancel requested for #{aid}")),
-                                                            Err(e) => toast_error(e.to_string()),
-                                                        }
-                                                        actions.restart();
-                                                    });
+                                                    cancel_target.set(cid.clone());
+                                                    cancel_id.set(a.id);
+                                                    cancel_open.set(true);
                                                 },
                                                 "Cancel"
                                             }
@@ -109,14 +108,8 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                                             button {
                                                 class: "text-xs text-primary hover:underline",
                                                 onclick: move |_| {
-                                                    let cid = cid.clone();
-                                                    spawn(async move {
-                                                        match api::activate_auto_confirm(&cid).await {
-                                                            Ok(()) => toast_ok(format!("auto-confirm activated for {cid}")),
-                                                            Err(e) => toast_error(e.to_string()),
-                                                        }
-                                                        actions.restart();
-                                                    });
+                                                    auto_confirm_target.set(cid.clone());
+                                                    auto_confirm_open.set(true);
                                                 },
                                                 "Activate auto-confirm"
                                             }
@@ -137,5 +130,62 @@ pub fn Actions(filter: String, offset: u64) -> Element {
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| actions.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
+        ConfirmDialog {
+            title: "Cancel action".to_string(),
+            message: cancel_action_message(&cancel_target(), cancel_id()),
+            open: cancel_open,
+            on_confirm: move |_| {
+                let (cid, aid) = (cancel_target(), cancel_id());
+                spawn(async move {
+                    match api::cancel_action(&cid, aid, false).await {
+                        Ok(()) => toast_ok(format!("cancel requested for #{aid}")),
+                        Err(e) => toast_error(e.to_string()),
+                    }
+                    actions.restart();
+                });
+            },
+        }
+        ConfirmDialog {
+            title: "Activate auto-confirm".to_string(),
+            message: auto_confirm_message(&auto_confirm_target()),
+            open: auto_confirm_open,
+            on_confirm: move |_| {
+                let cid = auto_confirm_target();
+                spawn(async move {
+                    match api::activate_auto_confirm(&cid).await {
+                        Ok(()) => toast_ok(format!("auto-confirm activated for {cid}")),
+                        Err(e) => toast_error(e.to_string()),
+                    }
+                    actions.restart();
+                });
+            },
+        }
+    }
+}
+
+fn cancel_action_message(cid: &str, aid: i64) -> String {
+    format!("Cancel action #{aid} for {cid}? The device will be asked to stop the update.")
+}
+
+fn auto_confirm_message(cid: &str) -> String {
+    format!(
+        "Activate auto-confirm for {cid}? This changes the target's confirmation behaviour for future assignments too."
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confirmation_copy_names_the_affected_target_and_action() {
+        assert_eq!(
+            cancel_action_message("sensor-7", 42),
+            "Cancel action #42 for sensor-7? The device will be asked to stop the update."
+        );
+        assert_eq!(
+            auto_confirm_message("sensor-7"),
+            "Activate auto-confirm for sensor-7? This changes the target's confirmation behaviour for future assignments too."
+        );
     }
 }
