@@ -38,10 +38,19 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
     use_effect(use_reactive!(|tag| tag_signal.set(tag)));
     rsx! {
         document::Title { "Distributions — raptor" }
-        div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Distributions" }
+        div { class: "mb-5 flex items-end justify-between gap-4",
+            div {
+                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Distributions" }
+                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                    match &*sets.read_unchecked() {
+                        Some(Ok(page)) => rsx! { "{page.total} distribution sets" },
+                        _ => rsx! { "…" },
+                    }
+                }
+            }
             Button { onclick: move |_| show_create.set(true), "New distribution set" }
         }
+        SectionRule { label: "Filter" }
         div { class: "mb-3 flex items-center gap-3",
             div { class: "flex-1",
                 SearchBox {
@@ -64,7 +73,13 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
             }
         }
         match &*sets.read_unchecked() {
+            Some(Ok(page)) if page.content.is_empty() => rsx! {
+                div { class: "mt-4 border border-border-soft bg-card p-8 text-center",
+                    p { class: "text-sm text-muted-foreground", "No distribution sets match these filters." }
+                }
+            },
             Some(Ok(page)) => rsx! {
+                div { class: "mt-4 overflow-x-auto border border-border-soft bg-card",
                 table { class: TABLE,
                     thead {
                         tr {
@@ -96,7 +111,7 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
                             }
                         }
                     }
-                }
+                }}
                 Paginator {
                     offset,
                     limit: LIMIT,
@@ -116,6 +131,8 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
     let mut name = use_signal(String::new);
     let mut version = use_signal(String::new);
     let mut ds_type = use_signal(String::new);
+    let mut error = use_signal(|| None::<String>);
+    let mut busy = use_signal(|| false);
     // Fetched only while open, like AssignDsDialog's set list — this dialog is
     // always mounted, but the type catalogue only matters once it's shown.
     let types = use_resource(move || async move {
@@ -140,6 +157,12 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
             form {
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
+                    if let Some(message) = logic::name_version_error(&name(), &version()) {
+                        error.set(Some(message.into()));
+                        return;
+                    }
+                    error.set(None);
+                    busy.set(true);
                     let ds = DsCreate {
                         name: name(),
                         version: version(),
@@ -149,7 +172,9 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                         modules: vec![],
                     };
                     spawn(async move {
-                        match api::create_ds(&ds).await {
+                        let result = api::create_ds(&ds).await;
+                        busy.set(false);
+                        match result {
                             Ok(_) => {
                                 toast_ok("distribution set created");
                                 open.set(false);
@@ -157,27 +182,39 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                                 version.set(String::new());
                                 on_created.call(());
                             }
-                            Err(e) => toast_error(e.to_string()),
+                            Err(e) => error.set(Some(e.to_string())),
                         }
                     });
                 },
                 h3 { class: "mb-3 text-lg font-semibold text-foreground", "New distribution set" }
-                Input { class: "mb-3", placeholder: "Name", required: true, value: "{name}",
-                    oninput: move |e: FormEvent| name.set(e.value()) }
-                Input { class: "mb-3", placeholder: "Version", required: true, value: "{version}",
-                    oninput: move |e: FormEvent| version.set(e.value()) }
-                select {
-                    class: SELECT,
-                    value: "{ds_type}",
-                    onchange: move |e| ds_type.set(e.value()),
-                    match &*types.read_unchecked() {
-                        Some(Ok(page)) => rsx! {
-                            for t in page.content.clone() {
-                                option { key: "{t.id}", value: "{t.key}", "{t.key}" }
-                            }
-                        },
-                        _ => rsx! {},
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Name" }
+                    Input { required: true, value: "{name}",
+                        oninput: move |e: FormEvent| name.set(e.value()) }
+                }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Version" }
+                    Input { required: true, value: "{version}",
+                        oninput: move |e: FormEvent| version.set(e.value()) }
+                }
+                label { class: "mb-3 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Distribution set type" }
+                    select {
+                        class: SELECT,
+                        value: "{ds_type}",
+                        onchange: move |e| ds_type.set(e.value()),
+                        match &*types.read_unchecked() {
+                            Some(Ok(page)) => rsx! {
+                                for t in page.content.clone() {
+                                    option { key: "{t.id}", value: "{t.key}", "{t.key}" }
+                                }
+                            },
+                            _ => rsx! {},
+                        }
                     }
+                }
+                if let Some(message) = error() {
+                    p { class: "mb-3 text-sm text-err", role: "alert", "{message}" }
                 }
                 div { class: "flex justify-end gap-2",
                     button {
@@ -186,7 +223,7 @@ fn CreateDsDialog(open: Signal<bool>, on_created: EventHandler<()>) -> Element {
                         onclick: move |_| open.set(false),
                         "Cancel"
                     }
-                    Button { r#type: "submit", "Create" }
+                    Button { r#type: "submit", disabled: busy(), if busy() { "Creating…" } else { "Create" } }
                 }
             }
         }

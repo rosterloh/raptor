@@ -45,8 +45,10 @@ pub fn Tabs(
                         };
                         if delta != 0 {
                             e.prevent_default();
-                            let next = (selected() as i32 + delta).rem_euclid(count as i32) as usize;
+                            let next = tab_after(selected(), count, delta);
                             selected.set(next);
+                            #[cfg(target_arch = "wasm32")]
+                            document::eval(&format!("document.getElementById('tab-{next}')?.focus()"));
                         }
                     },
                     "{label}"
@@ -54,6 +56,14 @@ pub fn Tabs(
             }
         }
         {children}
+    }
+}
+
+fn tab_after(current: usize, count: usize, delta: i32) -> usize {
+    if count == 0 {
+        0
+    } else {
+        (current as i32 + delta).rem_euclid(count as i32) as usize
     }
 }
 
@@ -69,5 +79,18 @@ pub fn TabPanel(index: usize, selected: Signal<usize>, children: Element) -> Ele
             class: "pt-4",
             {children}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tab_navigation_wraps_in_both_directions() {
+        assert_eq!(tab_after(0, 3, 1), 1);
+        assert_eq!(tab_after(2, 3, 1), 0);
+        assert_eq!(tab_after(0, 3, -1), 2);
+        assert_eq!(tab_after(0, 0, 1), 0);
     }
 }

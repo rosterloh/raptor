@@ -212,8 +212,10 @@ pub fn Dashboard() -> Element {
                                                     }
                                                     td { class: "{TD} font-mono text-xs text-muted-foreground", "{a.action_type}" }
                                                     td { class: TD, StatusBadge { status: a.detail_status.clone() } }
-                                                    td { class: "{TD} text-right font-mono text-xs text-muted-foreground",
-                                                        {logic::format_ts(a.last_modified_at)}
+                                                    td {
+                                                        class: "{TD} text-right font-mono text-xs text-muted-foreground",
+                                                        title: "{logic::format_ts(a.last_modified_at)}",
+                                                        {logic::relative_age(now, Some(a.last_modified_at))}
                                                     }
                                                 }
                                             }
@@ -399,7 +401,7 @@ fn Tile(
 ) -> Element {
     rsx! {
         Link {
-            to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), offset: 0 },
+            to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), sort: String::new(), offset: 0 },
             class: "tick-scale relative block bg-card p-4 hover:bg-accent",
             p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
                 "{label}"

@@ -60,8 +60,36 @@ pub fn urlencode(s: &str) -> String {
 
 pub fn format_ts(ms: i64) -> String {
     chrono::DateTime::from_timestamp_millis(ms)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
         .unwrap_or_else(|| "-".into())
+}
+
+pub fn name_version_error(name: &str, version: &str) -> Option<&'static str> {
+    if name.trim().is_empty() {
+        Some("Name is required")
+    } else if version.trim().is_empty() {
+        Some("Version is required")
+    } else {
+        None
+    }
+}
+
+pub fn next_sort(current: &str, key: &str) -> String {
+    if current == key {
+        format!("-{key}")
+    } else {
+        key.to_string()
+    }
+}
+
+pub fn sort_mark(current: &str, key: &str) -> &'static str {
+    if current == key {
+        " ↑"
+    } else if current == format!("-{key}") {
+        " ↓"
+    } else {
+        ""
+    }
 }
 
 /// How long ago something happened, at a glance: `4s`, `16m`, `3h`, `12d`.
@@ -124,6 +152,17 @@ pub fn progress_segments(
     .into_iter()
     .filter(|(_, _, n)| *n > 0)
     .collect()
+}
+
+pub fn progress_summary(c: &raptor_api_types::RolloutTargetsPerStatus, total: i64) -> String {
+    let mut parts = vec![format!("{} of {total} finished", c.finished)];
+    parts.extend(
+        progress_segments(c)
+            .into_iter()
+            .filter(|(label, _, _)| *label != "finished")
+            .map(|(label, _, count)| format!("{count} {label}")),
+    );
+    parts.join("; ")
 }
 
 /// `n` as a percentage of `total`, clamped to 0–100 (0 when `total` is 0) —
@@ -343,7 +382,7 @@ mod tests {
 
     #[test]
     fn timestamps_render() {
-        assert_eq!(format_ts(0), "1970-01-01 00:00");
+        assert_eq!(format_ts(0), "1970-01-01 00:00 UTC");
     }
 
     #[test]
@@ -380,6 +419,20 @@ mod tests {
         assert_eq!(progress_segments(&c)[0].2, 3);
         assert_eq!(progress_segments(&c)[0].1, Tone::Ok);
         assert!(progress_segments(&Default::default()).is_empty());
+    }
+
+    #[test]
+    fn progress_summary_names_each_visible_status() {
+        let c = raptor_api_types::RolloutTargetsPerStatus {
+            finished: 3,
+            running: 2,
+            error: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            progress_summary(&c, 10),
+            "3 of 10 finished; 2 running; 1 error"
+        );
     }
 
     #[test]
@@ -511,5 +564,20 @@ mod tests {
         assert_eq!(fetch_stall_label("pending", 2), None);
         // a finished action re-fetching installedBase isn't a stall
         assert_eq!(fetch_stall_label("finished", 9), None);
+    }
+
+    #[test]
+    fn name_and_version_validation_is_specific() {
+        assert_eq!(name_version_error("", "1.0"), Some("Name is required"));
+        assert_eq!(name_version_error("fleet", ""), Some("Version is required"));
+        assert_eq!(name_version_error("fleet", "1.0"), None);
+    }
+
+    #[test]
+    fn sort_headers_cycle_ascending_then_descending() {
+        assert_eq!(next_sort("", "status"), "status");
+        assert_eq!(next_sort("status", "status"), "-status");
+        assert_eq!(next_sort("-status", "status"), "status");
+        assert_eq!(next_sort("status", "updated"), "updated");
     }
 }

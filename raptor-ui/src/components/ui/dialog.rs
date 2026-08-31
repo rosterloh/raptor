@@ -59,11 +59,17 @@ const TRAP_CLOSE_JS: &str = r#"(() => {
 pub fn Dialog(
     open: Signal<bool>,
     #[props(into, optional)] class: Option<String>,
+    #[props(into, optional)] backdrop_class: Option<String>,
+    #[props(into, optional, default = "Dialog".to_string())] aria_label: String,
     children: Element,
 ) -> Element {
     let merged_class = tw_merge!(
         "w-96 rounded-lg border border-border-soft bg-card p-6",
         class.as_deref().unwrap_or("")
+    );
+    let merged_backdrop_class = tw_merge!(
+        "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
+        backdrop_class.as_deref().unwrap_or("")
     );
 
     // Fires the trap/restore JS only on the open<->closed edges (not on every
@@ -89,7 +95,7 @@ pub fn Dialog(
             // leaves focus on the trigger outside it, and keydown never arrives.
             // Landing here also means Tab walks forwards into the panel.
             div {
-                class: "fixed inset-0 z-40 flex items-center justify-center bg-black/60",
+                class: "{merged_backdrop_class}",
                 tabindex: "-1",
                 autofocus: true,
                 onkeydown: move |e| {
@@ -102,6 +108,7 @@ pub fn Dialog(
                     class: "{merged_class}",
                     role: "dialog",
                     aria_modal: "true",
+                    aria_label: "{aria_label}",
                     // Clicks on the panel must not bubble to the backdrop's
                     // close handler, or every interaction would dismiss it.
                     onclick: move |e| e.stop_propagation(),

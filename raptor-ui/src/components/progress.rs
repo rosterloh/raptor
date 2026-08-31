@@ -7,8 +7,15 @@ use raptor_api_types::RolloutTargetsPerStatus;
 /// as track — targets the server has not accounted for yet.
 #[component]
 pub fn ProgressBar(counts: RolloutTargetsPerStatus, total: i64) -> Element {
+    let label = logic::progress_summary(&counts, total);
     rsx! {
-        div { class: "flex h-2 w-full overflow-hidden rounded bg-accent",
+        div {
+            class: "flex h-2 w-full overflow-hidden rounded bg-accent",
+            role: "progressbar",
+            aria_label: "{label}",
+            aria_valuemin: 0,
+            aria_valuemax: total.max(0),
+            aria_valuenow: counts.finished.max(0),
             for (label , tone , n) in logic::progress_segments(&counts) {
                 div {
                     key: "{label}",
