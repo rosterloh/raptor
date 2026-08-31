@@ -103,6 +103,16 @@ pub async fn setup_with_url(url: &str) -> (Router, AppState) {
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but with the rollout approval gate turned on, so a created
+/// rollout lands in `waiting_for_approval` instead of `ready`.
+pub async fn setup_with_rollout_approval() -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.rollout_approval_enabled = true;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
     format!(
         "Basic {}",

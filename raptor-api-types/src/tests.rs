@@ -192,6 +192,42 @@ fn rollout_shape() {
     }));
 }
 
+/// The approval fields ride on the same DTO, and `approveDecidedBy` keeps
+/// hawkBit's spelling — the DTO field is `approveDecidedBy` even though the
+/// remark beside it is `approvalRemark`.
+#[test]
+fn rollout_approval_shape() {
+    round_trip::<RolloutRest>(json!({
+        "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
+        "targetFilterQuery": "name==*", "status": "approval_denied",
+        "type": "forced", "totalTargets": 10,
+        "totalTargetsPerStatus": {
+            "notstarted": 10, "scheduled": 0, "running": 0,
+            "error": 0, "finished": 0, "cancelled": 0
+        },
+        "createdAt": 1, "lastModifiedAt": 2,
+        "approveDecidedBy": "admin", "approvalRemark": "not this week",
+        "_links": {"self": {"href": "http://x/rest/v1/rollouts/1"}}
+    }));
+}
+
+/// An undecided rollout omits both fields rather than sending nulls, so a
+/// client reading hawkBit's own responses sees the same absence.
+#[test]
+fn rollout_approval_fields_absent_until_decided() {
+    let r: RolloutRest = serde_json::from_value(json!({
+        "id": 1, "name": "r1", "description": null, "distributionSetId": 5,
+        "targetFilterQuery": "name==*", "status": "waiting_for_approval",
+        "type": "forced", "totalTargets": 10, "createdAt": 1, "lastModifiedAt": 2
+    }))
+    .unwrap();
+    assert_eq!(r.approve_decided_by, None);
+    assert_eq!(r.approval_remark, None);
+    let v = serde_json::to_value(&r).unwrap();
+    assert!(v.get("approveDecidedBy").is_none());
+    assert!(v.get("approvalRemark").is_none());
+}
+
 #[test]
 fn rollout_group_shape() {
     round_trip::<RolloutGroupRest>(json!({

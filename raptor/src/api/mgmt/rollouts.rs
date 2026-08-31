@@ -1,8 +1,9 @@
-//! Rollout CRUD and lifecycle (`/rest/v1/rollouts`): start/pause/resume, plus
-//! the read-only deployment-group and per-group target listings.
+//! Rollout CRUD and lifecycle (`/rest/v1/rollouts`): approve/deny,
+//! start/pause/resume, plus the read-only deployment-group and per-group
+//! target listings.
 
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
-use crate::domain::rollout::{rollout_group_rest, rollout_rest};
+use crate::domain::rollout::{ApprovalDecision, rollout_group_rest, rollout_rest};
 use crate::entity::{rollout, rollout_group, rollout_target_group};
 use crate::error::AppError;
 use crate::state::AppState;
@@ -14,11 +15,14 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use raptor_api_types::{RolloutCreate, RolloutGroupRest, RolloutRest};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use serde::Deserialize;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/rest/v1/rollouts", post(create).get(list))
         .route("/rest/v1/rollouts/{id}", get(get_one).delete(delete))
+        .route("/rest/v1/rollouts/{id}/approve", post(approve))
+        .route("/rest/v1/rollouts/{id}/deny", post(deny))
         .route("/rest/v1/rollouts/{id}/start", post(start))
         .route("/rest/v1/rollouts/{id}/pause", post(pause))
         .route("/rest/v1/rollouts/{id}/resume", post(resume))
@@ -107,6 +111,40 @@ pub async fn delete(
     let r = find_rollout(&st, id).await?;
     crate::domain::rollout::delete_rollout(&st, r).await?;
     Ok(StatusCode::OK)
+}
+
+/// Query params for [`approve`] and [`deny`]. hawkBit takes the note as a
+/// query parameter rather than a body, and both endpoints answer 204 with no
+/// content (`MgmtRolloutResource#approve`), so the decided rollout has to be
+/// re-fetched via `GET /rest/v1/rollouts/{id}` — mirrored here rather than
+/// "improved" into returning the rollout.
+#[derive(Debug, Deserialize)]
+pub struct ApprovalParams {
+    pub remark: Option<String>,
+}
+
+/// hawkBit `POST /rest/v1/rollouts/{id}/approve`: releases a rollout waiting
+/// for approval into `ready`, from where it can be started.
+pub async fn approve(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(p): Query<ApprovalParams>,
+) -> Result<StatusCode, AppError> {
+    let r = find_rollout(&st, id).await?;
+    crate::domain::rollout::decide_approval(&st, r, ApprovalDecision::Approved, p.remark).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// hawkBit `POST /rest/v1/rollouts/{id}/deny`: rejects a rollout waiting for
+/// approval. Terminal — the rollout can no longer be started.
+pub async fn deny(
+    State(st): State<AppState>,
+    Path(id): Path<i64>,
+    Query(p): Query<ApprovalParams>,
+) -> Result<StatusCode, AppError> {
+    let r = find_rollout(&st, id).await?;
+    crate::domain::rollout::decide_approval(&st, r, ApprovalDecision::Denied, p.remark).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn start(

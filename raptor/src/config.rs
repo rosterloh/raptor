@@ -35,6 +35,13 @@ pub struct Config {
     /// How often the rollout group-threshold evaluator runs, in seconds.
     #[serde(default = "default_rollout_eval_interval_secs")]
     pub rollout_eval_interval_secs: u64,
+    /// When true, a newly created rollout lands in `waiting_for_approval` and
+    /// cannot be started until an operator approves it. Mirrors hawkBit's
+    /// `rollout.approval.enabled` tenant flag, which is what this value is
+    /// reported as on `/rest/v1/system/configs`. Off by default, so rollouts
+    /// stay directly startable unless an operator asks for the gate.
+    #[serde(default)]
+    pub rollout_approval_enabled: bool,
     /// OpenTelemetry (OTLP) export. Absent by default; when present with an
     /// endpoint, traces/metrics/logs are shipped to the collector. Requires the
     /// `otel` build feature — without it, this section is parsed but ignored.
@@ -348,6 +355,7 @@ password_hash = "$argon2id$fake"
             assert_eq!(cfg.ddi.polling_interval, "00:05:00");
             assert_eq!(cfg.mgmt.username, "admin");
             assert_eq!(cfg.tenant, "DEFAULT");
+            assert!(!cfg.rollout_approval_enabled);
             assert!(cfg.otel.is_none());
             Ok(())
         });

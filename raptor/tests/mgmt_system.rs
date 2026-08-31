@@ -47,6 +47,22 @@ async fn tenant_configs_read() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
+/// `rollout.approval.enabled` is no longer a hardcoded `false` — it reports
+/// the configured gate, which is what a client polls it to find out (#17).
+#[tokio::test]
+async fn rollout_approval_config_reflects_the_toggle() {
+    let key = "/rest/v1/system/configs/rollout.approval.enabled";
+
+    let (app, _) = common::setup().await;
+    let off = common::body_json(app.oneshot(common::req("GET", key, None)).await.unwrap()).await;
+    assert_eq!(off["value"], false);
+    assert_eq!(off["global"], true);
+
+    let (app, _) = common::setup_with_rollout_approval().await;
+    let on = common::body_json(app.oneshot(common::req("GET", key, None)).await.unwrap()).await;
+    assert_eq!(on["value"], true);
+}
+
 #[tokio::test]
 async fn tenant_config_writes_forbidden() {
     let (app, _) = common::setup().await;

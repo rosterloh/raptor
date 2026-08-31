@@ -19,6 +19,7 @@ mod m20260809_000001_action_deployment_fetch_count;
 mod m20260823_000001_action_maintenance_window;
 mod m20260823_000002_target_group;
 mod m20260826_000001_tenant;
+mod m20260831_000001_rollout_approval;
 
 pub struct Migrator;
 
@@ -41,6 +42,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260823_000001_action_maintenance_window::Migration),
             Box::new(m20260823_000002_target_group::Migration),
             Box::new(m20260826_000001_tenant::Migration),
+            Box::new(m20260831_000001_rollout_approval::Migration),
         ]
     }
 }

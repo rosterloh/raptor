@@ -891,3 +891,183 @@ async fn stop_is_rejected_outside_running_and_paused() {
     // Already stopping — the cancels are out, a second stop is a no-op error.
     assert_eq!(stop(id).await, StatusCode::BAD_REQUEST);
 }
+
+// --- Approval workflow (#17) -------------------------------------------------
+
+/// Creates a rollout over `n` targets and returns its id and the create
+/// response, so a test can assert on the status it landed in.
+async fn create_rollout(app: &axum::Router, ds: i64) -> serde_json::Value {
+    common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(create_body(ds, 1, "100", None)),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await
+}
+
+async fn post_status(app: &axum::Router, path: &str) -> StatusCode {
+    app.clone()
+        .oneshot(common::req("POST", path, None))
+        .await
+        .unwrap()
+        .status()
+}
+
+/// The gate is off by default: a rollout is created `ready` and starts without
+/// anyone approving anything. This is the "unchanged behavior" half of #17's
+/// acceptance criteria.
+#[tokio::test]
+async fn approval_disabled_leaves_rollouts_directly_startable() {
+    let (app, _st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let r = create_rollout(&app, ds).await;
+    assert_eq!(r["status"], "ready");
+    // Never decided on, so hawkBit's approval fields stay off the wire.
+    assert!(r.get("approveDecidedBy").is_none());
+    assert!(r.get("approvalRemark").is_none());
+
+    let id = r["id"].as_i64().unwrap();
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/start")).await,
+        StatusCode::OK
+    );
+}
+
+/// With the gate on, a new rollout waits for a decision and cannot be started.
+/// Its targets are `notstarted`, not `scheduled` — nothing has been issued.
+#[tokio::test]
+async fn approval_enabled_holds_new_rollouts_until_approved() {
+    let (app, _st) = common::setup_with_rollout_approval().await;
+    let ds = fixture(&app, 2).await;
+    let r = create_rollout(&app, ds).await;
+    let id = r["id"].as_i64().unwrap();
+    assert_eq!(r["status"], "waiting_for_approval");
+    assert_eq!(
+        per_status(&r),
+        serde_json::json!({"notstarted": 2})
+            .as_object()
+            .cloned()
+            .unwrap()
+    );
+
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/start")).await,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Approve, then the same start succeeds.
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/approve")).await,
+        StatusCode::NO_CONTENT
+    );
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(r["status"], "ready");
+    assert_eq!(r["approveDecidedBy"], "admin");
+    // No remark was given, so none is reported.
+    assert!(r.get("approvalRemark").is_none());
+
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/start")).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "running"
+    );
+}
+
+/// Denial is terminal: the rollout can never be started, and a second decision
+/// on it is refused.
+#[tokio::test]
+async fn denied_rollout_can_never_be_started() {
+    let (app, _st) = common::setup_with_rollout_approval().await;
+    let ds = fixture(&app, 2).await;
+    let id = create_rollout(&app, ds).await["id"].as_i64().unwrap();
+
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/deny")).await,
+        StatusCode::NO_CONTENT
+    );
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(r["status"], "approval_denied");
+    assert_eq!(r["approveDecidedBy"], "admin");
+    // Denied is a pre-start state too: its targets were never scheduled.
+    assert_eq!(
+        per_status(&r),
+        serde_json::json!({"notstarted": 2})
+            .as_object()
+            .cloned()
+            .unwrap()
+    );
+
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/start")).await,
+        StatusCode::BAD_REQUEST
+    );
+    // There is no way back out of a denial — not even by approving it after.
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/approve")).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "approval_denied"
+    );
+}
+
+/// hawkBit takes the note as a `remark` query parameter on both endpoints.
+#[tokio::test]
+async fn approval_records_the_remark_query_parameter() {
+    let (app, _st) = common::setup_with_rollout_approval().await;
+    let ds = fixture(&app, 2).await;
+    let id = create_rollout(&app, ds).await["id"].as_i64().unwrap();
+
+    assert_eq!(
+        post_status(
+            &app,
+            &format!("/rest/v1/rollouts/{id}/deny?remark=fleet%20is%20frozen"),
+        )
+        .await,
+        StatusCode::NO_CONTENT
+    );
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(r["approvalRemark"], "fleet is frozen");
+    assert_eq!(r["status"], "approval_denied");
+}
+
+/// Approving something that is not waiting for a decision is a 400, and a
+/// rollout that was never gated is exactly that case.
+#[tokio::test]
+async fn approving_a_rollout_that_is_not_waiting_is_rejected() {
+    let (app, _st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let id = create_rollout(&app, ds).await["id"].as_i64().unwrap();
+
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/approve")).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        post_status(&app, &format!("/rest/v1/rollouts/{id}/deny")).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "ready"
+    );
+}
+
+/// A decision on a rollout that does not exist is a 404, not a 400.
+#[tokio::test]
+async fn approving_an_unknown_rollout_is_not_found() {
+    let (app, _st) = common::setup_with_rollout_approval().await;
+    assert_eq!(
+        post_status(&app, "/rest/v1/rollouts/9999/approve").await,
+        StatusCode::NOT_FOUND
+    );
+}
