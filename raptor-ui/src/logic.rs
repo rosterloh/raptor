@@ -60,7 +60,7 @@ pub fn urlencode(s: &str) -> String {
 
 pub fn format_ts(ms: i64) -> String {
     chrono::DateTime::from_timestamp_millis(ms)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
         .unwrap_or_else(|| "-".into())
 }
 
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn timestamps_render() {
-        assert_eq!(format_ts(0), "1970-01-01 00:00");
+        assert_eq!(format_ts(0), "1970-01-01 00:00 UTC");
     }
 
     #[test]

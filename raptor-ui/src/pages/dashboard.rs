@@ -212,8 +212,10 @@ pub fn Dashboard() -> Element {
                                                     }
                                                     td { class: "{TD} font-mono text-xs text-muted-foreground", "{a.action_type}" }
                                                     td { class: TD, StatusBadge { status: a.detail_status.clone() } }
-                                                    td { class: "{TD} text-right font-mono text-xs text-muted-foreground",
-                                                        {logic::format_ts(a.last_modified_at)}
+                                                    td {
+                                                        class: "{TD} text-right font-mono text-xs text-muted-foreground",
+                                                        title: "{logic::format_ts(a.last_modified_at)}",
+                                                        {logic::relative_age(now, Some(a.last_modified_at))}
                                                     }
                                                 }
                                             }

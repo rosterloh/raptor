@@ -37,6 +37,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
     } else {
         filter.clone()
     };
+    let now = now_ms();
     rsx! {
         document::Title { "Actions — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
@@ -129,7 +130,11 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                                         }
                                     }
                                 }
-                                td { class: TD, {logic::format_ts(a.last_modified_at)} }
+                                td {
+                                    class: TD,
+                                    title: "{logic::format_ts(a.last_modified_at)}",
+                                    {logic::relative_age(now, Some(a.last_modified_at))}
+                                }
                                 td { class: "{TD} space-x-3",
                                     if a.status == "pending" {
                                         if let Some(cid) = a.target.clone() {
