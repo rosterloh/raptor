@@ -196,6 +196,11 @@ pub fn status_style(update_status: &str) -> (&'static str, Tone) {
         "registered" => ("registered", Tone::Info),
         // rollout / rollout-group lifecycle states
         "ready" => ("ready", Tone::Neutral),
+        // Parked on an operator decision (#17) — nothing is deploying, so like
+        // `wait_for_confirmation` it must not read as "running".
+        "waiting_for_approval" => ("waiting for approval", Tone::Info),
+        // A terminal rejection: the rollout can never be started.
+        "approval_denied" => ("approval denied", Tone::Error),
         "scheduled" => ("scheduled", Tone::Info),
         "running" => ("running", Tone::Pending),
         "paused" => ("paused", Tone::Pending),
@@ -478,6 +483,17 @@ mod tests {
         assert_eq!(status_style("proceeding").1, Tone::Pending);
         assert_eq!(status_style("rejected").1, Tone::Error);
         assert_eq!(status_style("denied").1, Tone::Error);
+
+        // Rollout approval states (#17). A rollout held for approval is
+        // waiting on a person, not failing; a denied one is terminal.
+        assert_eq!(
+            status_style("waiting_for_approval"),
+            ("waiting for approval", Tone::Info)
+        );
+        assert_eq!(
+            status_style("approval_denied"),
+            ("approval denied", Tone::Error)
+        );
         assert_eq!(status_style("confirmed").1, Tone::Info);
         // Waiting for confirmation is paused, not running — it must not share
         // the running/pending tone.

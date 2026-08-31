@@ -51,11 +51,16 @@ admin user in this version.
 
 ## How do I make a deployment wait for approval?
 
-Enable the [confirmation flow](./guides/confirmation-flow.md)
-(`[ddi] confirmation_flow = true`). Assignments then wait for the device (or an
-operator via auto-confirm) before deploying. Note this is per-assignment
-confirmation, not hawkBit's separate rollout *approval* workflow, which isn't
-implemented.
+Two different gates, depending on what you want to hold back:
+
+- **Every assignment, waiting on the device.** Enable the
+  [confirmation flow](./guides/confirmation-flow.md)
+  (`[ddi] confirmation_flow = true`). Assignments then wait for the device (or
+  an operator via auto-confirm) before deploying.
+- **Each rollout, waiting on an operator.** Set
+  `rollout_approval_enabled = true`. A new rollout lands in
+  `waiting_for_approval` and cannot be started until someone approves it — see
+  [Approval workflow](./guides/rollouts.md#approval-workflow).
 
 ## Why is my `deploymentBase` returning 404?
 

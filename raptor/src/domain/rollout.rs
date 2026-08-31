@@ -59,6 +59,14 @@ pub async fn create_rollout(
         None => 101, // never triggers
     };
 
+    // hawkBit gates a new rollout behind an operator decision when the tenant's
+    // `rollout.approval.enabled` flag is set; otherwise it is startable at once.
+    let initial_status = if st.cfg.rollout_approval_enabled {
+        "waiting_for_approval"
+    } else {
+        "ready"
+    };
+
     let txn = st.db.begin().await?;
     let now = now_ms();
     let r = rollout::ActiveModel {
@@ -66,7 +74,7 @@ pub async fn create_rollout(
         description: Set(req.description.clone()),
         ds_id: Set(ds.id),
         target_filter: Set(req.target_filter_query.clone()),
-        status: Set("ready".into()),
+        status: Set(initial_status.into()),
         action_type: Set(action_type.into()),
         forced_time: Set(req.forcetime),
         total_targets: Set(targets.len() as i64),
@@ -155,6 +163,56 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
     Ok(())
 }
 
+/// An operator's verdict on a rollout waiting for approval (hawkBit's
+/// `Rollout.ApprovalDecision`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalDecision {
+    Approved,
+    Denied,
+}
+
+/// Records an approve/deny decision on a rollout in `waiting_for_approval`.
+///
+/// Approval takes the rollout to `ready` — the same state a rollout is created
+/// in when the approval gate is off — so everything downstream (`start`, the
+/// evaluator, the target counters) needs no notion of approval at all. Denial
+/// is terminal: `approval_denied` is not a startable status, and nothing
+/// transitions out of it, so a denied rollout can only be deleted. That
+/// matches hawkBit, which likewise offers no "undeny" and expects the operator
+/// to create a fresh rollout.
+///
+/// `remark` is optional and only overwrites a previous note when given,
+/// mirroring hawkBit's `approveOrDeny0`.
+pub async fn decide_approval(
+    st: &AppState,
+    r: rollout::Model,
+    decision: ApprovalDecision,
+    remark: Option<String>,
+) -> Result<rollout::Model, AppError> {
+    if r.status != "waiting_for_approval" {
+        return Err(AppError::BadRequest(format!(
+            "cannot approve or deny rollout in status {}",
+            r.status
+        )));
+    }
+    let status = match decision {
+        ApprovalDecision::Approved => "ready",
+        ApprovalDecision::Denied => "approval_denied",
+    };
+    // raptor authenticates a single configured operator account, so the
+    // decider is that account — there is no per-request identity to carry.
+    let decided_by = st.cfg.mgmt.username.clone();
+
+    let mut rm: rollout::ActiveModel = r.into();
+    rm.status = Set(status.into());
+    rm.approval_decided_by = Set(Some(decided_by));
+    if let Some(remark) = remark {
+        rm.approval_remark = Set(Some(remark));
+    }
+    rm.updated_at = Set(now_ms());
+    Ok(rm.update(&st.db).await?)
+}
+
 pub async fn start_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
     if r.status != "ready" {
         return Err(AppError::BadRequest(format!(
@@ -211,6 +269,12 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
 /// unlike `delete_rollout`, which destroys the record an operator needs for the
 /// post-mortem.
 ///
+/// Stoppable from any status that is not already terminal or draining, matching
+/// hawkBit's own `ROLLOUT_STATUS_STOPPABLE`. That includes the pre-start states:
+/// a rollout that was never started has nothing to cancel, but stopping it is
+/// how an operator retires it while keeping the record — the alternative is
+/// deleting it, which throws that record away.
+///
 /// hawkBit models this as `STOPPING` -> `STOPPED`: the rollout sits in
 /// `stopping` while the cancellations propagate to devices over DDI, and
 /// reaches `stopped` once none of its actions is active any more.
@@ -221,7 +285,10 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
 /// and report the outcome back. `delete_rollout` hard-cancels instead, because
 /// it is removing the very record that feedback would attach to.
 pub async fn stop_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
-    if !matches!(r.status.as_str(), "running" | "paused") {
+    if !matches!(
+        r.status.as_str(),
+        "ready" | "waiting_for_approval" | "approval_denied" | "running" | "paused"
+    ) {
         return Err(AppError::BadRequest(format!(
             "cannot stop rollout in status {}",
             r.status
@@ -426,6 +493,16 @@ fn bucket(counts: &mut TargetsPerStatus, action_status: &str, n: i64) {
     }
 }
 
+/// Whether a rollout has left its pre-start states — which is what decides
+/// whether a target with no action yet counts as `scheduled` (waiting for its
+/// group's turn) or `notstarted`.
+///
+/// `waiting_for_approval` and `approval_denied` sit alongside `ready` here: an
+/// unapproved rollout has issued nothing, and a denied one never will.
+fn is_started(status: &str) -> bool {
+    !matches!(status, "ready" | "waiting_for_approval" | "approval_denied")
+}
+
 /// Per-group target counts by deployment outcome, keyed by rollout group id.
 /// Groups with no members are absent from the map (callers default to zeroes).
 ///
@@ -499,7 +576,7 @@ pub async fn counts_for_rollouts(
     }
     let started = rollouts
         .iter()
-        .map(|r| (r.id, r.status != "ready"))
+        .map(|r| (r.id, is_started(&r.status)))
         .collect();
     let groups = rollout_group::Entity::find()
         .filter(rollout_group::Column::RolloutId.is_in(ids))
@@ -525,7 +602,7 @@ pub async fn counts_for_groups(
     r: &rollout::Model,
     groups: &[rollout_group::Model],
 ) -> Result<HashMap<i64, TargetsPerStatus>, AppError> {
-    let started = HashMap::from([(r.id, r.status != "ready")]);
+    let started = HashMap::from([(r.id, is_started(&r.status))]);
     counts_by_group(st, groups, &started).await
 }
 
@@ -547,6 +624,8 @@ pub fn rollout_rest(
         total_targets_per_status: counts,
         created_at: r.created_at,
         last_modified_at: r.updated_at,
+        approve_decided_by: r.approval_decided_by.clone(),
+        approval_remark: r.approval_remark.clone(),
         links: serde_json::json!({"self": {"href": format!("{base}/rest/v1/rollouts/{}", r.id)}}),
     }
 }

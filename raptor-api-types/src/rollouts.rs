@@ -85,6 +85,20 @@ pub struct RolloutRest {
     pub total_targets_per_status: RolloutTargetsPerStatus,
     pub created_at: i64,
     pub last_modified_at: i64,
+    /// Operator who approved or denied the rollout, once the approval workflow
+    /// has been through it. Serialized as `approveDecidedBy`, not
+    /// `approvalDecidedBy`: hawkBit's own DTO field is spelled that way even
+    /// though its domain model calls it `approvalDecidedBy`, and the wire
+    /// format is the contract — see `MgmtRolloutResponseBody`.
+    #[serde(
+        rename = "approveDecidedBy",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub approve_decided_by: Option<String>,
+    /// Free-form note left with the approve/deny decision.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub approval_remark: Option<String>,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }

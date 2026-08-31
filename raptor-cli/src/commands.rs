@@ -1008,6 +1008,80 @@ pub async fn action(c: &Client, cmd: ActionCmd, json: bool) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------
+
+#[derive(Subcommand)]
+pub enum RolloutCmd {
+    /// List rollouts with their status and progress
+    List,
+    /// Approve a rollout awaiting approval, releasing it to be started.
+    Approve {
+        id: i64,
+        /// Note recorded with the decision.
+        #[arg(long)]
+        remark: Option<String>,
+    },
+    /// Deny a rollout awaiting approval. Terminal — a denied rollout can only
+    /// be deleted, so re-run the rollout creation to try again.
+    Deny {
+        id: i64,
+        /// Note recorded with the decision.
+        #[arg(long)]
+        remark: Option<String>,
+    },
+}
+
+pub async fn rollout(c: &Client, cmd: RolloutCmd, json: bool) -> Result<()> {
+    match cmd {
+        RolloutCmd::List => {
+            let rollouts = api::rollouts::list(c).await?;
+            if json {
+                return print_json(&rollouts);
+            }
+            let rows = rollouts
+                .iter()
+                .map(|r| {
+                    vec![
+                        r.id.to_string(),
+                        r.name.clone(),
+                        r.status.clone(),
+                        format!(
+                            "{}/{}",
+                            r.total_targets_per_status.finished, r.total_targets
+                        ),
+                        opt(&r.approve_decided_by),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            table(&["ID", "NAME", "STATUS", "FINISHED", "DECIDED BY"], &rows);
+        }
+        RolloutCmd::Approve { id, remark } => {
+            decide_rollout(c, id, true, remark.as_deref(), json).await?;
+        }
+        RolloutCmd::Deny { id, remark } => {
+            decide_rollout(c, id, false, remark.as_deref(), json).await?;
+        }
+    }
+    Ok(())
+}
+
+/// The endpoints answer 204 with no body, so re-read the rollout to report
+/// what it actually became rather than asserting the decision took.
+async fn decide_rollout(
+    c: &Client,
+    id: i64,
+    approve: bool,
+    remark: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    api::rollouts::decide(c, id, approve, remark).await?;
+    let r = api::rollouts::get(c, id).await?;
+    if json {
+        return print_json(&r);
+    }
+    println!("rollout {} is now {}", r.id, r.status);
+    Ok(())
+}
+
 // status
 // ---------------------------------------------------------------------
 

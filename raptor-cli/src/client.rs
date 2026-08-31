@@ -62,6 +62,18 @@ impl Client {
         Self::empty(resp).await
     }
 
+    /// POST with no request body at all, for the lifecycle endpoints that take
+    /// their arguments in the path and query string (rollout approve/deny).
+    pub async fn post_no_body(&self, path: &str) -> Result<()> {
+        let resp = self
+            .http
+            .post(self.url(path))
+            .basic_auth(&self.user, Some(&self.pass))
+            .send()
+            .await?;
+        Self::empty(resp).await
+    }
+
     pub async fn put<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
         let resp = self
             .http

@@ -197,6 +197,8 @@ request regardless of page size.
 |---|---|---|
 | `POST` / `GET` | `/rest/v1/rollouts` | create / list |
 | `GET` / `DELETE` | `/rest/v1/rollouts/{id}` | get / delete |
+| `POST` | `/rest/v1/rollouts/{id}/approve` | approve (`?remark=`) — `waiting_for_approval` → `ready` |
+| `POST` | `/rest/v1/rollouts/{id}/deny` | deny (`?remark=`) — terminal |
 | `POST` | `/rest/v1/rollouts/{id}/start` | start (schedules first group) |
 | `POST` | `/rest/v1/rollouts/{id}/pause` | pause |
 | `POST` | `/rest/v1/rollouts/{id}/resume` | resume |

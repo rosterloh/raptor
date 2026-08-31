@@ -57,7 +57,7 @@ Copy the output into `mgmt.password_hash`.
 
 | Section | Purpose |
 |---|---|
-| top level | `bind`, `database_url`, `artifact_dir`, `max_artifact_size`, `url`, `rollout_eval_interval_secs` |
+| top level | `bind`, `database_url`, `artifact_dir`, `max_artifact_size`, `url`, `rollout_eval_interval_secs`, `rollout_approval_enabled` |
 | `[ddi]` | device-facing auth and polling: `anonymous`, `gateway_token`, `polling_interval`, `confirmation_flow` |
 | `[mgmt]` | Management API / web console admin: `username`, `password_hash` |
 

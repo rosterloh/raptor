@@ -25,6 +25,12 @@ pub struct Model {
     pub error_threshold: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Operator who approved or denied this rollout, set by the approval
+    /// workflow (#17). `None` until a decision is taken — and forever, on a
+    /// rollout created while `rollout_approval_enabled` was off.
+    pub approval_decided_by: Option<String>,
+    /// Free-form note left with the approve/deny decision.
+    pub approval_remark: Option<String>,
     /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
     #[sea_orm(default_value = "DEFAULT")]
     pub tenant: String,

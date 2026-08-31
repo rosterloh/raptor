@@ -15,6 +15,7 @@ environment variable; nested tables use a `__` separator (e.g.
 | `max_artifact_size` | integer (bytes) | `1073741824` (1 GiB) | maximum artifact upload size |
 | `url` | string | *(unset)* | external base URL for `_links`; derived from the `Host` header when unset |
 | `rollout_eval_interval_secs` | integer | `5` | how often the background evaluator / auto-assign sweep runs |
+| `rollout_approval_enabled` | bool | `false` | gate new rollouts behind an operator approval (`waiting_for_approval`); reported as hawkBit's `rollout.approval.enabled` |
 | `tenant` | string | `DEFAULT` | tenant name this instance answers to on the DDI `/{tenant}/...` path segment (matched case-insensitively); any other segment gets `404` |
 
 ## `[ddi]` — device-facing API
@@ -85,6 +86,7 @@ artifact_dir = "/var/lib/raptor/artifacts"
 max_artifact_size = 2147483648            # 2 GiB
 url = "https://raptor.example.com"
 rollout_eval_interval_secs = 10
+rollout_approval_enabled = false
 
 [ddi]
 anonymous = false

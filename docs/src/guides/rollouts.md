@@ -42,7 +42,8 @@ curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts \
   therefore a `downloadonly` rollout followed by a `forced` one over the same
   filter. An unknown type is rejected with `400`.
 
-The rollout starts in `ready`.
+The rollout starts in `ready` — or in `waiting_for_approval` when the
+[approval gate](#approval-workflow) is on.
 
 ## Lifecycle operations
 
@@ -57,7 +58,7 @@ curl -u admin:pw -X DELETE localhost:8088/rest/v1/rollouts/1
 - **start** — `ready` → `running`; schedules the first group.
 - **pause** — `running` → `paused`; the evaluator ignores paused rollouts.
 - **resume** — `paused` → `running`; re-evaluates immediately.
-- **stop** — `running` or `paused` → `stopping` → `stopped`; see below.
+- **stop** — any non-terminal status → `stopping` → `stopped`; see below.
 - **delete** — cancels any active actions in the rollout and removes it.
 
 ### Stopping a rollout
@@ -84,7 +85,48 @@ That is the honest state: the update has not been called off out in the fleet
 yet. To close one out without waiting, force-cancel its action
 (`DELETE /rest/v1/targets/{cid}/actions/{aid}?force=true`).
 
-Stop is rejected with `400` from any other status, including a second stop.
+Stop is accepted from any status that is not already terminal or draining —
+`ready`, `waiting_for_approval`, `approval_denied`, `running` and `paused`,
+matching hawkBit's `ROLLOUT_STATUS_STOPPABLE`. A rollout that never started has
+no actions to cancel, but stopping it is how you retire it while keeping the
+record; deleting it throws that record away. It is rejected with `400` from
+`stopping`, `stopped` and `finished`, so a second stop is an error.
+
+## Approval workflow
+
+By default a rollout is created `ready` and an operator can start it straight
+away. Set `rollout_approval_enabled = true` to put a second pair of eyes in
+front of that:
+
+```toml
+rollout_approval_enabled = true
+```
+
+A rollout created with the gate on lands in `waiting_for_approval` instead.
+`start` on it is refused until someone decides:
+
+```bash
+# Approve — the rollout moves to `ready` and can now be started.
+curl -u admin:pw -X POST \
+  "localhost:8088/rest/v1/rollouts/1/approve?remark=checked+with+ops"
+
+# Or deny it, permanently.
+curl -u admin:pw -X POST \
+  "localhost:8088/rest/v1/rollouts/1/deny?remark=fleet+is+frozen"
+```
+
+Both take an optional `remark` query parameter and answer `204 No Content`, so
+re-read the rollout to see the outcome. The decision is reported on the rollout
+as `approveDecidedBy` and `approvalRemark` — the asymmetric spelling is
+hawkBit's own, and raptor matches it.
+
+Denial is terminal: `approval_denied` is not a startable status and nothing
+transitions out of it, so a denied rollout can only be deleted. There is no
+"undeny" — create a fresh rollout instead. Because raptor authenticates a
+single operator account, `approveDecidedBy` is always that account's username.
+
+The flag is reported to clients as hawkBit's `rollout.approval.enabled` tenant
+config key on `GET /rest/v1/system/configs`.
 
 ## Inspecting groups
 
@@ -131,6 +173,6 @@ The background evaluator runs every `rollout_eval_interval_secs` seconds
 load on large fleets. See the
 [Configuration Reference](../reference/configuration.md).
 
-> **Note:** hawkBit's rollout **approval workflow** and **dynamic rollouts**
-> (groups that keep absorbing newly-matching targets) are not yet implemented.
-> Group membership is a static snapshot taken at creation time.
+> **Note:** hawkBit's **dynamic rollouts** (groups that keep absorbing
+> newly-matching targets) are not yet implemented. Group membership is a static
+> snapshot taken at creation time.

@@ -46,8 +46,11 @@ fn tenant_configs(cfg: &Config) -> BTreeMap<String, TenantConfigValue> {
         "user.confirmation.flow.enabled".into(),
         g(json!(cfg.ddi.confirmation_flow)),
     );
-    // Not implemented yet (#17 / #10); reported so clients see a definite value.
-    m.insert("rollout.approval.enabled".into(), g(json!(false)));
+    m.insert(
+        "rollout.approval.enabled".into(),
+        g(json!(cfg.rollout_approval_enabled)),
+    );
+    // Not implemented yet (#10); reported so clients see a definite value.
     m.insert("multi.assignments.enabled".into(), g(json!(false)));
     m
 }
