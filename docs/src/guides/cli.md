@@ -55,6 +55,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `ds tag add\|rm <id> <tag>` | tag/untag a distribution set |
 | `publish <file> --version <v>` | module + artifact + distribution set in one call |
 | `action list/status/cancel/force` | deployment action control |
+| `rollout list/approve/deny` | list rollouts, decide ones awaiting approval |
 | `status` | fleet-wide statistics |
 
 Run `raptorctl <command> --help` for full flag lists.
@@ -128,6 +129,25 @@ error: distribution set type 'app' is not compatible with target type 'gateway',
 `raptorctl target type clear <cid>` removes the constraint. Creating target
 types themselves is not in the CLI yet — use the console or
 `POST /rest/v1/targettypes`.
+
+### Rollout approval
+
+When the server runs with `rollout_approval_enabled = true`, a new rollout
+waits in `waiting_for_approval` until an operator decides on it:
+
+```console
+$ raptorctl rollout list
+ID  NAME       STATUS                FINISHED  DECIDED BY
+7   fw-1.4.2   waiting_for_approval  0/240
+
+$ raptorctl rollout approve 7 --remark "checked with ops"
+rollout 7 is now ready
+```
+
+`deny` is the other half, and is terminal — a denied rollout can only be
+deleted, so create a fresh one to try again. Both take an optional `--remark`
+recorded against the decision. See the
+[Rollouts guide](rollouts.md#approval-workflow).
 
 ### End-to-end example
 

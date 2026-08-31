@@ -835,7 +835,7 @@ async fn stop_leaves_already_finished_groups_alone() {
 /// Stop is an operation on a live rollout: legal from `running` and `paused`,
 /// rejected everywhere else — including a second stop.
 #[tokio::test]
-async fn stop_is_rejected_outside_running_and_paused() {
+async fn stop_is_rejected_only_once_terminal_or_draining() {
     let (app, _) = common::setup().await;
     let ds = fixture(&app, 2).await;
     let stop = |id: i64| {
@@ -865,11 +865,24 @@ async fn stop_is_rejected_outside_running_and_paused() {
         }
     };
 
-    // `ready` — never started, so there is nothing to abort.
+    // `ready` — never started, so there are no actions to cancel, but stopping
+    // it is how an operator retires it while keeping the record (hawkBit's
+    // ROLLOUT_STATUS_STOPPABLE includes READY). It settles straight to
+    // `stopped`, nothing being in flight.
     let id = create(create_body(ds, 1, "100", None)).await;
+    assert_eq!(stop(id).await, StatusCode::OK);
+    assert_eq!(
+        get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+        "stopped"
+    );
+    // ...and a stopped rollout is terminal, so a second stop is refused.
     assert_eq!(stop(id).await, StatusCode::BAD_REQUEST);
 
-    // `paused` is a live rollout: stop is the escalation from it.
+    // `paused` is a live rollout: stop is the escalation from it. (A fresh
+    // rollout, under a different name — rollout names are unique.)
+    let mut body = create_body(ds, 1, "100", None);
+    body["name"] = serde_json::json!("r2");
+    let id = create(body).await;
     app.clone()
         .oneshot(common::req(
             "POST",
@@ -1070,4 +1083,33 @@ async fn approving_an_unknown_rollout_is_not_found() {
         post_status(&app, "/rest/v1/rollouts/9999/approve").await,
         StatusCode::NOT_FOUND
     );
+}
+
+/// hawkBit's `ROLLOUT_STATUS_STOPPABLE` includes both approval states, so an
+/// operator can retire a rollout they are holding — or one they denied —
+/// without deleting the record of it.
+#[tokio::test]
+async fn approval_states_are_stoppable() {
+    for deny_first in [false, true] {
+        let (app, _st) = common::setup_with_rollout_approval().await;
+        let ds = fixture(&app, 2).await;
+        let id = create_rollout(&app, ds).await["id"].as_i64().unwrap();
+
+        if deny_first {
+            assert_eq!(
+                post_status(&app, &format!("/rest/v1/rollouts/{id}/deny")).await,
+                StatusCode::NO_CONTENT
+            );
+        }
+
+        assert_eq!(
+            post_status(&app, &format!("/rest/v1/rollouts/{id}/stop")).await,
+            StatusCode::OK
+        );
+        // Nothing was ever issued, so it settles straight to `stopped`.
+        assert_eq!(
+            get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"],
+            "stopped"
+        );
+    }
 }

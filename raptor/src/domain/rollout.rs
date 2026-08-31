@@ -269,6 +269,12 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
 /// unlike `delete_rollout`, which destroys the record an operator needs for the
 /// post-mortem.
 ///
+/// Stoppable from any status that is not already terminal or draining, matching
+/// hawkBit's own `ROLLOUT_STATUS_STOPPABLE`. That includes the pre-start states:
+/// a rollout that was never started has nothing to cancel, but stopping it is
+/// how an operator retires it while keeping the record — the alternative is
+/// deleting it, which throws that record away.
+///
 /// hawkBit models this as `STOPPING` -> `STOPPED`: the rollout sits in
 /// `stopping` while the cancellations propagate to devices over DDI, and
 /// reaches `stopped` once none of its actions is active any more.
@@ -279,7 +285,10 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
 /// and report the outcome back. `delete_rollout` hard-cancels instead, because
 /// it is removing the very record that feedback would attach to.
 pub async fn stop_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
-    if !matches!(r.status.as_str(), "running" | "paused") {
+    if !matches!(
+        r.status.as_str(),
+        "ready" | "waiting_for_approval" | "approval_denied" | "running" | "paused"
+    ) {
         return Err(AppError::BadRequest(format!(
             "cannot stop rollout in status {}",
             r.status

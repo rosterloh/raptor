@@ -58,7 +58,7 @@ curl -u admin:pw -X DELETE localhost:8088/rest/v1/rollouts/1
 - **start** — `ready` → `running`; schedules the first group.
 - **pause** — `running` → `paused`; the evaluator ignores paused rollouts.
 - **resume** — `paused` → `running`; re-evaluates immediately.
-- **stop** — `running` or `paused` → `stopping` → `stopped`; see below.
+- **stop** — any non-terminal status → `stopping` → `stopped`; see below.
 - **delete** — cancels any active actions in the rollout and removes it.
 
 ### Stopping a rollout
@@ -85,7 +85,12 @@ That is the honest state: the update has not been called off out in the fleet
 yet. To close one out without waiting, force-cancel its action
 (`DELETE /rest/v1/targets/{cid}/actions/{aid}?force=true`).
 
-Stop is rejected with `400` from any other status, including a second stop.
+Stop is accepted from any status that is not already terminal or draining —
+`ready`, `waiting_for_approval`, `approval_denied`, `running` and `paused`,
+matching hawkBit's `ROLLOUT_STATUS_STOPPABLE`. A rollout that never started has
+no actions to cancel, but stopping it is how you retire it while keeping the
+record; deleting it throws that record away. It is rejected with `400` from
+`stopping`, `stopped` and `finished`, so a second stop is an error.
 
 ## Approval workflow
 
