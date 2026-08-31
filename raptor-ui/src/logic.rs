@@ -154,6 +154,17 @@ pub fn progress_segments(
     .collect()
 }
 
+pub fn progress_summary(c: &raptor_api_types::RolloutTargetsPerStatus, total: i64) -> String {
+    let mut parts = vec![format!("{} of {total} finished", c.finished)];
+    parts.extend(
+        progress_segments(c)
+            .into_iter()
+            .filter(|(label, _, _)| *label != "finished")
+            .map(|(label, _, count)| format!("{count} {label}")),
+    );
+    parts.join("; ")
+}
+
 /// `n` as a percentage of `total`, clamped to 0–100 (0 when `total` is 0) —
 /// used as a CSS width, where a NaN or out-of-range value would break layout.
 pub fn percent(n: i64, total: i64) -> f64 {
@@ -408,6 +419,20 @@ mod tests {
         assert_eq!(progress_segments(&c)[0].2, 3);
         assert_eq!(progress_segments(&c)[0].1, Tone::Ok);
         assert!(progress_segments(&Default::default()).is_empty());
+    }
+
+    #[test]
+    fn progress_summary_names_each_visible_status() {
+        let c = raptor_api_types::RolloutTargetsPerStatus {
+            finished: 3,
+            running: 2,
+            error: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            progress_summary(&c, 10),
+            "3 of 10 finished; 2 running; 1 error"
+        );
     }
 
     #[test]
