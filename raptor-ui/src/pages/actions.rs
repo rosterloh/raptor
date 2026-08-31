@@ -5,15 +5,19 @@ use dioxus::prelude::*;
 const LIMIT: u64 = 25;
 
 #[component]
-pub fn Actions(filter: String, offset: u64) -> Element {
+pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
     let nav = use_navigator();
     let mut cancel_open = use_signal(|| false);
     let mut cancel_target = use_signal(String::new);
     let mut cancel_id = use_signal(|| 0i64);
     let mut auto_confirm_open = use_signal(|| false);
     let mut auto_confirm_target = use_signal(String::new);
-    let goto = move |filter: String, offset: u64| {
-        nav.replace(Route::Actions { filter, offset });
+    let goto = move |filter: String, sort: String, offset: u64| {
+        nav.replace(Route::Actions {
+            filter,
+            sort,
+            offset,
+        });
     };
 
     // A missing `filter` param (a bare `/actions` visit or an old bookmark)
@@ -40,28 +44,54 @@ pub fn Actions(filter: String, offset: u64) -> Element {
             select {
                 class: "rounded border border-border bg-card px-3 py-1.5 text-sm",
                 value: "{select_value}",
-                onchange: move |e| goto(e.value(), 0),
+                onchange: {
+                    let sort = sort.clone();
+                    move |e| goto(e.value(), sort.clone(), 0)
+                },
                 option { value: "all", "All" }
                 option { value: "pending", "Running" }
                 option { value: "finished", "Finished" }
             }
         }
         match &*actions.read_unchecked() {
-            Some(Ok(page)) => rsx! {
+            Some(Ok(page)) => {
+                let mut rows = page.content.clone();
+                match sort.trim_start_matches('-') {
+                    "status" => rows.sort_by(|a, b| a.status.cmp(&b.status)),
+                    "updated" => rows.sort_by_key(|a| a.last_modified_at),
+                    _ => {}
+                }
+                if sort.starts_with('-') { rows.reverse(); }
+                let status_mark = logic::sort_mark(&sort, "status");
+                let updated_mark = logic::sort_mark(&sort, "updated");
+                let (pager_filter, pager_sort) = (filter.clone(), sort.clone());
+                rsx! {
                 table { class: TABLE,
                     thead {
                         tr {
                             th { class: TH, "ID" }
                             th { class: TH, "Target" }
                             th { class: TH, "Type" }
-                            th { class: TH, "Status" }
+                            th { class: TH,
+                                button { onclick: {
+                                    let filter = filter.clone();
+                                    let sort = sort.clone();
+                                    move |_| goto(filter.clone(), logic::next_sort(&sort, "status"), 0)
+                                }, "Status{status_mark}" }
+                            }
                             th { class: TH, "Detail" }
-                            th { class: TH, "Updated" }
+                            th { class: TH,
+                                button { onclick: {
+                                    let filter = filter.clone();
+                                    let sort = sort.clone();
+                                    move |_| goto(filter.clone(), logic::next_sort(&sort, "updated"), 0)
+                                }, "Updated{updated_mark}" }
+                            }
                             th { class: TH, "" }
                         }
                     }
                     tbody {
-                        for a in page.content.clone() {
+                        for a in rows {
                             tr { key: "{a.id}",
                                 td { class: TD, "#{a.id}" }
                                 td { class: TD,
@@ -124,9 +154,9 @@ pub fn Actions(filter: String, offset: u64) -> Element {
                     offset,
                     limit: LIMIT,
                     total: page.total,
-                    on_change: move |o| goto(filter.clone(), o),
+                    on_change: move |o| goto(pager_filter.clone(), pager_sort.clone(), o),
                 }
-            },
+            }},
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| actions.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }

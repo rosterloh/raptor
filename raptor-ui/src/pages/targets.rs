@@ -15,16 +15,17 @@ const STATES: [(&str, &str, logic::Tone); 4] = [
 ];
 
 #[component]
-pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Element {
+pub fn Targets(query: String, state: String, tag: String, sort: String, offset: u64) -> Element {
     let nav = use_navigator();
     // Filter and pagination state live in the URL (#81) so Back, refresh, and
     // bookmarks all preserve them; navigating with `replace` (not `push`) keeps
     // per-keystroke/per-click changes off the back stack.
-    let goto = move |query: String, state: String, tag: String, offset: u64| {
+    let goto = move |query: String, state: String, tag: String, sort: String, offset: u64| {
         nav.replace(Route::Targets {
             query,
             state,
             tag,
+            sort,
             offset,
         });
     };
@@ -53,9 +54,15 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
     // remount, which resets that internal state too.
     let mut search_key = use_signal(|| 0u32);
 
-    let active = !query.is_empty() || !state.is_empty() || !tag.is_empty();
+    let active = !query.is_empty() || !state.is_empty() || !tag.is_empty() || !sort.is_empty();
     use_filter_clear(use_reactive!(|active| active), move || {
-        goto(String::new(), String::new(), String::new(), 0);
+        goto(
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            0,
+        );
         search_key += 1;
     });
 
@@ -84,8 +91,8 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                 placeholder: "name or controller id…",
                 initial: query.clone(),
                 on_search: {
-                    let (state, tag) = (state.clone(), tag.clone());
-                    move |s| goto(s, state.clone(), tag.clone(), 0)
+                    let (state, tag, sort) = (state.clone(), tag.clone(), sort.clone());
+                    move |s| goto(s, state.clone(), tag.clone(), sort.clone(), 0)
                 },
             }
             // State is the fleet's primary axis, so it gets chips rather than
@@ -95,8 +102,8 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                     label: "All".to_string(),
                     pressed: state.is_empty(),
                     onclick: {
-                        let (query, tag) = (query.clone(), tag.clone());
-                        move |_| goto(query.clone(), String::new(), tag.clone(), 0)
+                        let (query, tag, sort) = (query.clone(), tag.clone(), sort.clone());
+                        move |_| goto(query.clone(), String::new(), tag.clone(), sort.clone(), 0)
                     },
                 }
                 for (key , label , tone) in STATES {
@@ -106,8 +113,8 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                         tone,
                         pressed: state == key,
                         onclick: {
-                            let (query, tag) = (query.clone(), tag.clone());
-                            move |_| goto(query.clone(), key.to_string(), tag.clone(), 0)
+                            let (query, tag, sort) = (query.clone(), tag.clone(), sort.clone());
+                            move |_| goto(query.clone(), key.to_string(), tag.clone(), sort.clone(), 0)
                         },
                     }
                 }
@@ -126,8 +133,8 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                         label: "All tags".to_string(),
                         pressed: tag.is_empty(),
                         onclick: {
-                            let (query, state) = (query.clone(), state.clone());
-                            move |_| goto(query.clone(), state.clone(), String::new(), 0)
+                            let (query, state, sort) = (query.clone(), state.clone(), sort.clone());
+                            move |_| goto(query.clone(), state.clone(), String::new(), sort.clone(), 0)
                         },
                     }
                     for t in page.content.clone() {
@@ -137,8 +144,8 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                             dot: logic::tag_colour(t.colour.as_deref()),
                             pressed: tag == t.name,
                             onclick: {
-                                let (query, state, name) = (query.clone(), state.clone(), t.name.clone());
-                                move |_| goto(query.clone(), state.clone(), name.clone(), 0)
+                                let (query, state, name, sort) = (query.clone(), state.clone(), t.name.clone(), sort.clone());
+                                move |_| goto(query.clone(), state.clone(), name.clone(), sort.clone(), 0)
                             },
                         }
                     }
@@ -169,7 +176,17 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                         }
                     }
                 },
-                Some(Ok(page)) => rsx! {
+                Some(Ok(page)) => {
+                    let mut rows = page.content.clone();
+                    match sort.trim_start_matches('-') {
+                        "state" => rows.sort_by(|a, b| a.update_status.cmp(&b.update_status)),
+                        "last_poll" => rows.sort_by_key(|t| t.last_controller_request_at),
+                        _ => {}
+                    }
+                    if sort.starts_with('-') { rows.reverse(); }
+                    let state_mark = logic::sort_mark(&sort, "state");
+                    let last_poll_mark = logic::sort_mark(&sort, "last_poll");
+                    rsx! {
                     table { class: TABLE,
                         thead {
                             tr {
@@ -177,12 +194,22 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                                 th { class: TH, "Controller ID" }
                                 th { class: TH, "Tags" }
                                 th { class: TH, "Installed set" }
-                                th { class: TH, "State" }
-                                th { class: "{TH} text-right", "Last poll" }
+                                th { class: TH,
+                                    button { onclick: {
+                                        let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
+                                        move |_| goto(query.clone(), state.clone(), tag.clone(), logic::next_sort(&sort, "state"), 0)
+                                    }, "State{state_mark}" }
+                                }
+                                th { class: "{TH} text-right",
+                                    button { onclick: {
+                                        let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
+                                        move |_| goto(query.clone(), state.clone(), tag.clone(), logic::next_sort(&sort, "last_poll"), 0)
+                                    }, "Last poll{last_poll_mark}" }
+                                }
                             }
                         }
                         tbody {
-                            for t in page.content.clone() {
+                            for t in rows {
                                 tr { key: "{t.controller_id}", class: ROW,
                                     td { class: TD,
                                         Link {
@@ -249,11 +276,11 @@ pub fn Targets(query: String, state: String, tag: String, offset: u64) -> Elemen
                         limit: LIMIT,
                         total: page.total,
                         on_change: {
-                            let (query, state, tag) = (query.clone(), state.clone(), tag.clone());
-                            move |o| goto(query.clone(), state.clone(), tag.clone(), o)
+                            let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
+                            move |o| goto(query.clone(), state.clone(), tag.clone(), sort.clone(), o)
                         },
                     }
-                },
+                }},
                 Some(Err(e)) => rsx! {
                     div { class: "p-4",
                         ErrorPane { message: e.to_string(), on_retry: move |_| targets.restart() }

@@ -74,6 +74,24 @@ pub fn name_version_error(name: &str, version: &str) -> Option<&'static str> {
     }
 }
 
+pub fn next_sort(current: &str, key: &str) -> String {
+    if current == key {
+        format!("-{key}")
+    } else {
+        key.to_string()
+    }
+}
+
+pub fn sort_mark(current: &str, key: &str) -> &'static str {
+    if current == key {
+        " ↑"
+    } else if current == format!("-{key}") {
+        " ↓"
+    } else {
+        ""
+    }
+}
+
 /// How long ago something happened, at a glance: `4s`, `16m`, `3h`, `12d`.
 ///
 /// The question an operator asks of a poll timestamp is "is this device stale",
@@ -528,5 +546,13 @@ mod tests {
         assert_eq!(name_version_error("", "1.0"), Some("Name is required"));
         assert_eq!(name_version_error("fleet", ""), Some("Version is required"));
         assert_eq!(name_version_error("fleet", "1.0"), None);
+    }
+
+    #[test]
+    fn sort_headers_cycle_ascending_then_descending() {
+        assert_eq!(next_sort("", "status"), "status");
+        assert_eq!(next_sort("status", "status"), "-status");
+        assert_eq!(next_sort("-status", "status"), "status");
+        assert_eq!(next_sort("status", "updated"), "updated");
     }
 }

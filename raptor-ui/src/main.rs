@@ -25,8 +25,8 @@ pub enum Route {
     #[layout(Shell)]
         #[route("/")]
         Dashboard {},
-        #[route("/targets?:query&:state&:tag&:offset")]
-        Targets { query: String, state: String, tag: String, offset: u64 },
+        #[route("/targets?:query&:state&:tag&:sort&:offset")]
+        Targets { query: String, state: String, tag: String, sort: String, offset: u64 },
         #[route("/targets/:cid")]
         TargetDetail { cid: String },
         #[route("/targetfilters?:query&:offset")]
@@ -43,12 +43,12 @@ pub enum Route {
         Modules { query: String, offset: u64 },
         #[route("/modules/:id")]
         ModuleDetail { id: i64 },
-        #[route("/rollouts?:query&:offset")]
-        Rollouts { query: String, offset: u64 },
+        #[route("/rollouts?:query&:sort&:offset")]
+        Rollouts { query: String, sort: String, offset: u64 },
         #[route("/rollouts/:id")]
         RolloutDetail { id: i64 },
-        #[route("/actions?:filter&:offset")]
-        Actions { filter: String, offset: u64 },
+        #[route("/actions?:filter&:sort&:offset")]
+        Actions { filter: String, sort: String, offset: u64 },
         #[route("/:..route")]
         NotFound { route: Vec<String> },
 }
@@ -62,6 +62,7 @@ impl Route {
             query: String::new(),
             state: String::new(),
             tag: String::new(),
+            sort: String::new(),
             offset: 0,
         }
     }
@@ -94,12 +95,14 @@ impl Route {
     pub fn rollouts() -> Self {
         Route::Rollouts {
             query: String::new(),
+            sort: String::new(),
             offset: 0,
         }
     }
     pub fn actions() -> Self {
         Route::Actions {
             filter: String::new(),
+            sort: String::new(),
             offset: 0,
         }
     }
