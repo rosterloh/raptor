@@ -13,7 +13,7 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
-## [1.2.0] - unreleased
+## [1.2.0] - 2026-09-07
 
 Closes the last four gaps on the deployment path against hawkBit 1.x, and adds
 the two operational features hawkBit 0.10/1.1 introduced after raptor 1.0.
