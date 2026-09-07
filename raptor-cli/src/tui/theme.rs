@@ -1,13 +1,16 @@
 //! Semantic colour slots (tui-design skill §4). No hex/ANSI literal appears
 //! outside this file — panel code asks for `theme.accent`, never a colour.
 
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier, Style};
 
 pub struct Theme {
     pub fg: Color,
     pub fg_muted: Color,
     pub fg_emphasis: Color,
-    pub selection_bg: Color,
+    /// The whole selection style, not just a colour: under `NO_COLOR` a
+    /// background colour is invisible, so selection falls back to reverse
+    /// video instead of silently disappearing.
+    pub selection: Style,
     pub accent: Color,
     pub success: Color,
     pub warning: Color,
@@ -26,7 +29,7 @@ impl Theme {
                 fg: Color::Reset,
                 fg_muted: Color::Reset,
                 fg_emphasis: Color::Reset,
-                selection_bg: Color::Reset,
+                selection: Style::new().add_modifier(Modifier::REVERSED),
                 accent: Color::Reset,
                 success: Color::Reset,
                 warning: Color::Reset,
@@ -38,7 +41,7 @@ impl Theme {
             fg: Color::Reset,
             fg_muted: Color::DarkGray,
             fg_emphasis: Color::White,
-            selection_bg: Color::Blue,
+            selection: Style::new().bg(Color::Blue),
             accent: Color::Cyan,
             success: Color::Green,
             warning: Color::Yellow,

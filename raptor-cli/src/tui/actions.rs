@@ -3,6 +3,7 @@
 //! moderate-severity actions (tui-design skill §3, "Dialogs & Confirmation").
 
 use super::app::{App, Mode, Msg};
+use super::osc52;
 use crate::api;
 use crossterm::event::{KeyCode, KeyEvent};
 use raptor_api_types::DsAssignment;
@@ -40,6 +41,7 @@ fn handle_normal(app: &mut App, key: KeyEvent) {
         KeyCode::Char('G') => app.select_last(),
         KeyCode::Char('r') => app.refresh_all(),
         KeyCode::Char('?') => app.mode = Mode::Help,
+        KeyCode::Char('y') => yank_selected(app),
         KeyCode::Char('/') => {
             app.mode = Mode::Search {
                 input: String::new(),
@@ -72,6 +74,18 @@ fn handle_normal(app: &mut App, key: KeyEvent) {
             }
         }
         _ => {}
+    }
+}
+
+/// Yanks the controller ID — the one string an operator retypes constantly,
+/// into `raptorctl target show`, a `q=` filter, or a ticket.
+fn yank_selected(app: &mut App) {
+    let Some(cid) = app.selected_target().map(|t| t.controller_id.clone()) else {
+        return;
+    };
+    match osc52::copy(&cid) {
+        Ok(()) => app.set_status(format!("copied {cid}")),
+        Err(e) => app.set_status(format!("copy failed: {e}")),
     }
 }
 
