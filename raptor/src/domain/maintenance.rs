@@ -21,11 +21,18 @@ use croner::parser::{CronParser, Seconds, Year};
 /// 1 = Sunday through 7 = Saturday rather than 0 = Sunday. `alternative_weekdays`
 /// is croner's name for that last one — without it, every day-of-week schedule
 /// would silently land one day early.
+///
+/// `sloppy_ranges` is the fourth: Quartz writes a stepped range as `0/15`, which
+/// croner 4 rejects by default as non-compliant with OCPS/vixie-cron in favour
+/// of `*/15` or `0-59/15`. hawkBit accepts the Quartz spelling, so raptor has to
+/// as well — without this, every `0/15` schedule that worked before would start
+/// coming back as a 400.
 fn quartz() -> CronParser {
     CronParser::builder()
         .seconds(Seconds::Required)
         .year(Year::Optional)
         .alternative_weekdays(true)
+        .sloppy_ranges(true)
         .build()
 }
 
@@ -242,6 +249,18 @@ mod tests {
             duration: "01:00:00".into(),
             timezone: "+00:00".into(),
         }
+    }
+
+    #[test]
+    fn quartz_shortcut_steps_are_accepted() {
+        // `0/15` is how Quartz — and so hawkBit — spells "every 15 minutes from
+        // zero". croner 4 rejects it unless the parser opts into sloppy ranges,
+        // which would turn a working schedule into a 400 on upgrade.
+        let w = Window::parse("0 0/15 * * * ?", "00:05:00", "+00:00").unwrap();
+        assert!(w.is_open_at(utc(2026, 8, 23, 10, 30, 0)), "10:30");
+        assert!(!w.is_open_at(utc(2026, 8, 23, 10, 20, 0)), "10:20");
+        // the explicit range spelling must keep working alongside it
+        assert!(Window::parse("0 0-59/15 * * * ?", "00:05:00", "+00:00").is_ok());
     }
 
     #[test]

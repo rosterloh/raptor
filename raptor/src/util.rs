@@ -17,11 +17,11 @@ pub fn random_token() -> String {
 
 /// 16 random bytes for a password-hash salt (argon2's recommended length).
 ///
-/// Deliberately uses raptor's own `rand` rather than `SaltString::generate` with
-/// argon2's re-exported `rand_core::OsRng`: that `OsRng` only exists when some
-/// crate elsewhere in the tree happens to enable `rand_core/getrandom`, which is
-/// not something raptor ever asked for and which a dependency bump can silently
-/// take away.
+/// Deliberately uses raptor's own `rand` rather than letting argon2 pick the
+/// salt (`PasswordHasher::hash_password`, or `hash_password_with_rng` and its
+/// re-exported `rand_core`): those are gated behind argon2's `getrandom` and
+/// `rand_core` features, which raptor never asked for and which a dependency
+/// bump can silently take away.
 pub fn random_salt() -> [u8; 16] {
     use rand::Rng;
     let mut b = [0u8; 16];

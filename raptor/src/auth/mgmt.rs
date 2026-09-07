@@ -5,7 +5,6 @@
 
 use crate::error::AppError;
 use crate::state::AppState;
-use argon2::password_hash::PasswordHash;
 use argon2::{Argon2, PasswordVerifier};
 use axum::extract::{Request, State};
 use axum::http::header;
@@ -64,11 +63,11 @@ fn check_auth(state: &AppState, req: &Request) -> Result<(), AppError> {
 }
 
 pub fn verify_creds(cfg: &crate::config::MgmtConfig, user: &str, pass: &str) -> bool {
-    let Ok(parsed) = PasswordHash::new(&cfg.password_hash) else {
-        return false;
-    };
+    // argon2 0.6 verifies straight from the PHC string, so an unparseable hash
+    // in the config falls out as a verification error rather than needing its
+    // own branch — either way, nobody authenticates against it.
     user == cfg.username
         && Argon2::default()
-            .verify_password(pass.as_bytes(), &parsed)
+            .verify_password(pass.as_bytes(), cfg.password_hash.as_str())
             .is_ok()
 }
