@@ -11,3 +11,6 @@ edition = "2024"
 # members are internal — nothing here is publishable. Distribution is the .deb
 # built by cargo-deb (see raptor/Cargo.toml `[package.metadata.deb]`).
 publish = false
+
+[profile.dev]
+debug = "line-tables-only"

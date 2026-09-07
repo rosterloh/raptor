@@ -16,9 +16,28 @@ static SCHEMA_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub const TEST_PASSWORD: &str = "raptor-test";
 
+/// The test operator's password hash, deliberately generated with argon2's
+/// *weakest* parameters rather than its defaults.
+///
+/// Every authenticated request in the suite runs `verify_creds`, and argon2's
+/// real parameters are tuned to cost ~0.5s in an unoptimised test build — which
+/// made password verification, not the code under test, by far the largest
+/// line in the CI bill. The cost parameters live inside the PHC string, so the
+/// server still verifies through exactly the same `Argon2::default()
+/// .verify_password` path, reading these params back off the hash; a wrong
+/// password is still rejected. Only the work factor changes, and a fixture
+/// credential for an in-memory database has nothing to resist.
+///
+/// This is test-only. `raptor hash-password`, which generates the hash an
+/// operator actually deploys, is untouched and still uses argon2's defaults.
 static TEST_HASH: LazyLock<String> = LazyLock::new(|| {
     use argon2::PasswordHasher;
-    argon2::Argon2::default()
+    let argon2 = argon2::Argon2::new(
+        argon2::Algorithm::Argon2id,
+        argon2::Version::V0x13,
+        argon2::Params::new(argon2::Params::MIN_M_COST, 1, 1, None).unwrap(),
+    );
+    argon2
         .hash_password_with_salt(TEST_PASSWORD.as_bytes(), &raptor::util::random_salt())
         .unwrap()
         .to_string()
