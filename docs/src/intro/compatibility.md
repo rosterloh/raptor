@@ -47,13 +47,13 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Target filters + auto-assignment | ✅ |
 | Per-target auto-confirm | ✅ |
 | FIQL filter targets by auto-confirm status (`autoConfirm==`, hawkBit 1.1) | ✅ |
-| Target groups (`group` attribute, `q=group==`) | ✅ (console: ❌ [#117](https://github.com/rosterloh/raptor/issues/117)) |
+| Target groups (`group` attribute, `q=group==`) | ✅ |
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |
 | Target / distribution-set **tags** CRUD, assign/unassign, `q=tag==x` | ✅ |
 | Metadata endpoints (targets / modules / DS, `targetVisible` on module entries) | ✅ |
 | All four action types + force escalation (`PUT .../actions/{id}`) and force-quit (`DELETE ...?force=true`) | ✅ |
-| Rollout approval workflow (`rollout_approval_enabled`, approve/deny with remark; `raptorctl rollout approve\|deny`) | ✅ (console: ❌ [#129](https://github.com/rosterloh/raptor/issues/129)) |
+| Rollout approval workflow (`rollout_approval_enabled`, approve/deny with remark; `raptorctl rollout approve\|deny`) | ✅ |
 | Dynamic rollouts ([#18](https://github.com/rosterloh/raptor/issues/18)) | ❌ |
 | Maintenance windows on direct assignments | ✅ (hawkBit's own Management API has no `maintenanceWindow` field on rollout creation or target-filter auto-assignment to be at parity with — see [#116](https://github.com/rosterloh/raptor/issues/116)) |
 | Per-entity quotas (`[quota]`, hawkBit's defaults, `429` on breach) | ✅ |
