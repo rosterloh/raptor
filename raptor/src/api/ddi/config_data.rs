@@ -9,7 +9,9 @@ use crate::state::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -40,6 +42,27 @@ pub async fn put_config_data(
         peer.map(|Extension(axum::extract::ConnectInfo(p))| p),
     );
     let t = super::root::get_or_register(&st, &cid, auth, addr.as_deref()).await?;
+
+    // `replace` starts from an empty set, so only what the request carries
+    // counts; `merge` adds to what is already there. `remove` only deletes.
+    if body.mode != "remove" {
+        let existing = if body.mode == "replace" {
+            0
+        } else {
+            target_attribute::Entity::find()
+                .filter(target_attribute::Column::TargetId.eq(t.id))
+                .count(&st.db)
+                .await?
+        };
+        crate::domain::quota::assert_quota(
+            existing,
+            body.data.len() as u64,
+            st.cfg.quota.max_attribute_entries_per_target,
+            "attribute",
+            &format!("target {cid}"),
+        )?;
+    }
+
     match body.mode.as_str() {
         "replace" => {
             target_attribute::Entity::delete_many()

@@ -18,6 +18,44 @@ environment variable; nested tables use a `__` separator (e.g.
 | `rollout_approval_enabled` | bool | `false` | gate new rollouts behind an operator approval (`waiting_for_approval`); reported as hawkBit's `rollout.approval.enabled` |
 | `tenant` | string | `DEFAULT` | tenant name this instance answers to on the DDI `/{tenant}/...` path segment (matched case-insensitively); any other segment gets `404` |
 
+## `[quota]` — per-entity growth caps
+
+Mirrors hawkBit's quotas (`hawkbit.server.security.dos.*`), with its default
+values. These bound unbounded growth — a chatty device appending action-status
+rows forever, a runaway upload loop — rather than rate-limiting requests. A
+breach is rejected with `429 Too Many Requests` and hawkBit's
+`hawkbit.server.error.quota.tooManyEntries` error code.
+
+**Set a key to `0` to disable that quota.** This matches hawkBit, which treats
+any limit `<= 0` as unlimited.
+
+| Key | Default | Caps |
+|---|---|---|
+| `max_status_entries_per_action` | `1000` | status entries a device may report against one action |
+| `max_messages_per_action_status` | `50` | messages a device may attach to one reported status |
+| `max_attribute_entries_per_target` | `100` | attributes a device may report about itself |
+| `max_metadata_entries_per_target` | `100` | metadata entries per target |
+| `max_metadata_entries_per_software_module` | `100` | metadata entries per software module |
+| `max_metadata_entries_per_distribution_set` | `100` | metadata entries per distribution set |
+| `max_artifacts_per_software_module` | `50` | artifacts per software module |
+| `max_software_modules_per_distribution_set` | `100` | modules per distribution set |
+| `max_rollout_groups_per_rollout` | `500` | deployment groups per rollout |
+| `max_targets_per_rollout_group` | `20000` | targets in any one rollout group |
+
+The two device-reported caps apply only to what a *device* sends over DDI.
+raptor's own status entries — "rollout stopped", "superseded by a new
+assignment" — are never capped, so a device that has exhausted its quota cannot
+stop the server recording why its action was cancelled.
+
+`max_status_entries_per_action` also exempts feedback that *closes* an action
+(`closed`, `canceled`, a `downloadonly` action's `downloaded`, and a cancel's
+`closed`/`rejected`). Without that carve-out a device that spent its budget on
+progress reports could never file its terminal one, leaving the action active
+forever with no way to close it. hawkBit does the same, checking the count only
+for intermediate statuses.
+
+Artifact *size* is capped separately by the top-level `max_artifact_size`.
+
 ## `[ddi]` — device-facing API
 
 | Key | Type | Default | Description |
@@ -87,6 +125,10 @@ max_artifact_size = 2147483648            # 2 GiB
 url = "https://raptor.example.com"
 rollout_eval_interval_secs = 10
 rollout_approval_enabled = false
+
+[quota]
+max_artifacts_per_software_module = 20
+max_status_entries_per_action = 0          # unlimited
 
 [ddi]
 anonymous = false

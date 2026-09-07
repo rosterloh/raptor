@@ -15,8 +15,8 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use raptor_api_types::{MetadataCreate, MetadataRest, MetadataUpdate};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
-    QueryOrder,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder,
 };
 use std::collections::HashSet;
 
@@ -88,6 +88,24 @@ fn check_request_dups(body: &[MetadataCreate]) -> Result<(), AppError> {
 
 // ---- targets ----
 
+/// Rejects a metadata batch that would push its owner past the configured
+/// per-entity cap. `existing` is the owner-scoped query counting what is
+/// already stored; the three owners differ only in that query and their limit.
+async fn assert_metadata_quota<E>(
+    st: &AppState,
+    existing: sea_orm::Select<E>,
+    requested: usize,
+    limit: u32,
+    parent: &str,
+) -> Result<(), AppError>
+where
+    E: EntityTrait,
+    E::Model: Send + Sync,
+{
+    let current = existing.count(&st.db).await?;
+    crate::domain::quota::assert_quota(current, requested as u64, limit, "metadata", parent)
+}
+
 pub async fn target_list(
     State(st): State<AppState>,
     Path(cid): Path<String>,
@@ -111,6 +129,14 @@ pub async fn target_create(
 ) -> Result<(StatusCode, Json<Vec<MetadataRest>>), AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
     check_request_dups(&body)?;
+    assert_metadata_quota(
+        &st,
+        target_metadata::Entity::find().filter(target_metadata::Column::TargetId.eq(t.id)),
+        body.len(),
+        st.cfg.quota.max_metadata_entries_per_target,
+        &format!("target {cid}"),
+    )
+    .await?;
     for c in &body {
         let dup = target_metadata::Entity::find()
             .filter(target_metadata::Column::TargetId.eq(t.id))
@@ -214,6 +240,14 @@ pub async fn ds_create(
 ) -> Result<(StatusCode, Json<Vec<MetadataRest>>), AppError> {
     ds_require(&st, id).await?;
     check_request_dups(&body)?;
+    assert_metadata_quota(
+        &st,
+        ds_metadata::Entity::find().filter(ds_metadata::Column::DsId.eq(id)),
+        body.len(),
+        st.cfg.quota.max_metadata_entries_per_distribution_set,
+        &format!("distribution set {id}"),
+    )
+    .await?;
     for c in &body {
         let dup = ds_metadata::Entity::find()
             .filter(ds_metadata::Column::DsId.eq(id))
@@ -313,6 +347,14 @@ pub async fn sm_create(
 ) -> Result<(StatusCode, Json<Vec<MetadataRest>>), AppError> {
     sm_require(&st, id).await?;
     check_request_dups(&body)?;
+    assert_metadata_quota(
+        &st,
+        sm_metadata::Entity::find().filter(sm_metadata::Column::ModuleId.eq(id)),
+        body.len(),
+        st.cfg.quota.max_metadata_entries_per_software_module,
+        &format!("software module {id}"),
+    )
+    .await?;
     for c in &body {
         let dup = sm_metadata::Entity::find()
             .filter(sm_metadata::Column::ModuleId.eq(id))

@@ -59,6 +59,7 @@ Copy the output into `mgmt.password_hash`.
 |---|---|
 | top level | `bind`, `database_url`, `artifact_dir`, `max_artifact_size`, `url`, `rollout_eval_interval_secs`, `rollout_approval_enabled` |
 | `[ddi]` | device-facing auth and polling: `anonymous`, `gateway_token`, `polling_interval`, `confirmation_flow` |
+| `[quota]` | per-entity growth caps mirroring hawkBit's; `0` disables one |
 | `[mgmt]` | Management API / web console admin: `username`, `password_hash` |
 
 ## The `url` key

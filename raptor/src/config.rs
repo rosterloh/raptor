@@ -42,11 +42,83 @@ pub struct Config {
     /// stay directly startable unless an operator asks for the gate.
     #[serde(default)]
     pub rollout_approval_enabled: bool,
+    /// Per-entity growth caps, mirroring hawkBit's quotas. Every key defaults
+    /// to hawkBit's own default, and `0` means unlimited.
+    #[serde(default)]
+    pub quota: QuotaConfig,
     /// OpenTelemetry (OTLP) export. Absent by default; when present with an
     /// endpoint, traces/metrics/logs are shipped to the collector. Requires the
     /// `otel` build feature — without it, this section is parsed but ignored.
     #[serde(default)]
     pub otel: Option<OtelConfig>,
+}
+
+/// hawkBit's per-entity quotas (`hawkbit.server.security.dos.*`), with its
+/// default values. These bound unbounded growth — a chatty device appending
+/// action-status rows forever, a runaway upload loop — rather than implementing
+/// a rate limit.
+///
+/// `0` disables a quota, matching hawkBit's own `QuotaHelper`, which treats any
+/// `limit <= 0` as unlimited. Violations are reported as `429 Too Many
+/// Requests` with `hawkbit.server.error.quota.tooManyEntries`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct QuotaConfig {
+    /// Status entries a device may report against one action.
+    #[serde(default = "d_1000")]
+    pub max_status_entries_per_action: u32,
+    /// Messages a device may attach to one reported status entry.
+    #[serde(default = "d_50")]
+    pub max_messages_per_action_status: u32,
+    /// Attributes a device may report about itself.
+    #[serde(default = "d_100")]
+    pub max_attribute_entries_per_target: u32,
+    #[serde(default = "d_100")]
+    pub max_metadata_entries_per_target: u32,
+    #[serde(default = "d_100")]
+    pub max_metadata_entries_per_software_module: u32,
+    #[serde(default = "d_100")]
+    pub max_metadata_entries_per_distribution_set: u32,
+    #[serde(default = "d_50")]
+    pub max_artifacts_per_software_module: u32,
+    #[serde(default = "d_100")]
+    pub max_software_modules_per_distribution_set: u32,
+    #[serde(default = "d_500")]
+    pub max_rollout_groups_per_rollout: u32,
+    #[serde(default = "d_20000")]
+    pub max_targets_per_rollout_group: u32,
+}
+
+impl Default for QuotaConfig {
+    fn default() -> Self {
+        Self {
+            max_status_entries_per_action: d_1000(),
+            max_messages_per_action_status: d_50(),
+            max_attribute_entries_per_target: d_100(),
+            max_metadata_entries_per_target: d_100(),
+            max_metadata_entries_per_software_module: d_100(),
+            max_metadata_entries_per_distribution_set: d_100(),
+            max_artifacts_per_software_module: d_50(),
+            max_software_modules_per_distribution_set: d_100(),
+            max_rollout_groups_per_rollout: d_500(),
+            max_targets_per_rollout_group: d_20000(),
+        }
+    }
+}
+
+fn d_50() -> u32 {
+    50
+}
+fn d_100() -> u32 {
+    100
+}
+fn d_500() -> u32 {
+    500
+}
+fn d_1000() -> u32 {
+    1000
+}
+fn d_20000() -> u32 {
+    20000
 }
 
 #[derive(Debug, Clone, Deserialize)]
