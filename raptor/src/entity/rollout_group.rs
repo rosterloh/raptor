@@ -16,6 +16,17 @@ pub struct Model {
     pub error_threshold: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Outcomes of actions automatic cleanup has deleted, kept so the group's
+    /// `totalTargetsPerStatus` still reflects what happened — see the
+    /// `m20260907_000001_rollout_group_purged_counts` migration.
+    #[sea_orm(default_value = 0)]
+    pub purged_finished: i64,
+    #[sea_orm(default_value = 0)]
+    pub purged_error: i64,
+    #[sea_orm(default_value = 0)]
+    pub purged_cancelled: i64,
+    #[sea_orm(default_value = 0)]
+    pub purged_running: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

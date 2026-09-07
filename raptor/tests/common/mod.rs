@@ -123,6 +123,15 @@ pub async fn setup_with_quota(quota: raptor::config::QuotaConfig) -> (Router, Ap
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but with the action-cleanup config replaced.
+pub async fn setup_with_cleanup(cleanup: raptor::config::CleanupConfig) -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.cleanup = cleanup;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
     format!(
         "Basic {}",

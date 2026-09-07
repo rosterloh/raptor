@@ -46,6 +46,9 @@ pub struct Config {
     /// to hawkBit's own default, and `0` means unlimited.
     #[serde(default)]
     pub quota: QuotaConfig,
+    /// Automatic deletion of old closed actions. Off by default.
+    #[serde(default)]
+    pub cleanup: CleanupConfig,
     /// OpenTelemetry (OTLP) export. Absent by default; when present with an
     /// endpoint, traces/metrics/logs are shipped to the collector. Requires the
     /// `otel` build feature — without it, this section is parsed but ignored.
@@ -119,6 +122,66 @@ fn d_1000() -> u32 {
 }
 fn d_20000() -> u32 {
     20000
+}
+
+/// Automatic action cleanup, mirroring hawkBit's `AutoActionCleanup`: closed
+/// actions older than a retention window are deleted along with their status
+/// history, which is otherwise the one table that grows without bound.
+///
+/// hawkBit has no `enabled` key — it infers "off" from a negative expiry or an
+/// empty status set. raptor states it outright instead, because a config file
+/// that lists a retention window it silently ignores is a trap. The two
+/// upstream keys are still reported on `/rest/v1/system/configs` under their
+/// hawkBit names.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CleanupConfig {
+    /// Off by default: deleting deployment history is not something to start
+    /// doing to an existing installation without being asked.
+    #[serde(default)]
+    pub enabled: bool,
+    /// How long a closed action is kept, in days, measured from when it was
+    /// last modified.
+    #[serde(default = "default_action_expiry_days")]
+    pub action_expiry_days: u64,
+    /// Which action statuses may be deleted. Defaults to the terminal ones
+    /// hawkBit's own documentation recommends restricting this to; an active
+    /// action is never eligible whatever this says.
+    #[serde(default = "default_cleanup_statuses")]
+    pub action_statuses: Vec<String>,
+    /// How often the sweep runs, in seconds. Hourly by default — this reclaims
+    /// storage on a retention window measured in days, so there is nothing to
+    /// gain from running it near the rollout evaluator's cadence.
+    #[serde(default = "default_cleanup_interval_secs")]
+    pub interval_secs: u64,
+}
+
+impl Default for CleanupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            action_expiry_days: default_action_expiry_days(),
+            action_statuses: default_cleanup_statuses(),
+            interval_secs: default_cleanup_interval_secs(),
+        }
+    }
+}
+
+impl CleanupConfig {
+    /// Retention window in milliseconds, the unit hawkBit's
+    /// `action.cleanup.auto.expiry` tenant config key is expressed in.
+    pub fn expiry_millis(&self) -> i64 {
+        (self.action_expiry_days as i64).saturating_mul(24 * 60 * 60 * 1000)
+    }
+}
+
+fn default_action_expiry_days() -> u64 {
+    30
+}
+fn default_cleanup_statuses() -> Vec<String> {
+    vec!["finished".into(), "error".into(), "canceled".into()]
+}
+fn default_cleanup_interval_secs() -> u64 {
+    3600
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -428,6 +491,8 @@ password_hash = "$argon2id$fake"
             assert_eq!(cfg.mgmt.username, "admin");
             assert_eq!(cfg.tenant, "DEFAULT");
             assert!(!cfg.rollout_approval_enabled);
+            assert!(!cfg.cleanup.enabled);
+            assert_eq!(cfg.cleanup.action_expiry_days, 30);
             assert!(cfg.otel.is_none());
             Ok(())
         });

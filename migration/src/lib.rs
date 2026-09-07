@@ -20,6 +20,7 @@ mod m20260823_000001_action_maintenance_window;
 mod m20260823_000002_target_group;
 mod m20260826_000001_tenant;
 mod m20260831_000001_rollout_approval;
+mod m20260907_000001_rollout_group_purged_counts;
 
 pub struct Migrator;
 
@@ -43,6 +44,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260823_000002_target_group::Migration),
             Box::new(m20260826_000001_tenant::Migration),
             Box::new(m20260831_000001_rollout_approval::Migration),
+            Box::new(m20260907_000001_rollout_group_purged_counts::Migration),
         ]
     }
 }

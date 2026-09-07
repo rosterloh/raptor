@@ -169,6 +169,12 @@ Each entry has a `type` (the reported status, e.g. `running`, `finished`,
 `canceled`), any `messages` the device or server attached, and `reportedAt`.
 The list supports the usual `offset`/`limit`/`sort` paging.
 
+Two settings bound how much of this accumulates. `[quota]
+max_status_entries_per_action` caps how many entries one device may report
+against a single action (default 1000), and `[cleanup]` deletes closed actions
+and their history past a retention window — off by default. Both are in the
+[Configuration Reference](../reference/configuration.md#cleanup--automatic-action-cleanup).
+
 ## Cancelling
 
 ```bash
