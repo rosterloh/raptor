@@ -92,6 +92,20 @@ It is read-only — raptor takes its configuration from `raptor.toml`, and the A
 answers writes to these keys with `403`. See
 [Configuration](../reference/configuration.md) to change any of them.
 
+### Targets
+
+The list shows each target's group alongside its tags, state and installed set.
+Clicking a group filters the list to it — the only way to discover which groups
+are in use, as there is no endpoint that enumerates them. The group box beside
+the search box takes a pattern as well as an exact path, so `plant-a/*` selects
+a whole site; it compiles to a `group==` term that ANDs with the search, state
+and tag filters, and the compiled query is shown under them.
+
+Target detail shows the group and lets you edit it in place. A group can be
+moved but not cleared: `PUT /rest/v1/targets/{id}` reads an omitted `group` as
+"leave unchanged", so there is no way to express "unset" — see the
+[Targets guide](targets.md).
+
 ### Rollouts
 
 The rollouts list shows each rollout's status and a progress bar of its targets;

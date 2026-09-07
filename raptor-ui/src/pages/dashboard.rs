@@ -401,7 +401,7 @@ fn Tile(
 ) -> Element {
     rsx! {
         Link {
-            to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), sort: String::new(), offset: 0 },
+            to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), group: String::new(), sort: String::new(), offset: 0 },
             class: "tick-scale relative block bg-card p-4 hover:bg-accent",
             p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
                 "{label}"

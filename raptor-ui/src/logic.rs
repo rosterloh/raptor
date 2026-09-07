@@ -27,12 +27,18 @@ pub fn fiql_and(terms: &[Option<String>]) -> Option<String> {
     }
 }
 
-/// The FIQL term selecting one tag by name. Tag names are user input, so the
-/// value is quoted — a name containing `;`, `,` or a space would otherwise end
-/// the term early.
+/// The FIQL term selecting one exact value. The value is user input, so it is
+/// quoted — one containing `;`, `,` or a space would otherwise end the term
+/// early. `*` still wildcards: raptor strips the quotes while parsing and only
+/// then looks for wildcards, so `group=='plant-a/*'` is a prefix match.
+pub fn fiql_eq(field: &str, value: &str) -> Option<String> {
+    let v = value.trim();
+    (!v.is_empty()).then(|| format!("{field}=='{}'", v.replace('\'', "")))
+}
+
+/// The FIQL term selecting one tag by name.
 pub fn fiql_tag(name: &str) -> Option<String> {
-    let n = name.trim();
-    (!n.is_empty()).then(|| format!("tag=='{}'", n.replace('\'', "")))
+    fiql_eq("tag", name)
 }
 
 /// A tag's colour, validated for use in a `style` attribute. Colours are
@@ -365,6 +371,16 @@ mod tests {
         assert_eq!(fiql_tag("  "), None);
         // a quote in the name can't break out of the quoted value
         assert_eq!(fiql_tag("a'b"), Some("tag=='ab'".into()));
+    }
+
+    #[test]
+    fn fiql_eq_keeps_group_wildcards() {
+        // quoting must not disarm the `*` — this is the hierarchical filter
+        assert_eq!(
+            fiql_eq("group", "plant-a/*"),
+            Some("group=='plant-a/*'".into())
+        );
+        assert_eq!(fiql_eq("group", " "), None);
     }
 
     #[test]

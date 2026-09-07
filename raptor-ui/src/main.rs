@@ -25,8 +25,8 @@ pub enum Route {
     #[layout(Shell)]
         #[route("/")]
         Dashboard {},
-        #[route("/targets?:query&:state&:tag&:sort&:offset")]
-        Targets { query: String, state: String, tag: String, sort: String, offset: u64 },
+        #[route("/targets?:query&:state&:tag&:group&:sort&:offset")]
+        Targets { query: String, state: String, tag: String, group: String, sort: String, offset: u64 },
         #[route("/targets/:cid")]
         TargetDetail { cid: String },
         #[route("/targetfilters?:query&:offset")]
@@ -62,6 +62,7 @@ impl Route {
             query: String::new(),
             state: String::new(),
             tag: String::new(),
+            group: String::new(),
             sort: String::new(),
             offset: 0,
         }

@@ -1,4 +1,4 @@
-use crate::components::ui::{Button, ButtonVariant, Dialog};
+use crate::components::ui::{Button, ButtonVariant, Dialog, Input};
 use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
 use crate::{Route, api, logic};
@@ -160,6 +160,15 @@ pub fn TargetDetail(cid: String) -> Element {
                                             v: t.ip_address.clone().or(t.address.clone()).unwrap_or_else(|| "—".into()),
                                             mono: true,
                                         }
+                                        // ---- group (issue #117) ----
+                                        dt { class: "text-muted-foreground", "Group" }
+                                        dd { class: "break-all text-fg-dim",
+                                            GroupField {
+                                                cid: cid_s,
+                                                group: t.group.clone(),
+                                                on_changed: move |_| target.restart(),
+                                            }
+                                        }
                                         Row { k: "Security token", v: t.security_token.clone(), mono: true }
                                         Row { k: "Registered", v: logic::format_ts(t.created_at) }
                                         // ---- target type (issue #34) ----
@@ -249,7 +258,8 @@ pub fn TargetDetail(cid: String) -> Element {
                             p { class: "mt-4 text-xs text-muted-foreground",
                                 "Free-form and device-defined, so the keys differ per device class. They are not
                                  queryable: raptor's FIQL covers controllerId, name, description, updateStatus,
-                                 lastControllerRequestAt, address and tags, so segmenting by hardware goes through a tag."
+                                 lastControllerRequestAt, address, group and tags, so segmenting by hardware goes
+                                 through a tag."
                             }
                         },
                         Some(Err(e)) => rsx! { p { class: "text-sm text-err", "{e}" } },
@@ -616,6 +626,88 @@ pub fn AssignDsDialog(
                     },
                     "Assign"
                 }
+            }
+        }
+    }
+}
+
+// ---- group (issue #117) ----
+
+/// The target's group, editable in place. Free text rather than a picker:
+/// groups are `/`-separated paths a target declares by being put in one, and
+/// there is no endpoint that enumerates the ones in use.
+///
+/// No "clear" control, because `PUT /rest/v1/targets/{id}` has no way to
+/// express it — an omitted `group` means "leave unchanged", so a group can be
+/// moved but never unset.
+#[component]
+fn GroupField(cid: Signal<String>, group: Option<String>, on_changed: EventHandler<()>) -> Element {
+    let mut editing = use_signal(|| false);
+    let mut value = use_signal(String::new);
+    let current = group.clone();
+    rsx! {
+        if editing() {
+            form {
+                class: "flex items-center gap-2",
+                onsubmit: move |e: FormEvent| {
+                    e.prevent_default();
+                    let (cid, next) = (cid(), value().trim().to_string());
+                    editing.set(false);
+                    spawn(async move {
+                        match api::set_target_group(&cid, &next).await {
+                            Ok(_) => {
+                                toast_ok("group updated");
+                                on_changed.call(());
+                            }
+                            Err(e) => toast_error(e.to_string()),
+                        }
+                    });
+                },
+                Input {
+                    class: "h-7 text-sm",
+                    value: "{value}",
+                    placeholder: "plant-a/line-1",
+                    oninput: move |e: FormEvent| value.set(e.value()),
+                }
+                Button {
+                    r#type: "submit",
+                    disabled: value().trim().is_empty(),
+                    class: "h-7 px-3 text-xs",
+                    "Save"
+                }
+                button {
+                    class: "rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
+                    r#type: "button",
+                    onclick: move |_| editing.set(false),
+                    "Cancel"
+                }
+            }
+        } else {
+            match current.clone() {
+                Some(g) => rsx! {
+                    Link {
+                        to: Route::Targets {
+                            query: String::new(),
+                            state: String::new(),
+                            tag: String::new(),
+                            group: g.clone(),
+                            sort: String::new(),
+                            offset: 0,
+                        },
+                        class: "text-primary hover:underline",
+                        "{g}"
+                    }
+                },
+                None => rsx! { span { "none" } },
+            }
+            button {
+                class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
+                r#type: "button",
+                onclick: move |_| {
+                    value.set(current.clone().unwrap_or_default());
+                    editing.set(true);
+                },
+                if group.is_some() { "Change" } else { "Set" }
             }
         }
     }
