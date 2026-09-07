@@ -39,6 +39,13 @@ pub async fn create_rollout(
     if req.amount_groups < 1 {
         return Err(AppError::BadRequest("amountGroups must be >= 1".into()));
     }
+    crate::domain::quota::assert_quota(
+        0,
+        req.amount_groups as u64,
+        st.cfg.quota.max_rollout_groups_per_rollout,
+        "group",
+        &format!("rollout {}", req.name),
+    )?;
 
     let cond = crate::api::mgmt::targets::condition(&req.target_filter_query)?;
     let targets = target::Entity::find()
@@ -58,6 +65,18 @@ pub async fn create_rollout(
         Some(c) => parse_percent(&c.expression)?,
         None => 101, // never triggers
     };
+
+    // Checked once on the largest group rather than per chunk: `chunks` makes
+    // every group `per_group` except a possibly smaller last one. Computed here,
+    // with the rest of the validation, so nothing is written before it passes.
+    let per_group = targets.len().div_ceil(req.amount_groups as usize).max(1);
+    crate::domain::quota::assert_quota(
+        0,
+        per_group as u64,
+        st.cfg.quota.max_targets_per_rollout_group,
+        "target",
+        &format!("each group of rollout {}", req.name),
+    )?;
 
     // hawkBit gates a new rollout behind an operator decision when the tenant's
     // `rollout.approval.enabled` flag is set; otherwise it is startable at once.
@@ -88,7 +107,6 @@ pub async fn create_rollout(
     .insert(&txn)
     .await?;
 
-    let per_group = targets.len().div_ceil(req.amount_groups as usize).max(1);
     for (idx, chunk) in targets.chunks(per_group).enumerate() {
         let g = rollout_group::ActiveModel {
             rollout_id: Set(r.id),

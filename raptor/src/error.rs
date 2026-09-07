@@ -18,6 +18,9 @@ pub enum AppError {
     Conflict(String),
     Forbidden(String),
     Gone,
+    /// A configured `[quota]` limit would be exceeded. hawkBit answers these
+    /// with 429, not 403 — see the `IntoResponse` arm.
+    QuotaExceeded(String),
     Db(sea_orm::DbErr),
     Io(std::io::Error),
 }
@@ -78,6 +81,16 @@ impl IntoResponse for AppError {
                 StatusCode::FORBIDDEN,
                 "org.eclipse.hawkbit.repository.exception.InsufficientPermissionException",
                 "hawkbit.server.error.insufficientPermission",
+                m,
+            ),
+            // 429, verified against hawkBit's own REST tests
+            // (`MgmtSoftwareModuleResourceTest#uploadArtifactsUntilQuotaExceeded`
+            // asserts `status().isTooManyRequests()`), not the 403 that the
+            // "insufficient permission" shape might suggest.
+            AppError::QuotaExceeded(m) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "org.eclipse.hawkbit.repository.exception.AssignmentQuotaExceededException",
+                "hawkbit.server.error.quota.tooManyEntries",
                 m,
             ),
             AppError::Gone => (

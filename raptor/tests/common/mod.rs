@@ -113,6 +113,16 @@ pub async fn setup_with_rollout_approval() -> (Router, AppState) {
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but with the quota config replaced, so a test can drive a
+/// limit without inserting hawkBit's default of hundreds of entities.
+pub async fn setup_with_quota(quota: raptor::config::QuotaConfig) -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.quota = quota;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
     format!(
         "Basic {}",

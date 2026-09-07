@@ -105,6 +105,17 @@ pub async fn upload(
             continue;
         }
         let filename = field.file_name().unwrap_or("artifact").to_string();
+        let existing = artifact::Entity::find()
+            .filter(artifact::Column::ModuleId.eq(module_id))
+            .count(&st.db)
+            .await?;
+        crate::domain::quota::assert_quota(
+            existing,
+            1,
+            st.cfg.quota.max_artifacts_per_software_module,
+            "artifact",
+            &format!("software module {module_id}"),
+        )?;
         let dup = artifact::Entity::find()
             .filter(artifact::Column::ModuleId.eq(module_id))
             .filter(artifact::Column::Filename.eq(&filename))

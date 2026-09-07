@@ -12,7 +12,8 @@ use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter,
 };
 
 pub struct AssignResult {
@@ -262,6 +263,52 @@ pub async fn assign_ds(
     })
 }
 
+/// Quota check for a status entry a *device* is reporting: the number of
+/// entries already on the action, and the number of messages in this one.
+///
+/// Only the DDI feedback paths go through this. raptor's own status entries —
+/// "rollout stopped", "superseded by a newer assignment" — are written by
+/// `add_action_status` directly and are deliberately not capped: a chatty
+/// device must not be able to stop the server from recording why it cancelled
+/// that device's action. hawkBit draws the same line, describing the quota as
+/// what "the controller can report".
+///
+/// `closes_action` exempts the entry from the *count* quota. Without it a
+/// device that spent its quota on progress reports could never file the
+/// terminal one, stranding the action active forever — so hawkBit checks the
+/// count "only for intermediate statuses" (`JpaActionManagement
+/// #assertActionStatusQuota`, whose `isIntermediateStatus` excludes FINISHED
+/// and ERROR; its cancel path likewise exempts CANCELED and CANCEL_REJECTED).
+/// The *message* quota stays ungated, exactly as upstream leaves it.
+async fn assert_feedback_quota(
+    st: &AppState,
+    action_id: i64,
+    messages: &[String],
+    closes_action: bool,
+) -> Result<(), AppError> {
+    let q = &st.cfg.quota;
+    if !closes_action {
+        let existing = action_status::Entity::find()
+            .filter(action_status::Column::ActionId.eq(action_id))
+            .count(&st.db)
+            .await?;
+        crate::domain::quota::assert_quota(
+            existing,
+            1,
+            q.max_status_entries_per_action,
+            "action status",
+            &format!("action {action_id}"),
+        )?;
+    }
+    crate::domain::quota::assert_quota(
+        0,
+        messages.len() as u64,
+        q.max_messages_per_action_status,
+        "message",
+        &format!("the status entry reported for action {action_id}"),
+    )
+}
+
 #[tracing::instrument(skip_all, fields(action_id = a.id, execution, finished))]
 pub async fn apply_feedback(
     st: &AppState,
@@ -271,6 +318,10 @@ pub async fn apply_feedback(
     finished: &str,
     details: &[String],
 ) -> Result<(), AppError> {
+    // The same set the match below closes the action on.
+    let closes_action = matches!(execution, "closed" | "canceled")
+        || (execution == "downloaded" && a.action_type == "downloadonly");
+    assert_feedback_quota(st, a.id, details, closes_action).await?;
     add_action_status(&st.db, a.id, execution, details).await?;
     // Any feedback — even the "history only" kinds below — proves the device
     // is still communicating, so it clears the repeated-fetch-with-no-feedback
@@ -323,6 +374,10 @@ pub async fn apply_cancel_feedback(
     execution: &str,
     details: &[String],
 ) -> Result<(), AppError> {
+    // `closed` settles the cancellation, `rejected` puts the action back to
+    // running: both resolve it, so neither is an intermediate report.
+    let resolves = matches!(execution, "closed" | "rejected");
+    assert_feedback_quota(st, a.id, details, resolves).await?;
     add_action_status(&st.db, a.id, &format!("cancel_{execution}"), details).await?;
     match execution {
         "closed" => {

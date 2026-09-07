@@ -30,8 +30,10 @@ curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules/1/artifacts \
 ```
 
 The response includes the computed hashes and the byte size. Maximum upload size
-is governed by `max_artifact_size` (see the
-[Configuration Reference](../reference/configuration.md)).
+is governed by `max_artifact_size`, and the number of artifacts one module may
+hold by `[quota] max_artifacts_per_software_module` (default 50) — exceeding it
+is a `429`. See the
+[Configuration Reference](../reference/configuration.md#quota--per-entity-growth-caps).
 
 ## Content-addressed storage
 

@@ -179,6 +179,15 @@ pub async fn create(
             Err(e) => return Err(AppError::from(e)),
         }
 
+        // A new set starts empty, so the request is the whole count.
+        crate::domain::quota::assert_quota(
+            0,
+            c.modules.len() as u64,
+            st.cfg.quota.max_software_modules_per_distribution_set,
+            "software module",
+            &format!("distribution set {}", c.name),
+        )?;
+
         // Check all referenced modules exist
         for m in &c.modules {
             software_module::Entity::find_by_id(m.id)
@@ -460,6 +469,21 @@ pub async fn assign_modules(
         .one(&st.db)
         .await?
         .ok_or(AppError::NotFound("distribution set"))?;
+    // Counted against what the set already holds. Modules already assigned are
+    // skipped below rather than duplicated, so this can reject a request that
+    // would in fact have been a partial no-op — the same conservative reading
+    // hawkBit's `assertAssignmentQuota` takes of a requested count.
+    let existing = ds_module::Entity::find()
+        .filter(ds_module::Column::DsId.eq(ds.id))
+        .count(&st.db)
+        .await?;
+    crate::domain::quota::assert_quota(
+        existing,
+        mods.len() as u64,
+        st.cfg.quota.max_software_modules_per_distribution_set,
+        "software module",
+        &format!("distribution set {id}"),
+    )?;
     for m in &mods {
         software_module::Entity::find_by_id(m.id)
             .one(&st.db)
