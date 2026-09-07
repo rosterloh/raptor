@@ -3,7 +3,7 @@
 use raptor_api_types::*;
 use std::collections::BTreeMap;
 
-use super::{ApiResult, delete, get_json, get_opt, list_path, post_json, post_nothing};
+use super::{ApiResult, delete, get_json, get_opt, list_path, post_json, post_nothing, put_json};
 
 pub async fn list_targets(
     offset: u64,
@@ -15,6 +15,23 @@ pub async fn list_targets(
 
 pub async fn get_target(cid: &str) -> ApiResult<TargetRest> {
     get_json(&format!("/rest/v1/targets/{cid}")).await
+}
+
+/// Moves the target into a group. Every other field is omitted, which the
+/// server reads as "leave unchanged" — including the group itself, so there is
+/// no way to clear one back to unset through this body.
+pub async fn set_target_group(cid: &str, group: &str) -> ApiResult<TargetRest> {
+    put_json(
+        &format!("/rest/v1/targets/{cid}"),
+        &TargetUpdate {
+            name: None,
+            description: None,
+            security_token: None,
+            request_attributes: None,
+            group: Some(group.to_string()),
+        },
+    )
+    .await
 }
 
 pub async fn target_attributes(cid: &str) -> ApiResult<BTreeMap<String, String>> {

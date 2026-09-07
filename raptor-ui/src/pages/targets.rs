@@ -14,19 +14,48 @@ const STATES: [(&str, &str, logic::Tone); 4] = [
     ("in_sync", "In sync", logic::Tone::Ok),
 ];
 
+/// Everything the URL carries. Passed around whole so a call site can override
+/// the one field it changes (`Filters { tag, ..f.clone() }`) — with six
+/// same-typed fields, positional arguments silently tolerate a swapped pair.
+#[derive(Clone)]
+struct Filters {
+    query: String,
+    state: String,
+    tag: String,
+    group: String,
+    sort: String,
+    offset: u64,
+}
+
 #[component]
-pub fn Targets(query: String, state: String, tag: String, sort: String, offset: u64) -> Element {
+pub fn Targets(
+    query: String,
+    state: String,
+    tag: String,
+    group: String,
+    sort: String,
+    offset: u64,
+) -> Element {
     let nav = use_navigator();
+    let f = Filters {
+        query: query.clone(),
+        state: state.clone(),
+        tag: tag.clone(),
+        group: group.clone(),
+        sort: sort.clone(),
+        offset,
+    };
     // Filter and pagination state live in the URL (#81) so Back, refresh, and
     // bookmarks all preserve them; navigating with `replace` (not `push`) keeps
     // per-keystroke/per-click changes off the back stack.
-    let goto = move |query: String, state: String, tag: String, sort: String, offset: u64| {
+    let goto = move |f: Filters| {
         nav.replace(Route::Targets {
-            query,
-            state,
-            tag,
-            sort,
-            offset,
+            query: f.query,
+            state: f.state,
+            tag: f.tag,
+            group: f.group,
+            sort: f.sort,
+            offset: f.offset,
         });
     };
 
@@ -36,6 +65,7 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
         logic::fiql_contains(&["name", "controllerId"], &query),
         (!state.is_empty()).then(|| format!("updateStatus=={state}")),
         logic::fiql_tag(&tag),
+        logic::fiql_eq("group", &group),
     ]);
 
     let mut targets = use_resource(use_reactive!(|fiql, offset| async move {
@@ -54,15 +84,20 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
     // remount, which resets that internal state too.
     let mut search_key = use_signal(|| 0u32);
 
-    let active = !query.is_empty() || !state.is_empty() || !tag.is_empty() || !sort.is_empty();
+    let active = !query.is_empty()
+        || !state.is_empty()
+        || !tag.is_empty()
+        || !group.is_empty()
+        || !sort.is_empty();
     use_filter_clear(use_reactive!(|active| active), move || {
-        goto(
-            String::new(),
-            String::new(),
-            String::new(),
-            String::new(),
-            0,
-        );
+        goto(Filters {
+            query: String::new(),
+            state: String::new(),
+            tag: String::new(),
+            group: String::new(),
+            sort: String::new(),
+            offset: 0,
+        });
         search_key += 1;
     });
 
@@ -87,12 +122,24 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
         SectionRule { label: "Filter" }
         div { class: "flex flex-wrap items-center gap-3",
             SearchBox {
-                key: "{search_key}",
+                key: "q{search_key}",
                 placeholder: "name or controller id…",
                 initial: query.clone(),
                 on_search: {
-                    let (state, tag, sort) = (state.clone(), tag.clone(), sort.clone());
-                    move |s| goto(s, state.clone(), tag.clone(), sort.clone(), 0)
+                    let f = f.clone();
+                    move |s| goto(Filters { query: s, offset: 0, ..f.clone() })
+                },
+            }
+            // Free text rather than chips: groups are `/`-separated paths with
+            // no endpoint that enumerates them, and a trailing `*` is what makes
+            // `plant-a/*` match a whole site rather than one exact line.
+            SearchBox {
+                key: "g{search_key}",
+                placeholder: "group, e.g. plant-a/*…",
+                initial: group.clone(),
+                on_search: {
+                    let f = f.clone();
+                    move |s| goto(Filters { group: s, offset: 0, ..f.clone() })
                 },
             }
             // State is the fleet's primary axis, so it gets chips rather than
@@ -102,8 +149,8 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                     label: "All".to_string(),
                     pressed: state.is_empty(),
                     onclick: {
-                        let (query, tag, sort) = (query.clone(), tag.clone(), sort.clone());
-                        move |_| goto(query.clone(), String::new(), tag.clone(), sort.clone(), 0)
+                        let f = f.clone();
+                        move |_| goto(Filters { state: String::new(), offset: 0, ..f.clone() })
                     },
                 }
                 for (key , label , tone) in STATES {
@@ -113,8 +160,8 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                         tone,
                         pressed: state == key,
                         onclick: {
-                            let (query, tag, sort) = (query.clone(), tag.clone(), sort.clone());
-                            move |_| goto(query.clone(), key.to_string(), tag.clone(), sort.clone(), 0)
+                            let f = f.clone();
+                            move |_| goto(Filters { state: key.to_string(), offset: 0, ..f.clone() })
                         },
                     }
                 }
@@ -133,8 +180,8 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                         label: "All tags".to_string(),
                         pressed: tag.is_empty(),
                         onclick: {
-                            let (query, state, sort) = (query.clone(), state.clone(), sort.clone());
-                            move |_| goto(query.clone(), state.clone(), String::new(), sort.clone(), 0)
+                            let f = f.clone();
+                            move |_| goto(Filters { tag: String::new(), offset: 0, ..f.clone() })
                         },
                     }
                     for t in page.content.clone() {
@@ -144,8 +191,8 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                             dot: logic::tag_colour(t.colour.as_deref()),
                             pressed: tag == t.name,
                             onclick: {
-                                let (query, state, name, sort) = (query.clone(), state.clone(), t.name.clone(), sort.clone());
-                                move |_| goto(query.clone(), state.clone(), name.clone(), sort.clone(), 0)
+                                let (f, name) = (f.clone(), t.name.clone());
+                                move |_| goto(Filters { tag: name.clone(), offset: 0, ..f.clone() })
                             },
                         }
                     }
@@ -192,18 +239,19 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                             tr {
                                 th { class: TH, "Name" }
                                 th { class: TH, "Controller ID" }
+                                th { class: TH, "Group" }
                                 th { class: TH, "Tags" }
                                 th { class: TH, "Installed set" }
                                 th { class: TH,
                                     button { onclick: {
-                                        let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
-                                        move |_| goto(query.clone(), state.clone(), tag.clone(), logic::next_sort(&sort, "state"), 0)
+                                        let f = f.clone();
+                                        move |_| goto(Filters { sort: logic::next_sort(&f.sort, "state"), offset: 0, ..f.clone() })
                                     }, "State{state_mark}" }
                                 }
                                 th { class: "{TH} text-right",
                                     button { onclick: {
-                                        let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
-                                        move |_| goto(query.clone(), state.clone(), tag.clone(), logic::next_sort(&sort, "last_poll"), 0)
+                                        let f = f.clone();
+                                        move |_| goto(Filters { sort: logic::next_sort(&f.sort, "last_poll"), offset: 0, ..f.clone() })
                                     }, "Last poll{last_poll_mark}" }
                                 }
                             }
@@ -219,6 +267,24 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                                         }
                                     }
                                     td { class: "{TD} font-mono text-xs text-foreground", "{t.controller_id}" }
+                                    // Clicking a group filters to it — the only
+                                    // way to discover the groups in use, since
+                                    // there is no endpoint that lists them.
+                                    td { class: "{TD} font-mono text-xs",
+                                        match t.group.clone() {
+                                            Some(g) => rsx! {
+                                                button {
+                                                    class: "text-primary hover:underline",
+                                                    onclick: {
+                                                        let (f, g) = (f.clone(), g.clone());
+                                                        move |_| goto(Filters { group: g.clone(), offset: 0, ..f.clone() })
+                                                    },
+                                                    "{g}"
+                                                }
+                                            },
+                                            None => rsx! { span { class: "text-muted-foreground", "—" } },
+                                        }
+                                    }
                                     td { class: TD,
                                         if t.tags.is_empty() {
                                             span { class: "text-muted-foreground", "—" }
@@ -276,8 +342,8 @@ pub fn Targets(query: String, state: String, tag: String, sort: String, offset: 
                         limit: LIMIT,
                         total: page.total,
                         on_change: {
-                            let (query, state, tag, sort) = (query.clone(), state.clone(), tag.clone(), sort.clone());
-                            move |o| goto(query.clone(), state.clone(), tag.clone(), sort.clone(), o)
+                            let f = f.clone();
+                            move |o| goto(Filters { offset: o, ..f.clone() })
                         },
                     }
                 }},

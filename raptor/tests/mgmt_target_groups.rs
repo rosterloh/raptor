@@ -163,6 +163,22 @@ async fn fiql_filters_by_group_exactly_and_by_hierarchical_prefix() {
     assert_eq!(body["total"], 2);
     assert_eq!(cids(&body), vec!["a1", "a2"]);
 
+    // quoting the value must not disarm the wildcard: quotes come off while
+    // parsing and `*` is only looked for afterwards. The web console always
+    // quotes, so this is the form it actually sends (#117).
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            "/rest/v1/targets?q=group=='plant-a/*'",
+            None,
+        ))
+        .await
+        .unwrap();
+    let body = common::body_json(resp).await;
+    assert_eq!(body["total"], 2);
+    assert_eq!(cids(&body), vec!["a1", "a2"]);
+
     // composes with the other target fields, which is the point of putting it
     // in the shared compiler rather than special-casing the list endpoint
     let resp = app
