@@ -1109,6 +1109,7 @@ dependencies = [
  "crossterm_winapi",
  "derive_more",
  "document-features",
+ "futures-core",
  "mio",
  "parking_lot",
  "rustix",
@@ -4248,9 +4249,11 @@ name = "raptor-cli"
 version = "1.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "clap",
  "crossterm",
  "directories",
+ "futures-util",
  "hex",
  "raptor-api-types",
  "ratatui",

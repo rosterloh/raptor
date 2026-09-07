@@ -270,7 +270,7 @@ fn draw_footer(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     let text = if let Some((msg, _)) = &app.status {
         msg.clone()
     } else {
-        "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [r]efresh [?]help".to_string()
+        "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [y]ank [r]efresh [?]help".to_string()
     };
     f.render_widget(
         Paragraph::new(text).style(Style::default().fg(theme.fg_muted)),
@@ -329,6 +329,7 @@ fn draw_help_modal(f: &mut Frame, theme: &Theme, area: Rect) {
         "/          filter targets (server-side FIQL)",
         "a          assign a distribution set",
         "t          tag the selected target",
+        "y          copy controller ID to the clipboard",
         "c          cancel the active action",
         "f          force the active action",
         "r          refresh now",
