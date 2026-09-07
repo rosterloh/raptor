@@ -104,6 +104,12 @@ transitions the rollout's current status allows, so an operator can drive a
 rollout end to end without touching the API. Creating a rollout is still
 API-only; see the [Rollouts guide](rollouts.md).
 
+When `rollout_approval_enabled` is on, a rollout held in *waiting for approval*
+offers **Approve** and **Deny** instead. Both prompt for an optional remark —
+the audit note stored with the decision — and the detail page then shows who
+decided and what they wrote. Deny is terminal: a denied rollout can never be
+started, only replaced by a fresh one.
+
 > **Note:** The console tracks the API and lags it slightly. A page for the
 > confirmation flow is planned (tracked as an issue on GitHub). Anything not yet
 > in the UI is always available through the

@@ -1,4 +1,4 @@
-use crate::components::ui::{Button, ButtonVariant, Card};
+use crate::components::ui::{Button, ButtonVariant, Card, Dialog, Input};
 use crate::components::*;
 use crate::{Route, api, logic};
 use dioxus::prelude::*;
@@ -12,7 +12,35 @@ pub fn RolloutDetail(id: i64) -> Element {
 
     let mut confirm_delete = use_signal(|| false);
     let mut confirm_stop = use_signal(|| false);
+    // Approve and deny share one dialog: both want the same optional remark,
+    // and deny — being terminal — wants a confirmation step anyway.
+    let mut decide_open = use_signal(|| false);
+    let mut denying = use_signal(|| false);
+    let mut remark = use_signal(String::new);
     let nav = use_navigator();
+
+    let mut decide = move || {
+        let (deny, note) = (denying(), remark());
+        decide_open.set(false);
+        spawn(async move {
+            let res = if deny {
+                api::deny_rollout(id, &note).await
+            } else {
+                api::approve_rollout(id, &note).await
+            };
+            match res {
+                Ok(()) => toast_ok(if deny {
+                    "rollout denied"
+                } else {
+                    "rollout approved"
+                }),
+                Err(e) => toast_error(e.to_string()),
+            }
+            remark.set(String::new());
+            rollout.restart();
+            groups.restart();
+        });
+    };
 
     // Lifecycle transition (start/pause/resume/stop) with toast + refresh.
     let run = move |op: &'static str| {
@@ -42,6 +70,23 @@ pub fn RolloutDetail(id: i64) -> Element {
             Some(Ok(r)) => rsx! {
                 h1 { class: HEADING, "{r.name}" }
                 div { class: "mb-4 flex items-center gap-2",
+                    if r.status == "waiting_for_approval" {
+                        Button {
+                            onclick: move |_| {
+                                denying.set(false);
+                                decide_open.set(true);
+                            },
+                            "Approve"
+                        }
+                        Button {
+                            variant: ButtonVariant::Destructive,
+                            onclick: move |_| {
+                                denying.set(true);
+                                decide_open.set(true);
+                            },
+                            "Deny"
+                        }
+                    }
                     if r.status == "ready" {
                         Button { onclick: move |_| run("start"), "Start" }
                     }
@@ -90,6 +135,12 @@ pub fn RolloutDetail(id: i64) -> Element {
                             }
                         }
                         Row { k: "Target filter", v: r.target_filter_query.clone() }
+                        if let Some(by) = r.approve_decided_by.clone() {
+                            Row { k: "Approval decided by", v: by }
+                        }
+                        if let Some(note) = r.approval_remark.clone() {
+                            Row { k: "Approval remark", v: note }
+                        }
                         Row { k: "Created", v: logic::format_ts(r.created_at) }
                         Row { k: "Last modified", v: logic::format_ts(r.last_modified_at) }
                     }
@@ -98,6 +149,45 @@ pub fn RolloutDetail(id: i64) -> Element {
             },
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| rollout.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
+        }
+        Dialog { open: decide_open,
+            form {
+                onsubmit: move |e: FormEvent| {
+                    e.prevent_default();
+                    decide();
+                },
+                h3 { class: "mb-2 text-lg font-semibold text-foreground",
+                    if denying() { "Deny rollout" } else { "Approve rollout" }
+                }
+                p { class: "mb-4 text-sm text-fg-dim",
+                    if denying() {
+                        "Deny this rollout? It can never be started — letting it through later \
+                            means creating a fresh rollout."
+                    } else {
+                        "Approve this rollout, releasing it to ready so it can be started."
+                    }
+                }
+                label { class: "mb-4 block text-sm text-fg-dim",
+                    span { class: "mb-1 block", "Remark (optional)" }
+                    Input {
+                        value: "{remark}",
+                        oninput: move |e: FormEvent| remark.set(e.value()),
+                    }
+                }
+                div { class: "flex justify-end gap-2",
+                    button {
+                        r#type: "button",
+                        class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
+                        onclick: move |_| decide_open.set(false),
+                        "Cancel"
+                    }
+                    Button {
+                        r#type: "submit",
+                        variant: if denying() { ButtonVariant::Destructive } else { ButtonVariant::Default },
+                        if denying() { "Deny" } else { "Approve" }
+                    }
+                }
+            }
         }
         ConfirmDialog {
             title: "Stop rollout".to_string(),
