@@ -17,6 +17,10 @@ started, per-feature guides, concepts, and API/config/CLI reference. Build it
 locally with `mdbook build docs` (or `mdbook serve docs`), or read the published
 site once GitHub Pages is enabled.
 
+[`CHANGELOG.md`](CHANGELOG.md) indexes what changed in each release; the
+[GitHub releases](https://github.com/rosterloh/raptor/releases) carry the full
+notes and upgrade guidance.
+
 ## Quick start
 
     cargo build --release

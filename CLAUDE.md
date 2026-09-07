@@ -88,4 +88,11 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
   `docs/superpowers/specs/2026-08-26-multi-tenancy-design.md`).
 - **Layering**: handlers validate and translate; rules live in `src/domain/`;
   artifact bytes stream through `storage.rs`, never through the DB.
+- **User-visible changes get a `CHANGELOG.md` bullet** under the unreleased
+  version heading, in the matching Added/Changed/Fixed group, one line with its
+  issue number. The changelog is the scannable index; the GitHub release body
+  keeps the prose and the reasoning, so don't duplicate one into the other.
+  A behaviour change an operator must act on before upgrading belongs under
+  **Changed** with the remedy stated. At tag time, swap `unreleased` for the
+  release date and add the compare link at the bottom of the file.
 - Keep `cargo fmt` and `clippy -D warnings` clean — CI enforces both.
