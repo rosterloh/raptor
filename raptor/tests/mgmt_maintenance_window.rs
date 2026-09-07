@@ -176,6 +176,36 @@ async fn assignment_without_a_window_is_untouched() {
     );
 }
 
+/// Quartz — and so hawkBit — spells a stepped range `0/15`. croner 4 rejects
+/// that by default in favour of `*/15`, which would turn a schedule that
+/// assigned fine yesterday into a 400 on upgrade; `quartz()` opts back in.
+#[tokio::test]
+async fn quartz_shortcut_step_schedules_are_assignable() {
+    let (app, _) = common::setup().await;
+    let ds = fixture(&app).await;
+
+    let resp = assign(
+        &app,
+        ds,
+        Some(json!({"schedule": "0 0/15 * * * ?", "duration": "00:10:00", "timezone": "+00:00"})),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let page = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/d1/actions", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(page["total"], 1);
+    assert_eq!(
+        page["content"][0]["maintenanceWindow"]["schedule"], "0 0/15 * * * ?",
+        "the schedule must round-trip as the operator wrote it"
+    );
+}
+
 /// A window the server cannot evaluate is rejected at assignment time rather
 /// than leaving a device that never installs.
 #[tokio::test]
