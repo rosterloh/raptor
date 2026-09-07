@@ -56,6 +56,46 @@ for intermediate statuses.
 
 Artifact *size* is capped separately by the top-level `max_artifact_size`.
 
+## `[cleanup]` — automatic action cleanup
+
+Deletes closed actions past a retention window, along with their status
+history. `action_status` is the one table that otherwise grows without bound:
+quotas cap how much history any *single* action can accumulate, but nothing
+caps how many actions a fleet accumulates over years of updates.
+
+Off by default — deleting deployment history is not something to start doing to
+an existing installation unasked.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | run the sweep at all |
+| `action_expiry_days` | integer | `30` | how long a closed action is kept, from when it was last modified |
+| `action_statuses` | list | `["finished", "error", "canceled"]` | which statuses may be deleted |
+| `interval_secs` | integer | `3600` | how often the sweep runs |
+
+```toml
+[cleanup]
+enabled = true
+action_expiry_days = 90
+```
+
+An **active action is never eligible**, whatever `action_statuses` says — a
+device can hold a listed status while its action is still live, and deleting it
+would strand that device holding an action id the server no longer knows. Deletion is
+batched — 1000 actions per statement, up to 10k per sweep — so a long-neglected
+instance drains over successive sweeps rather than in one enormous statement.
+(hawkBit bounds its own cleanup the same way, but at one batch per run.)
+
+Rollout progress is unaffected. `totalTargetsPerStatus` is derived by counting
+actions, so deleting a finished one would walk a completed rollout's targets
+back to `scheduled` — reporting as though the deployment had never run. raptor
+records each group's purged outcomes before the rows go and folds them back in.
+(hawkBit has this drift and tolerates it; raptor does not.)
+
+The two hawkBit tenant config keys are reported on
+`/rest/v1/system/configs`: `action.cleanup.auto.expiry` (milliseconds, `-1`
+when disabled) and `action.cleanup.auto.status`.
+
 ## `[ddi]` — device-facing API
 
 | Key | Type | Default | Description |

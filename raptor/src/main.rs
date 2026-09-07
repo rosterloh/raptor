@@ -89,6 +89,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
+            // A separate task rather than a branch in the sweep above: cleanup
+            // reclaims storage on a window measured in days, so it has no
+            // business running at the evaluator's seconds-scale cadence.
+            if state.cfg.cleanup.enabled {
+                let cleanup_state = state.clone();
+                let cleanup_interval = cleanup_state.cfg.cleanup.interval_secs.max(1);
+                tokio::spawn(async move {
+                    let mut interval =
+                        tokio::time::interval(std::time::Duration::from_secs(cleanup_interval));
+                    loop {
+                        interval.tick().await;
+                        match raptor::domain::cleanup::run_sweep(&cleanup_state).await {
+                            Ok(0) => {}
+                            Ok(n) => tracing::info!(deleted = n, "action cleanup sweep"),
+                            Err(e) => tracing::error!(error = ?e, "action cleanup failed"),
+                        }
+                    }
+                });
+            }
             let app = raptor::app::build_app(state);
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");

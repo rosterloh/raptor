@@ -50,6 +50,24 @@ fn tenant_configs(cfg: &Config) -> BTreeMap<String, TenantConfigValue> {
         "rollout.approval.enabled".into(),
         g(json!(cfg.rollout_approval_enabled)),
     );
+    // hawkBit infers "cleanup off" from a negative expiry, so that is what a
+    // client polling these keys has to be told when raptor's own `enabled`
+    // flag is false — reporting the configured window would read as active.
+    let (expiry, statuses) = if cfg.cleanup.enabled {
+        (
+            cfg.cleanup.expiry_millis(),
+            cfg.cleanup
+                .action_statuses
+                .iter()
+                .map(|s| s.to_uppercase())
+                .collect::<Vec<_>>()
+                .join(","),
+        )
+    } else {
+        (-1, String::new())
+    };
+    m.insert("action.cleanup.auto.expiry".into(), g(json!(expiry)));
+    m.insert("action.cleanup.auto.status".into(), g(json!(statuses)));
     // Not implemented yet (#10); reported so clients see a definite value.
     m.insert("multi.assignments.enabled".into(), g(json!(false)));
     m

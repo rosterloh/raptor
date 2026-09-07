@@ -9,7 +9,8 @@ use crate::entity::{
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
-use raptor_api_types::{RolloutCreate, RolloutTargetsPerStatus as TargetsPerStatus};
+use raptor_api_types::RolloutCreate;
+pub(crate) use raptor_api_types::RolloutTargetsPerStatus as TargetsPerStatus;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
@@ -502,7 +503,7 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
 /// Bucket an action status into the hawkBit `totalTargetsPerStatus` field it
 /// contributes to. Everything still in flight (`running`, `canceling`,
 /// `wait_for_confirmation`) counts as running.
-fn bucket(counts: &mut TargetsPerStatus, action_status: &str, n: i64) {
+pub(crate) fn bucket(counts: &mut TargetsPerStatus, action_status: &str, n: i64) {
     match action_status {
         "finished" => counts.finished += n,
         "error" => counts.error += n,
@@ -570,6 +571,14 @@ async fn counts_by_group(
             continue;
         };
         let c = out.entry(g.id).or_default();
+        // Outcomes whose actions automatic cleanup has since deleted. Folded
+        // back in before anything is derived from the live counts, so a purged
+        // group reports what happened rather than drifting back towards
+        // "not started" as its history is reclaimed (#134).
+        c.finished += g.purged_finished;
+        c.error += g.purged_error;
+        c.cancelled += g.purged_cancelled;
+        c.running += g.purged_running;
         // Members the group has no action for yet. Clamped at zero because a
         // target whose rollout action was superseded by a later assignment
         // leaves the canceled one behind, counted against the same group.

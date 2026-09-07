@@ -56,7 +56,8 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Rollout approval workflow (`rollout_approval_enabled`, approve/deny with remark; `raptorctl rollout approve\|deny`) | ✅ (console: ❌ [#129](https://github.com/rosterloh/raptor/issues/129)) |
 | Dynamic rollouts ([#18](https://github.com/rosterloh/raptor/issues/18)) | ❌ |
 | Maintenance windows on direct assignments | ✅ (hawkBit's own Management API has no `maintenanceWindow` field on rollout creation or target-filter auto-assignment to be at parity with — see [#116](https://github.com/rosterloh/raptor/issues/116)) |
-| Per-entity quotas (`[quota]`, hawkBit's defaults, `429` on breach) | ✅ (automatic action cleanup still open — [#14](https://github.com/rosterloh/raptor/issues/14)) |
+| Per-entity quotas (`[quota]`, hawkBit's defaults, `429` on breach) | ✅ |
+| Automatic action cleanup (`[cleanup]`, `action.cleanup.auto.*`) | ✅ (raptor additionally keeps rollout progress stable across a sweep, which upstream does not) |
 | Multi-assignment / action weights | removed upstream in hawkBit 0.10; not planned ([#10](https://github.com/rosterloh/raptor/issues/10)) |
 
 **Wire-format alignment with hawkBit 0.10:** successful deletes return `204 No
