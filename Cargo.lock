@@ -3538,7 +3538,7 @@ dependencies = [
  "bytes",
  "http",
  "opentelemetry",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
 ]
 
 [[package]]
@@ -3553,7 +3553,7 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "prost",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "thiserror 2.0.19",
  "tokio",
  "tonic",
@@ -4217,7 +4217,7 @@ dependencies = [
  "opentelemetry_sdk",
  "rand 0.10.2",
  "raptor-api-types",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "rust-embed",
  "sea-orm",
  "serde",
@@ -4257,13 +4257,13 @@ dependencies = [
  "hex",
  "raptor-api-types",
  "ratatui",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "rpassword",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "tokio",
- "toml 1.1.5+spec-1.1.0",
+ "toml 1.1.6+spec-1.1.0",
 ]
 
 [[package]]
@@ -4277,7 +4277,7 @@ dependencies = [
  "gloo-timers 0.4.0",
  "js-sys",
  "raptor-api-types",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "serde",
  "serde_json",
  "tw_merge",
@@ -4496,11 +4496,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.4"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
+checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "encoding_rs",
  "futures-channel",
@@ -5979,9 +5979,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "1.1.5+spec-1.1.0"
+version = "1.1.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12c0ba9680044b4ce98d391a62094047eada0d64860b80166c39f4a6b5640785"
+checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
 dependencies = [
  "indexmap",
  "serde_core",
