@@ -10,7 +10,8 @@ use crate::print::{opt, table};
 use anyhow::Result;
 use clap::Subcommand;
 use raptor_api_types::{
-    DsAssignment, DsCreate, ModuleRef, SmCreate, TagCreate, TargetCreate, TargetUpdate,
+    DsAssignment, DsCreate, DsInvalidate, ModuleRef, SmCreate, TagCreate, TargetCreate,
+    TargetUpdate,
 };
 
 fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
@@ -607,8 +608,62 @@ pub enum DsCmd {
         #[arg(long = "module")]
         modules: Vec<i64>,
     },
+    /// Withdraw a set: it can no longer be assigned or rolled out, and any
+    /// auto-assignment referencing it is detached. Cannot be undone.
+    Invalidate {
+        id: i64,
+        /// Also stop rollouts deploying this set.
+        #[arg(long)]
+        cancel_rollouts: bool,
+        /// What happens to in-flight actions on this set.
+        #[arg(long, value_enum, default_value_t = CancelActions::None)]
+        cancel_actions: CancelActions,
+        /// Skip the confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     #[command(subcommand)]
     Tag(DsTagCmd),
+}
+
+/// `actionCancelationType` on the invalidate body. hawkBit spells the last one
+/// `force` here — *not* `forced`, which is the assignment vocabulary — so the
+/// alias exists to keep that mix-up from failing the request.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum CancelActions {
+    /// Leave them running, so a device mid-install still reports its result.
+    None,
+    /// Ask devices to stop; the action ends when the device confirms.
+    Soft,
+    /// Cancel server-side at once, without waiting for the device.
+    #[value(alias = "forced")]
+    Force,
+}
+
+impl CancelActions {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Soft => "soft",
+            Self::Force => "force",
+        }
+    }
+}
+
+/// Ask before something irreversible. A non-TTY stdin (CI, a pipe) answers
+/// yes: there is nobody to ask, and failing closed would break scripts that
+/// have no way to pass `--yes` to a command they already invoke.
+fn confirm(question: &str) -> Result<bool> {
+    use std::io::{IsTerminal, Write};
+    let stdin = std::io::stdin();
+    if !stdin.is_terminal() {
+        return Ok(true);
+    }
+    print!("{question} [y/N] ");
+    std::io::stdout().flush()?;
+    let mut line = String::new();
+    stdin.read_line(&mut line)?;
+    Ok(matches!(line.trim(), "y" | "Y" | "yes"))
 }
 
 /// Assign/unassign an existing distribution-set tag — `raptorctl tag create
@@ -654,6 +709,7 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
             println!("name         {}:{}", d.name, d.version);
             println!("type         {}", d.ds_type);
             println!("complete     {}", d.complete);
+            println!("valid        {}", d.valid);
             println!(
                 "modules      {}",
                 d.modules
@@ -683,6 +739,38 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
             }
             println!(
                 "created distribution set {} ({}:{})",
+                d.id, d.name, d.version
+            );
+        }
+        DsCmd::Invalidate {
+            id,
+            cancel_rollouts,
+            cancel_actions,
+            yes,
+        } => {
+            // Fetch first: it names the set in the prompt and in the record
+            // printed afterwards, and turns a wrong id into a 404 before
+            // anything is written.
+            let d = api::distribution_sets::get(c, id).await?;
+            let question = format!(
+                "invalidate distribution set {} ({}:{})? this cannot be undone.",
+                d.id, d.name, d.version
+            );
+            if !yes && !confirm(&question)? {
+                println!("aborted");
+                return Ok(());
+            }
+            let body = DsInvalidate {
+                action_cancelation_type: Some(cancel_actions.as_str().into()),
+                cancel_rollouts,
+            };
+            api::distribution_sets::invalidate(c, id, &body).await?;
+            if json {
+                // Re-read rather than echo `d`, whose `valid` is now stale.
+                return print_json(&api::distribution_sets::get(c, id).await?);
+            }
+            println!(
+                "invalidated distribution set {} ({}:{})",
                 d.id, d.name, d.version
             );
         }
@@ -1105,6 +1193,7 @@ pub async fn status(c: &Client, json: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use std::path::Path;
 
     #[test]
@@ -1184,6 +1273,50 @@ mod tests {
         assert!(msg.contains("unknown software-module type 'app'"), "{msg}");
         assert!(msg.contains("os, firmware, runtime, application"), "{msg}");
         assert!(msg.contains("--ds-type"), "{msg}");
+    }
+
+    #[derive(clap::Parser)]
+    struct DsOnly {
+        #[command(subcommand)]
+        cmd: DsCmd,
+    }
+
+    fn parse_invalidate(args: &[&str]) -> (bool, CancelActions, bool) {
+        let mut argv = vec!["raptorctl", "invalidate"];
+        argv.extend_from_slice(args);
+        match DsOnly::parse_from(argv).cmd {
+            DsCmd::Invalidate {
+                cancel_rollouts,
+                cancel_actions,
+                yes,
+                ..
+            } => (cancel_rollouts, cancel_actions, yes),
+            _ => panic!("parsed the wrong subcommand"),
+        }
+    }
+
+    #[test]
+    fn bare_invalidate_takes_the_safe_path() {
+        // The destructive behaviour is opt-in: a bare invalidate leaves
+        // in-flight actions and rollouts alone, and still asks on a TTY.
+        assert_eq!(
+            parse_invalidate(&["7"]),
+            (false, CancelActions::None, false),
+            "bare `ds invalidate` must not cancel anything"
+        );
+    }
+
+    #[test]
+    fn cancel_actions_use_the_servers_vocabulary() {
+        // The invalidate endpoint validates against none|soft|force and 400s
+        // on anything else — `forced` is the *assignment* vocabulary.
+        assert_eq!(CancelActions::None.as_str(), "none");
+        assert_eq!(CancelActions::Soft.as_str(), "soft");
+        assert_eq!(CancelActions::Force.as_str(), "force");
+        assert_eq!(
+            parse_invalidate(&["7", "--cancel-actions", "forced"]).1,
+            CancelActions::Force
+        );
     }
 
     #[test]

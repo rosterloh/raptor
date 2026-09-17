@@ -52,6 +52,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `module list/create` | software module CRUD |
 | `artifact upload/list/delete <moduleId>` | artifact management |
 | `ds list/get/create` | distribution set CRUD |
+| `ds invalidate <id>` | withdraw a set so it can no longer be deployed |
 | `ds tag add\|rm <id> <tag>` | tag/untag a distribution set |
 | `publish <file> --version <v>` | module + artifact + distribution set in one call |
 | `action list/status/cancel/force` | deployment action control |
@@ -83,6 +84,33 @@ ordering matters: the sequence is create-module → upload → create-set, so a
 type rejected at the last step would leave an orphaned module and a
 multi-megabyte artifact behind, with no `module`/`ds` delete subcommand to
 clean them up.
+
+### Withdrawing a release
+
+`ds invalidate` is the inverse of `publish`: the set can no longer be assigned
+or rolled out, and any target filter auto-assigning it is detached. There is no
+undo.
+
+```console
+$ raptorctl ds invalidate 7
+invalidate distribution set 7 (fw:1.4.1)? this cannot be undone. [y/N] y
+invalidated distribution set 7 (fw:1.4.1)
+```
+
+The bare command is the safe one, because it is the one that gets run in a
+hurry: in-flight actions and rollouts are left alone, so a device that has
+already installed the set still reports its result. The destructive parts are
+opt-in:
+
+| Flag | Effect |
+|---|---|
+| `--cancel-rollouts` | also stop rollouts deploying this set |
+| `--cancel-actions soft` | ask devices to stop; the action ends when the device confirms |
+| `--cancel-actions force` | cancel server-side at once, without waiting for the device |
+| `--yes` (`-y`) | skip the confirmation prompt |
+
+The prompt only appears when stdin is a TTY, so scripts and CI need no `--yes`.
+`ds get` reports the result as `valid false`.
 
 ### Tags
 
