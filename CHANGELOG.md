@@ -13,6 +13,21 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
+## [1.3.0] - unreleased
+
+### Added
+
+- `raptorctl ds invalidate <id> [--cancel-rollouts] [--cancel-actions
+  none|soft|force] [--yes]`, so withdrawing a release no longer drops out of
+  the CLI into hand-written `curl` with credentials on the command line.
+  Defaults to the safe path, prints what was withdrawn, and confirms on a TTY
+  (#141)
+
+### Changed
+
+- `raptorctl ds get` prints `valid`, which is how an invalidated set is
+  distinguished from a deployable one (#141)
+
 ## [1.2.0] - 2026-09-07
 
 Closes the last four gaps on the deployment path against hawkBit 1.x, and adds
