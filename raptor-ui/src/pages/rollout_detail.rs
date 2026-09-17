@@ -135,6 +135,7 @@ pub fn RolloutDetail(id: i64) -> Element {
                             }
                         }
                         Row { k: "Target filter", v: r.target_filter_query.clone() }
+                        Row { k: "Membership", v: logic::rollout_membership(r.dynamic).to_string() }
                         if let Some(by) = r.approve_decided_by.clone() {
                             Row { k: "Approval decided by", v: by }
                         }
@@ -246,7 +247,14 @@ fn Groups(
                                 tbody {
                                     for g in page.content.clone() {
                                         tr { key: "{g.id}",
-                                            td { class: TD, "{g.name}" }
+                                            td { class: TD,
+                                                "{g.name}"
+                                                if g.dynamic {
+                                                    span { class: "ml-2 inline-flex items-center rounded border border-border bg-accent px-2 py-0.5 text-xs text-foreground",
+                                                        "dynamic"
+                                                    }
+                                                }
+                                            }
                                             td { class: TD, StatusBadge { status: g.status.clone() } }
                                             td { class: TD, "{g.total_targets}" }
                                             td { class: TD,

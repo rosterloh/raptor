@@ -211,6 +211,13 @@ Rollout and group payloads carry `totalTargetsPerStatus` (notstarted, scheduled,
 running, error, finished, cancelled) — see the
 [Rollouts guide](../guides/rollouts.md#tracking-progress).
 
+Both also carry `dynamic`. On a rollout it reports whether a trailing group
+keeps absorbing newly-matching targets; on a group, whether it is that trailing
+group. Creation takes `dynamic` plus an optional `dynamicGroupTemplate`
+(`{nameSuffix, targetCount}`), which is rejected unless `dynamic` is true — see
+[Dynamic rollouts](../guides/rollouts.md#dynamic-rollouts). A dynamic rollout
+does not finish on its own; it runs until stopped.
+
 ## Target filters
 
 | Method | Path | Description |

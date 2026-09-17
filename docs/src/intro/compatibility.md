@@ -54,7 +54,7 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Metadata endpoints (targets / modules / DS, `targetVisible` on module entries) | ✅ |
 | All four action types + force escalation (`PUT .../actions/{id}`) and force-quit (`DELETE ...?force=true`) | ✅ |
 | Rollout approval workflow (`rollout_approval_enabled`, approve/deny with remark; `raptorctl rollout approve\|deny`) | ✅ |
-| Dynamic rollouts ([#18](https://github.com/rosterloh/raptor/issues/18)) | ❌ |
+| Dynamic rollouts (`dynamic`, `dynamicGroupTemplate`; trailing group absorbs newly-matching targets, rolls over at capacity, never self-completes) | ✅ (`amountGroups: 0` "pure dynamic" rollouts, with no static groups at all, are not accepted — [#18](https://github.com/rosterloh/raptor/issues/18)) |
 | Maintenance windows on direct assignments | ✅ (hawkBit's own Management API has no `maintenanceWindow` field on rollout creation or target-filter auto-assignment to be at parity with — see [#116](https://github.com/rosterloh/raptor/issues/116)) |
 | Per-entity quotas (`[quota]`, hawkBit's defaults, `429` on breach) | ✅ |
 | Automatic action cleanup (`[cleanup]`, `action.cleanup.auto.*`) | ✅ (raptor additionally keeps rollout progress stable across a sweep, which upstream does not) |

@@ -17,6 +17,12 @@ decisions.
 
 ### Added
 
+- Dynamic rollouts: `dynamic` on rollout creation appends a trailing group that
+  keeps absorbing targets which start matching the filter after creation,
+  deploying to them as they arrive. Optional `dynamicGroupTemplate`
+  (`{nameSuffix, targetCount}`) sizes and names those groups; a full one rolls
+  over to the next. Surfaced as `dynamic` on rollout and group payloads, in the
+  console, and in `raptorctl rollout list` (#18)
 - `raptorctl ds invalidate <id> [--cancel-rollouts] [--cancel-actions
   none|soft|force] [--yes]`, so withdrawing a release no longer drops out of
   the CLI into hand-written `curl` with credentials on the command line.
@@ -25,6 +31,9 @@ decisions.
 
 ### Changed
 
+- A dynamic rollout never reaches `finished` on its own — there may always be
+  another device about to match — so ending one is an operator action
+  (`POST /rest/v1/rollouts/{id}/stop`). Static rollouts are unaffected (#18)
 - `raptorctl ds get` prints `valid`, which is how an invalidated set is
   distinguished from a deployable one (#141)
 

@@ -208,8 +208,11 @@ fn draw_rollouts(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
             };
             let s = &r.total_targets_per_status;
             let done = s.finished + s.error;
+            // A dynamic rollout's total keeps moving, so the marker explains
+            // why its "3/4" never settles at "4/4".
+            let dynamic = if r.dynamic { " ∞" } else { "" };
             Line::from(format!(
-                "{glyph} {} {} — {}/{} · {} err",
+                "{glyph} {} {}{dynamic} — {}/{} · {} err",
                 r.name, r.status, done, r.total_targets, s.error
             ))
             .into()

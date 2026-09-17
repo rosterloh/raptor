@@ -1136,11 +1136,18 @@ pub async fn rollout(c: &Client, cmd: RolloutCmd, json: bool) -> Result<()> {
                             "{}/{}",
                             r.total_targets_per_status.finished, r.total_targets
                         ),
+                        // A dynamic rollout runs until it is stopped, so its
+                        // "running" means something different from a static
+                        // one's — worth a column of its own.
+                        if r.dynamic { "yes".into() } else { "-".into() },
                         opt(&r.approve_decided_by),
                     ]
                 })
                 .collect::<Vec<_>>();
-            table(&["ID", "NAME", "STATUS", "FINISHED", "DECIDED BY"], &rows);
+            table(
+                &["ID", "NAME", "STATUS", "FINISHED", "DYNAMIC", "DECIDED BY"],
+                &rows,
+            );
         }
         RolloutCmd::Approve { id, remark } => {
             decide_rollout(c, id, true, remark.as_deref(), json).await?;

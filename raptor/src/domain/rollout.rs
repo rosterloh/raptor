@@ -40,9 +40,31 @@ pub async fn create_rollout(
     if req.amount_groups < 1 {
         return Err(AppError::BadRequest("amountGroups must be >= 1".into()));
     }
+    // Mirrors hawkBit's "Dynamic group template is only allowed for dynamic
+    // rollouts": a template on a static rollout would otherwise be accepted
+    // and silently ignored, which is the worst of the three outcomes.
+    if req.dynamic_group_template.is_some() && !req.dynamic {
+        return Err(AppError::BadRequest(
+            "dynamicGroupTemplate is only allowed when dynamic is true".into(),
+        ));
+    }
+    let template_count = req
+        .dynamic_group_template
+        .as_ref()
+        .and_then(|t| t.target_count);
+    if let Some(n) = template_count
+        && n < 1
+    {
+        return Err(AppError::BadRequest(
+            "dynamicGroupTemplate.targetCount must be >= 1".into(),
+        ));
+    }
+    // A dynamic rollout carries a trailing group from the start, so it is one
+    // group larger than it asked for.
+    let groups_created = req.amount_groups + i64::from(req.dynamic);
     crate::domain::quota::assert_quota(
         0,
-        req.amount_groups as u64,
+        groups_created as u64,
         st.cfg.quota.max_rollout_groups_per_rollout,
         "group",
         &format!("rollout {}", req.name),
@@ -98,16 +120,24 @@ pub async fn create_rollout(
         action_type: Set(action_type.into()),
         forced_time: Set(req.forcetime),
         total_targets: Set(targets.len() as i64),
-        group_count: Set(req.amount_groups),
+        group_count: Set(groups_created),
         success_threshold: Set(success_threshold),
         error_threshold: Set(error_threshold),
         created_at: Set(now),
         updated_at: Set(now),
+        dynamic: Set(req.dynamic),
+        // Capacity of every dynamic group this rollout will append: the
+        // template's count, else the size of the last static group, which is
+        // how hawkBit seeds the first one.
+        dynamic_group_size: Set(req
+            .dynamic
+            .then(|| template_count.unwrap_or(per_group as i64).max(1))),
         ..Default::default()
     }
     .insert(&txn)
     .await?;
 
+    let mut last_index = 0;
     for (idx, chunk) in targets.chunks(per_group).enumerate() {
         let g = rollout_group::ActiveModel {
             rollout_id: Set(r.id),
@@ -132,9 +162,50 @@ pub async fn create_rollout(
             .insert(&txn)
             .await?;
         }
+        last_index = idx as i64;
     }
+
+    // The trailing group is created up front rather than when the static
+    // groups run out, so `start_rollout` and the evaluator's "advance to the
+    // next group" path need no notion of dynamics at all.
+    if req.dynamic {
+        let suffix = req
+            .dynamic_group_template
+            .as_ref()
+            .and_then(|t| t.name_suffix.clone())
+            .unwrap_or_default();
+        dynamic_group(&txn, &r, last_index + 1, &suffix).await?;
+    }
+
     txn.commit().await?;
     Ok(r)
+}
+
+/// Appends an empty dynamic group at `order_index`, ready to be scheduled when
+/// its turn comes. Named `group-<n><suffix>` so the suffix chosen at creation
+/// time carries to every later group without being stored.
+async fn dynamic_group<C: sea_orm::ConnectionTrait>(
+    db: &C,
+    r: &rollout::Model,
+    order_index: i64,
+    name_suffix: &str,
+) -> Result<rollout_group::Model, AppError> {
+    let now = now_ms();
+    Ok(rollout_group::ActiveModel {
+        rollout_id: Set(r.id),
+        name: Set(format!("group-{}{name_suffix}", order_index + 1)),
+        order_index: Set(order_index),
+        status: Set("ready".into()),
+        total_targets: Set(0),
+        success_threshold: Set(r.success_threshold),
+        error_threshold: Set(r.error_threshold),
+        created_at: Set(now),
+        updated_at: Set(now),
+        dynamic: Set(true),
+        ..Default::default()
+    }
+    .insert(db)
+    .await?)
 }
 
 async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(), AppError> {
@@ -151,34 +222,50 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
-        // Rollouts carry no maintenance window: hawkBit's own Management API
-        // has no maintenanceWindow field on rollout creation to be at parity
-        // with (verified against MgmtRolloutRestRequestBodyPost/Put and
-        // AbstractMgmtRolloutConditionsEntity — see #116).
-        let res = crate::domain::deployment::assign_ds(
-            st,
-            &t,
-            r.ds_id,
-            Some(&r.action_type),
-            r.forced_time,
-            None,
-        )
-        .await?;
-        if let Some(action_id) = res.action_id {
-            let a = action::Entity::find_by_id(action_id)
-                .one(&st.db)
-                .await?
-                .ok_or(AppError::NotFound("action"))?;
-            let mut am: action::ActiveModel = a.into();
-            am.rollout_id = Set(Some(r.id));
-            am.rollout_group_id = Set(Some(group.id));
-            am.update(&st.db).await?;
-        }
+        schedule_target(st, &r, group, &t).await?;
     }
     let mut gm: rollout_group::ActiveModel = group.clone().into();
     gm.status = Set("running".into());
     gm.updated_at = Set(now_ms());
     gm.update(&st.db).await?;
+    Ok(())
+}
+
+/// Deploys the rollout's distribution set to one target and stamps the
+/// resulting action with the rollout and group it came from.
+///
+/// Shared by the initial scheduling of a group and by the dynamic fill, so a
+/// target absorbed mid-flight is deployed to on exactly the same terms as one
+/// that was a member from the start.
+async fn schedule_target(
+    st: &AppState,
+    r: &rollout::Model,
+    group: &rollout_group::Model,
+    t: &target::Model,
+) -> Result<(), AppError> {
+    // Rollouts carry no maintenance window: hawkBit's own Management API
+    // has no maintenanceWindow field on rollout creation to be at parity
+    // with (verified against MgmtRolloutRestRequestBodyPost/Put and
+    // AbstractMgmtRolloutConditionsEntity — see #116).
+    let res = crate::domain::deployment::assign_ds(
+        st,
+        t,
+        r.ds_id,
+        Some(&r.action_type),
+        r.forced_time,
+        None,
+    )
+    .await?;
+    if let Some(action_id) = res.action_id {
+        let a = action::Entity::find_by_id(action_id)
+            .one(&st.db)
+            .await?
+            .ok_or(AppError::NotFound("action"))?;
+        let mut am: action::ActiveModel = a.into();
+        am.rollout_id = Set(Some(r.id));
+        am.rollout_group_id = Set(Some(group.id));
+        am.update(&st.db).await?;
+    }
     Ok(())
 }
 
@@ -442,6 +529,10 @@ pub async fn evaluate_rollouts(st: &AppState) -> Result<(), AppError> {
 }
 
 async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppError> {
+    if r.dynamic {
+        fill_dynamic_group(st, r).await?;
+    }
+
     let Some(group) = rollout_group::Entity::find()
         .filter(rollout_group::Column::RolloutId.eq(r.id))
         .filter(rollout_group::Column::Status.eq("running"))
@@ -455,7 +546,16 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
         .filter(action::Column::RolloutGroupId.eq(group.id))
         .all(&st.db)
         .await?;
-    let total = actions.len().max(1) as i64;
+    // A dynamic group's thresholds are measured against its capacity, not
+    // against however many targets happen to have landed in it: the group
+    // fills while it runs, so a live denominator would let a single early
+    // success cross a 50% threshold. hawkBit reaches the same result by
+    // proxying `getTotalTargets` on the group (`JpaRolloutExecutor.evalProxy`).
+    let total = if group.dynamic {
+        r.dynamic_group_size.unwrap_or(1).max(1)
+    } else {
+        actions.len().max(1) as i64
+    };
     let success = actions.iter().filter(|a| a.status == "finished").count() as i64;
     let error = actions
         .iter()
@@ -475,6 +575,14 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
     }
 
     if success * 100 / total >= group.success_threshold {
+        // The trailing group of a dynamic rollout never completes, however
+        // many of its targets succeed — there may always be another target
+        // about to match. Only an operator ends a dynamic rollout, by stopping
+        // it. hawkBit encodes the same rule as
+        // `!(rolloutGroup == lastGroup && rolloutGroup.isDynamic())`.
+        if group.dynamic && is_last_group(st, &group).await? {
+            return Ok(());
+        }
         let order_index = group.order_index;
         let mut gm: rollout_group::ActiveModel = group.into();
         gm.status = Set("finished".into());
@@ -497,6 +605,160 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
             }
         }
     }
+    Ok(())
+}
+
+/// Whether `group` is the last group of its rollout by order.
+async fn is_last_group(st: &AppState, group: &rollout_group::Model) -> Result<bool, AppError> {
+    Ok(rollout_group::Entity::find()
+        .filter(rollout_group::Column::RolloutId.eq(group.rollout_id))
+        .filter(rollout_group::Column::OrderIndex.gt(group.order_index))
+        .one(&st.db)
+        .await?
+        .is_none())
+}
+
+/// Absorbs targets that have started matching the rollout's filter since it was
+/// created into its trailing dynamic group, and rolls over to a fresh group
+/// once that one is full.
+///
+/// Runs once per evaluator sweep, which is the throttle — hawkBit needs an
+/// explicit `dynamicRolloutsMinInvolvePeriodMS` because its executor can run
+/// far more often than raptor's `rollout_eval_interval_secs` (default 5s).
+///
+/// Failures to assign an individual target are logged and skipped rather than
+/// propagated: one target whose type is incompatible with the distribution set
+/// would otherwise abort the sweep for every rollout behind it.
+async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), AppError> {
+    let capacity = r.dynamic_group_size.unwrap_or(1).max(1);
+    let Some(group) = rollout_group::Entity::find()
+        .filter(rollout_group::Column::RolloutId.eq(r.id))
+        .order_by_desc(rollout_group::Column::OrderIndex)
+        .one(&st.db)
+        .await?
+    else {
+        return Ok(());
+    };
+    if !group.dynamic {
+        return Ok(());
+    }
+
+    let members = rollout_target_group::Entity::find()
+        .filter(rollout_target_group::Column::RolloutGroupId.eq(group.id))
+        .count(&st.db)
+        .await? as i64;
+
+    // Full, or already wound up: start a fresh group behind it. The filled one
+    // is then an ordinary non-last group and finishes on its own thresholds.
+    if members >= capacity || matches!(group.status.as_str(), "finished" | "stopped") {
+        let next_index = group.order_index + 1;
+        if crate::domain::quota::assert_quota(
+            next_index as u64,
+            1,
+            st.cfg.quota.max_rollout_groups_per_rollout,
+            "group",
+            &format!("rollout {}", r.name),
+        )
+        .is_err()
+        {
+            // hawkBit logs and gives up on growing further too. The rollout
+            // keeps running; what it has already scheduled is unaffected.
+            tracing::warn!(
+                rollout_id = r.id,
+                "rollout group quota reached, no further dynamic groups"
+            );
+            return Ok(());
+        }
+        let suffix = group
+            .name
+            .strip_prefix(&format!("group-{}", group.order_index + 1))
+            .unwrap_or_default()
+            .to_string();
+        let new_group = dynamic_group(&st.db, r, next_index, &suffix).await?;
+        let mut rm: rollout::ActiveModel = r.clone().into();
+        rm.group_count = Set(next_index + 1);
+        rm.updated_at = Set(now_ms());
+        rm.update(&st.db).await?;
+        // Nothing has finished the filled group yet, so the new one waits its
+        // turn exactly as a static group would.
+        tracing::debug!(
+            rollout_id = r.id,
+            group_id = new_group.id,
+            "created dynamic rollout group"
+        );
+        return Ok(());
+    }
+
+    // An invalidated or incomplete distribution set can no longer be assigned,
+    // so stop drawing targets in rather than failing once per target per sweep.
+    let ds = distribution_set::Entity::find_by_id(r.ds_id)
+        .one(&st.db)
+        .await?;
+    if !ds.is_some_and(|d| d.complete && !d.invalid) {
+        return Ok(());
+    }
+
+    let cond = crate::api::mgmt::targets::condition(&r.target_filter)?;
+    // Targets the rollout already carries, in any of its groups — one that was
+    // deployed to by an earlier group must not be picked up again. Expressed as
+    // a subquery rather than by reading the ids out and sending them back as an
+    // `IN (…)` list, which on a large fleet would mean a six-figure parameter
+    // list every evaluator sweep.
+    let this_rollouts_groups = sea_orm::sea_query::Query::select()
+        .column(rollout_group::Column::Id)
+        .from(rollout_group::Entity)
+        .and_where(rollout_group::Column::RolloutId.eq(r.id))
+        .to_owned();
+    let members_of_this_rollout = sea_orm::sea_query::Query::select()
+        .column(rollout_target_group::Column::TargetId)
+        .from(rollout_target_group::Entity)
+        .and_where(rollout_target_group::Column::RolloutGroupId.in_subquery(this_rollouts_groups))
+        .to_owned();
+    let newcomers = target::Entity::find()
+        .filter(cond)
+        .filter(target::Column::Id.not_in_subquery(members_of_this_rollout))
+        .order_by_asc(target::Column::Id)
+        .limit((capacity - members) as u64)
+        .all(&st.db)
+        .await?;
+    if newcomers.is_empty() {
+        return Ok(());
+    }
+
+    let running = group.status == "running";
+    let mut absorbed = 0i64;
+    for t in &newcomers {
+        // Membership first: it is what makes the target part of the rollout,
+        // and what stops the next sweep from picking it up again.
+        rollout_target_group::ActiveModel {
+            rollout_group_id: Set(group.id),
+            target_id: Set(t.id),
+            ..Default::default()
+        }
+        .insert(&st.db)
+        .await?;
+        absorbed += 1;
+        if running {
+            match schedule_target(st, r, &group, t).await {
+                Ok(()) => {}
+                Err(e) => tracing::warn!(
+                    error = ?e,
+                    rollout_id = r.id,
+                    target_id = t.id,
+                    "could not deploy to target absorbed by dynamic rollout"
+                ),
+            }
+        }
+    }
+
+    let mut gm: rollout_group::ActiveModel = group.clone().into();
+    gm.total_targets = Set(group.total_targets + absorbed);
+    gm.updated_at = Set(now_ms());
+    gm.update(&st.db).await?;
+    let mut rm: rollout::ActiveModel = r.clone().into();
+    rm.total_targets = Set(r.total_targets + absorbed);
+    rm.updated_at = Set(now_ms());
+    rm.update(&st.db).await?;
     Ok(())
 }
 
@@ -653,6 +915,7 @@ pub fn rollout_rest(
         last_modified_at: r.updated_at,
         approve_decided_by: r.approval_decided_by.clone(),
         approval_remark: r.approval_remark.clone(),
+        dynamic: r.dynamic,
         links: serde_json::json!({"self": {"href": format!("{base}/rest/v1/rollouts/{}", r.id)}}),
     }
 }
@@ -667,6 +930,7 @@ pub fn rollout_group_rest(
         id: g.id,
         name: g.name.clone(),
         status: g.status.clone(),
+        dynamic: g.dynamic,
         total_targets: g.total_targets,
         total_targets_per_status: counts,
         success_condition: raptor_api_types::RolloutCondition {

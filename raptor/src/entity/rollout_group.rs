@@ -27,6 +27,10 @@ pub struct Model {
     pub purged_cancelled: i64,
     #[sea_orm(default_value = 0)]
     pub purged_running: i64,
+    /// A group that absorbs newly-matching targets while it runs, rather than
+    /// taking its membership from the snapshot at creation time (#18).
+    #[sea_orm(default_value = false)]
+    pub dynamic: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

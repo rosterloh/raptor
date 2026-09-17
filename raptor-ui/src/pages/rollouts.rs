@@ -102,6 +102,13 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                             tr { key: "{r.id}", class: ROW,
                                 td { class: TD,
                                     Link { to: Route::RolloutDetail { id: r.id }, class: LINK_CELL, "{r.name}" }
+                                    // A dynamic rollout's progress never reaches
+                                    // its total, because the total keeps moving.
+                                    if r.dynamic {
+                                        span { class: "ml-2 inline-flex items-center rounded border border-border bg-accent px-2 py-0.5 text-xs text-foreground",
+                                            "dynamic"
+                                        }
+                                    }
                                 }
                                 td { class: TD, StatusBadge { status: r.status.clone() } }
                                 td { class: TD, "{r.total_targets}" }

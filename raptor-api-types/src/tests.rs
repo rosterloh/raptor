@@ -187,7 +187,7 @@ fn rollout_shape() {
             "notstarted": 0, "scheduled": 5, "running": 3,
             "error": 1, "finished": 1, "cancelled": 0
         },
-        "createdAt": 1, "lastModifiedAt": 2,
+        "createdAt": 1, "lastModifiedAt": 2, "dynamic": false,
         "_links": {"self": {"href": "http://x/rest/v1/rollouts/1"}}
     }));
 }
@@ -207,6 +207,7 @@ fn rollout_approval_shape() {
         },
         "createdAt": 1, "lastModifiedAt": 2,
         "approveDecidedBy": "admin", "approvalRemark": "not this week",
+        "dynamic": false,
         "_links": {"self": {"href": "http://x/rest/v1/rollouts/1"}}
     }));
 }
@@ -231,7 +232,8 @@ fn rollout_approval_fields_absent_until_decided() {
 #[test]
 fn rollout_group_shape() {
     round_trip::<RolloutGroupRest>(json!({
-        "id": 6, "name": "group-1", "status": "running", "totalTargets": 5,
+        "id": 6, "name": "group-1", "status": "running", "dynamic": false,
+        "totalTargets": 5,
         "totalTargetsPerStatus": {
             "notstarted": 0, "scheduled": 0, "running": 3,
             "error": 1, "finished": 1, "cancelled": 0
@@ -242,13 +244,56 @@ fn rollout_group_shape() {
     }));
 }
 
+/// `dynamic` and its group template ride on the create body. hawkBit declares
+/// `dynamic` as a primitive `boolean`, so it is always present on a response
+/// even when false — unlike the template, which is request-only and omitted.
+#[test]
+fn rollout_dynamic_shape() {
+    round_trip::<RolloutCreate>(json!({
+        "name": "r1", "distributionSetId": 5, "targetFilterQuery": "name==*",
+        "amountGroups": 2,
+        "successCondition": {"condition": "THRESHOLD", "expression": "80"},
+        "dynamic": true,
+        "dynamicGroupTemplate": {"nameSuffix": "-dynamic", "targetCount": 20}
+    }));
+    round_trip::<RolloutGroupRest>(json!({
+        "id": 7, "name": "group-3-dynamic", "status": "running", "dynamic": true,
+        "totalTargets": 4,
+        "totalTargetsPerStatus": {
+            "notstarted": 0, "scheduled": 0, "running": 4,
+            "error": 0, "finished": 0, "cancelled": 0
+        },
+        "successCondition": {"condition": "THRESHOLD", "expression": "50"},
+        "errorCondition": {"condition": "THRESHOLD", "expression": "50"},
+        "_links": {"self": {"href": "http://x/rest/v1/rollouts/1/deploygroups/7"}}
+    }));
+}
+
+/// A create body that says nothing about dynamics is a static rollout. The
+/// template is request-only and stays absent; `dynamic` itself is always on
+/// the wire, like every other boolean in these DTOs.
+#[test]
+fn rollout_create_defaults_to_static() {
+    let c: RolloutCreate = serde_json::from_value(json!({
+        "name": "r1", "distributionSetId": 5, "targetFilterQuery": "name==*",
+        "amountGroups": 2,
+        "successCondition": {"condition": "THRESHOLD", "expression": "80"}
+    }))
+    .unwrap();
+    assert!(!c.dynamic);
+    assert_eq!(c.dynamic_group_template, None);
+    let v = serde_json::to_value(&c).unwrap();
+    assert!(v.get("dynamicGroupTemplate").is_none());
+}
+
 #[test]
 fn rollout_forcetime_is_lowercase_on_request_and_response() {
     round_trip::<RolloutCreate>(json!({
         "name": "r1", "distributionSetId": 5, "targetFilterQuery": "name==*",
         "amountGroups": 2,
         "successCondition": {"condition": "THRESHOLD", "expression": "80"},
-        "type": "timeforced", "forcetime": 1_700_000_000_000_i64
+        "type": "timeforced", "forcetime": 1_700_000_000_000_i64,
+        "dynamic": false
     }));
 }
 

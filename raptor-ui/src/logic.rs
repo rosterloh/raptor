@@ -180,6 +180,17 @@ pub fn percent(n: i64, total: i64) -> f64 {
     (n as f64 * 100.0 / total as f64).clamp(0.0, 100.0)
 }
 
+/// How a rollout decides which targets belong to it. Spelled out rather than
+/// shown as a bare "dynamic" flag, because the consequence — that the rollout
+/// will not end on its own — is the part an operator needs.
+pub fn rollout_membership(dynamic: bool) -> &'static str {
+    if dynamic {
+        "Dynamic — keeps absorbing newly-matching targets; runs until stopped"
+    } else {
+        "Static — the targets that matched when it was created"
+    }
+}
+
 /// (display label, tone) for a target `updateStatus` or a rollout/group state.
 ///
 /// The label is deliberately not just the raw key — `in_sync` reads as
