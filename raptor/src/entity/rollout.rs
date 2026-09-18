@@ -31,6 +31,13 @@ pub struct Model {
     pub approval_decided_by: Option<String>,
     /// Free-form note left with the approve/deny decision.
     pub approval_remark: Option<String>,
+    /// Whether a trailing group keeps absorbing targets that start matching
+    /// `target_filter` after creation (hawkBit's dynamic rollouts, #18).
+    #[sea_orm(default_value = false)]
+    pub dynamic: bool,
+    /// Capacity of each dynamic group, and the denominator its thresholds are
+    /// evaluated against. `None` on a static rollout.
+    pub dynamic_group_size: Option<i64>,
     /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
     #[sea_orm(default_value = "DEFAULT")]
     pub tenant: String,

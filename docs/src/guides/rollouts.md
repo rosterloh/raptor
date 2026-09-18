@@ -173,6 +173,71 @@ The background evaluator runs every `rollout_eval_interval_secs` seconds
 load on large fleets. See the
 [Configuration Reference](../reference/configuration.md).
 
-> **Note:** hawkBit's **dynamic rollouts** (groups that keep absorbing
-> newly-matching targets) are not yet implemented. Group membership is a static
-> snapshot taken at creation time.
+## Dynamic rollouts
+
+By default a rollout's membership is a snapshot: the targets matching the filter
+at creation time, and no others. A device that registers an hour later is not
+part of it, however well it matches.
+
+Setting `dynamic: true` appends a **trailing dynamic group** that keeps
+absorbing targets as they start matching:
+
+```bash
+curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "name": "fleet-1.1",
+        "distributionSetId": 1,
+        "targetFilterQuery": "controllerId==device-*",
+        "amountGroups": 3,
+        "successCondition": {"condition":"THRESHOLD","expression":"90"},
+        "dynamic": true,
+        "dynamicGroupTemplate": {"nameSuffix": "-dynamic", "targetCount": 20}
+      }'
+```
+
+That creates `group-1`, `group-2`, `group-3` as usual plus `group-4-dynamic`,
+which is empty at first. The static groups run in order exactly as before; when
+the last of them finishes, the dynamic group starts and begins taking in
+newcomers. A target absorbed while the group is running is deployed to
+immediately, on the same action type and forced time as every other target of
+the rollout.
+
+`dynamicGroupTemplate` is optional and only allowed when `dynamic` is true
+(otherwise the request is rejected, rather than silently ignored):
+
+| Field | Meaning | Default |
+|---|---|---|
+| `targetCount` | how many targets one dynamic group takes before the next is opened | the size of the last static group |
+| `nameSuffix` | appended to the generated `group-<n>` name | none |
+
+### What to expect
+
+- **A dynamic rollout never finishes on its own.** There may always be another
+  device about to match, so the trailing group stays `running` no matter how
+  many of its targets succeed. Ending one is an operator action:
+  [`POST /rest/v1/rollouts/{id}/stop`](../reference/management-api.md), or
+  `raptorctl` — see below.
+- **Groups do not reopen.** Newcomers only ever land in the trailing group;
+  a group that has finished stays finished.
+- **Full groups roll over.** Once the trailing group holds `targetCount`
+  targets, a new dynamic group opens behind it and the full one completes on
+  its own thresholds. Numbering and the name suffix carry on (`group-4-dynamic`,
+  `group-5-dynamic`, …), up to the `max_rollout_groups_per_rollout`
+  [quota](../reference/configuration.md) — at which point absorbing stops and a
+  warning is logged.
+- **Thresholds are measured against the group's capacity**, not against however
+  many targets have landed in it so far. Otherwise a single early success would
+  cross a 50% threshold in a group of one.
+- **Absorbing stops if the distribution set is invalidated.** Withdrawing a
+  release with [`ds invalidate`](cli.md#withdrawing-a-release) keeps it from
+  being drawn onto further devices; use `cancelRollouts` to stop the rollout
+  itself as well.
+- A target that cannot take the set — an incompatible target type — is skipped
+  with a warning rather than failing the sweep.
+
+Absorbing starts as soon as the rollout does, not when the trailing group's turn
+comes: while the static groups ahead of it are still running, newcomers join the
+dynamic group and count towards its `totalTargets`, but no action is issued
+until the group itself starts. That is the same deal a target in `group-3` gets
+while `group-1` is running.
