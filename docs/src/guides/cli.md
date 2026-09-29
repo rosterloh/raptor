@@ -56,7 +56,10 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `ds tag add\|rm <id> <tag>` | tag/untag a distribution set |
 | `publish <file> --version <v>` | module + artifact + distribution set in one call |
 | `action list/status/cancel/force` | deployment action control |
-| `rollout list/approve/deny` | list rollouts, decide ones awaiting approval |
+| `rollout list/get` | list rollouts, show one with its targets counted by outcome |
+| `rollout create <name> --ds <id> --filter <fiql> --groups <n> --success <pct>` | create a rollout (flags for every `RolloutCreate` field) |
+| `rollout start/pause/resume/stop <id>` | drive a rollout's lifecycle; `stop` confirms unless `-y` |
+| `rollout approve/deny <id>` | decide rollouts awaiting approval |
 | `status` | fleet-wide statistics |
 
 Run `raptorctl <command> --help` for full flag lists.
@@ -157,6 +160,40 @@ error: distribution set type 'app' is not compatible with target type 'gateway',
 `raptorctl target type clear <cid>` removes the constraint. Creating target
 types themselves is not in the CLI yet — use the console or
 `POST /rest/v1/targettypes`.
+
+### Rollouts
+
+`rollout create` takes the `POST /rest/v1/rollouts` body as flags, with the
+nested conditions flattened: `--success`/`--error` are percentages, and
+`--dynamic-suffix`/`--dynamic-count` build the `dynamicGroupTemplate`. A
+template flag without `--dynamic` is rejected before anything is sent.
+
+A dynamic rollout never finishes on its own (see the
+[Rollouts guide](rollouts.md#dynamic-rollouts)), so its full lifecycle is
+create, start, and eventually stop:
+
+```console
+$ raptorctl rollout create fleet-1.1 --ds 16 --filter 'tag==rpi5' \
+    --groups 1 --success 50 --dynamic --dynamic-suffix -dynamic --dynamic-count 20
+created rollout 2 (fleet-1.1) — 4 targets, now ready
+
+$ raptorctl rollout start 2
+rollout 2 is now running
+
+$ raptorctl rollout get 2        # watch it absorb newly-matching targets
+...
+targets      4
+  notstarted 0  scheduled 2  running 2  finished 0  error 0  cancelled 0
+
+$ raptorctl rollout stop 2
+stop rollout 2 (fleet-1.1) and cancel its in-flight updates? this cannot be undone. [y/N] y
+rollout 2 is now stopping
+```
+
+`stop` soft-cancels the rollout's in-flight actions and is terminal, so it asks
+first on a TTY; pass `-y` to skip the prompt. It reports `stopping` until those
+devices acknowledge the cancel. `pause` and `resume` hold and release group
+progression without cancelling anything.
 
 ### Rollout approval
 

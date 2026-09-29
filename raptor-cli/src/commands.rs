@@ -10,8 +10,8 @@ use crate::print::{opt, table};
 use anyhow::Result;
 use clap::Subcommand;
 use raptor_api_types::{
-    DsAssignment, DsCreate, DsInvalidate, ModuleRef, SmCreate, TagCreate, TargetCreate,
-    TargetUpdate,
+    DsAssignment, DsCreate, DsInvalidate, DynamicRolloutGroupTemplate, ModuleRef, RolloutCondition,
+    RolloutCreate, SmCreate, TagCreate, TargetCreate, TargetUpdate,
 };
 
 fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
@@ -1101,6 +1101,26 @@ pub async fn action(c: &Client, cmd: ActionCmd, json: bool) -> Result<()> {
 pub enum RolloutCmd {
     /// List rollouts with their status and progress
     List,
+    /// Show one rollout with its targets counted by outcome
+    Get { id: i64 },
+    /// Create a rollout. It starts `ready` (or `waiting_for_approval`); run
+    /// `rollout start` to begin deploying.
+    Create(RolloutCreateArgs),
+    /// Start a ready rollout
+    Start { id: i64 },
+    /// Pause a running rollout; groups stop progressing, in-flight actions
+    /// carry on
+    Pause { id: i64 },
+    /// Resume a paused rollout
+    Resume { id: i64 },
+    /// Stop a rollout and soft-cancel its in-flight actions. Terminal — and
+    /// the only way a dynamic rollout ever ends.
+    Stop {
+        id: i64,
+        /// Skip the confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
     /// Approve a rollout awaiting approval, releasing it to be started.
     Approve {
         id: i64,
@@ -1116,6 +1136,78 @@ pub enum RolloutCmd {
         #[arg(long)]
         remark: Option<String>,
     },
+}
+
+/// `RolloutCreate` with its nested conditions and dynamic-group template
+/// flattened into scalar flags, so creating a rollout needs no hand-written
+/// JSON.
+#[derive(clap::Args)]
+pub struct RolloutCreateArgs {
+    name: String,
+    /// Distribution set to deploy
+    #[arg(long)]
+    ds: i64,
+    /// FIQL query selecting the targets, e.g. `tag==prod`
+    #[arg(long)]
+    filter: String,
+    /// Number of static groups the matching targets are split into
+    #[arg(long)]
+    groups: i64,
+    /// Percent of a group that must succeed before the next one starts
+    #[arg(long)]
+    success: u8,
+    /// Percent of a group failing that pauses the rollout
+    #[arg(long)]
+    error: Option<u8>,
+    /// forced (default) | soft | timeforced | downloadonly
+    #[arg(long = "type")]
+    rollout_type: Option<String>,
+    /// `timeforced` deadline, in epoch milliseconds
+    #[arg(long)]
+    forcetime: Option<i64>,
+    #[arg(long)]
+    description: Option<String>,
+    /// Keep absorbing targets that start matching the filter later, into a
+    /// trailing group that runs until `rollout stop`
+    #[arg(long)]
+    dynamic: bool,
+    /// Appended to each dynamic group's name, e.g. `-dynamic`
+    // Hyphen values allowed: the usual suffix starts with one, and clap would
+    // otherwise read `-dynamic` as a flag.
+    #[arg(long, requires = "dynamic", allow_hyphen_values = true)]
+    dynamic_suffix: Option<String>,
+    /// Targets one dynamic group takes before the next opens (default: the
+    /// size of the last static group)
+    #[arg(long, requires = "dynamic")]
+    dynamic_count: Option<i64>,
+}
+
+impl RolloutCreateArgs {
+    fn into_body(self) -> RolloutCreate {
+        let threshold = |pct: u8| RolloutCondition {
+            condition: "THRESHOLD".into(),
+            expression: pct.to_string(),
+        };
+        let template = (self.dynamic_suffix.is_some() || self.dynamic_count.is_some()).then_some(
+            DynamicRolloutGroupTemplate {
+                name_suffix: self.dynamic_suffix,
+                target_count: self.dynamic_count,
+            },
+        );
+        RolloutCreate {
+            name: self.name,
+            description: self.description,
+            distribution_set_id: self.ds,
+            target_filter_query: self.filter,
+            amount_groups: self.groups,
+            success_condition: threshold(self.success),
+            error_condition: self.error.map(threshold),
+            rollout_type: self.rollout_type,
+            forcetime: self.forcetime,
+            dynamic: self.dynamic,
+            dynamic_group_template: template,
+        }
+    }
 }
 
 pub async fn rollout(c: &Client, cmd: RolloutCmd, json: bool) -> Result<()> {
@@ -1149,6 +1241,54 @@ pub async fn rollout(c: &Client, cmd: RolloutCmd, json: bool) -> Result<()> {
                 &rows,
             );
         }
+        RolloutCmd::Get { id } => {
+            let r = api::rollouts::get(c, id).await?;
+            if json {
+                return print_json(&r);
+            }
+            let s = &r.total_targets_per_status;
+            println!("id           {}", r.id);
+            println!("name         {}", r.name);
+            println!("description  {}", opt(&r.description));
+            println!("status       {}", r.status);
+            println!("ds           {}", r.distribution_set_id);
+            println!("filter       {}", r.target_filter_query);
+            println!("type         {}", r.rollout_type);
+            println!("dynamic      {}", r.dynamic);
+            println!("targets      {}", r.total_targets);
+            println!(
+                "  notstarted {}  scheduled {}  running {}  finished {}  error {}  cancelled {}",
+                s.notstarted, s.scheduled, s.running, s.finished, s.error, s.cancelled
+            );
+            println!("decided by   {}", opt(&r.approve_decided_by));
+        }
+        RolloutCmd::Create(args) => {
+            let r = api::rollouts::create(c, &args.into_body()).await?;
+            if json {
+                return print_json(&r);
+            }
+            println!(
+                "created rollout {} ({}) — {} targets, now {}",
+                r.id, r.name, r.total_targets, r.status
+            );
+        }
+        RolloutCmd::Start { id } => lifecycle_rollout(c, id, "start", json).await?,
+        RolloutCmd::Pause { id } => lifecycle_rollout(c, id, "pause", json).await?,
+        RolloutCmd::Resume { id } => lifecycle_rollout(c, id, "resume", json).await?,
+        RolloutCmd::Stop { id, yes } => {
+            // Fetch first so the prompt names the rollout, and a wrong id
+            // 404s before anything is cancelled.
+            let r = api::rollouts::get(c, id).await?;
+            let question = format!(
+                "stop rollout {} ({}) and cancel its in-flight updates? this cannot be undone.",
+                r.id, r.name
+            );
+            if !yes && !confirm(&question)? {
+                println!("aborted");
+                return Ok(());
+            }
+            lifecycle_rollout(c, id, "stop", json).await?;
+        }
         RolloutCmd::Approve { id, remark } => {
             decide_rollout(c, id, true, remark.as_deref(), json).await?;
         }
@@ -1169,6 +1309,18 @@ async fn decide_rollout(
     json: bool,
 ) -> Result<()> {
     api::rollouts::decide(c, id, approve, remark).await?;
+    let r = api::rollouts::get(c, id).await?;
+    if json {
+        return print_json(&r);
+    }
+    println!("rollout {} is now {}", r.id, r.status);
+    Ok(())
+}
+
+/// Same re-read as `decide_rollout`: `stop` in particular may land in
+/// `stopping` rather than `stopped`, and that is worth reporting as-is.
+async fn lifecycle_rollout(c: &Client, id: i64, verb: &str, json: bool) -> Result<()> {
+    api::rollouts::lifecycle(c, id, verb).await?;
     let r = api::rollouts::get(c, id).await?;
     if json {
         return print_json(&r);
@@ -1324,6 +1476,87 @@ mod tests {
             parse_invalidate(&["7", "--cancel-actions", "forced"]).1,
             CancelActions::Force
         );
+    }
+
+    #[derive(clap::Parser)]
+    struct RolloutOnly {
+        #[command(subcommand)]
+        cmd: RolloutCmd,
+    }
+
+    fn parse_rollout(args: &[&str]) -> Result<RolloutCmd, clap::Error> {
+        let mut argv = vec!["raptorctl"];
+        argv.extend_from_slice(args);
+        RolloutOnly::try_parse_from(argv).map(|r| r.cmd)
+    }
+
+    #[test]
+    fn rollout_create_flags_build_the_hawkbit_body() {
+        // The #149 reproduction, minus the hand-written JSON.
+        let cmd = parse_rollout(&[
+            "create",
+            "fleet",
+            "--ds",
+            "16",
+            "--filter",
+            "tag==rpi5;tag==phenotyping",
+            "--groups",
+            "1",
+            "--success",
+            "50",
+            "--dynamic",
+            "--dynamic-suffix",
+            "-dynamic",
+            "--dynamic-count",
+            "5",
+        ])
+        .unwrap();
+        let RolloutCmd::Create(args) = cmd else {
+            panic!("parsed the wrong subcommand")
+        };
+        assert_eq!(
+            serde_json::to_value(args.into_body()).unwrap(),
+            serde_json::json!({
+                "name": "fleet",
+                "distributionSetId": 16,
+                "targetFilterQuery": "tag==rpi5;tag==phenotyping",
+                "amountGroups": 1,
+                "successCondition": {"condition": "THRESHOLD", "expression": "50"},
+                "dynamic": true,
+                "dynamicGroupTemplate": {"nameSuffix": "-dynamic", "targetCount": 5}
+            })
+        );
+    }
+
+    #[test]
+    fn a_dynamic_template_without_dynamic_fails_locally() {
+        // The server 400s on this too; the point is failing before the trip.
+        for flag in [["--dynamic-suffix", "-d"], ["--dynamic-count", "5"]] {
+            let mut argv = vec![
+                "create",
+                "r",
+                "--ds",
+                "1",
+                "--filter",
+                "id==*",
+                "--groups",
+                "1",
+                "--success",
+                "50",
+            ];
+            argv.extend_from_slice(&flag);
+            let e = parse_rollout(&argv).err().expect("must be rejected");
+            assert_eq!(e.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+            assert!(e.to_string().contains("--dynamic"), "{e}");
+        }
+    }
+
+    #[test]
+    fn bare_stop_asks_first() {
+        assert!(matches!(
+            parse_rollout(&["stop", "3"]).unwrap(),
+            RolloutCmd::Stop { id: 3, yes: false }
+        ));
     }
 
     #[test]
