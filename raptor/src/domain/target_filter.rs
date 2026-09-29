@@ -9,11 +9,16 @@ use crate::api::mgmt::targets::condition;
 use crate::domain::deployment::{active_action, assign_ds};
 use crate::entity::{distribution_set, target, target_filter};
 use crate::error::AppError;
+use crate::metrics::{SWEEP_SKIP_AUTO_ASSIGN_FILTER, SWEEP_SKIP_AUTO_ASSIGN_TARGET};
 use crate::state::AppState;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 /// Assigns `ds_id` to `target` unless it already has that DS assigned or has an
 /// active action (auto-assignment must not disturb an in-flight deployment).
+///
+/// A target that cannot take the DS (typically an incompatible target type) is
+/// logged and skipped: every caller — the sweep, a device's own poll, attaching
+/// the DS — would otherwise fail on account of that one target (#148).
 async fn maybe_assign(
     st: &AppState,
     target: &target::Model,
@@ -30,7 +35,20 @@ async fn maybe_assign(
     // Management API has no such field on target-filter auto-assignment to
     // be at parity with (verified against MgmtTargetFilterQuery and its
     // request body — see #116).
-    assign_ds(st, target, ds_id, action_type, None, None).await?;
+    match assign_ds(st, target, ds_id, action_type, None, None).await {
+        Err(e) if !e.is_infrastructure() => {
+            tracing::warn!(
+                error = ?e,
+                target_id = target.id,
+                ds_id,
+                "auto-assignment skipped a target that cannot take the distribution set"
+            );
+            st.metrics.sweep_skipped(SWEEP_SKIP_AUTO_ASSIGN_TARGET);
+        }
+        r => {
+            r?;
+        }
+    }
     Ok(())
 }
 
@@ -76,7 +94,15 @@ pub async fn auto_assign_all(st: &AppState) -> Result<(), AppError> {
         .all(&st.db)
         .await?;
     for f in filters {
-        run_auto_assign(st, &f).await?;
+        // One broken filter (say, a stored query that no longer compiles) must
+        // not starve the filters behind it (#148).
+        match run_auto_assign(st, &f).await {
+            Err(e) if !e.is_infrastructure() => {
+                tracing::warn!(error = ?e, filter_id = f.id, "auto-assignment skipped a filter");
+                st.metrics.sweep_skipped(SWEEP_SKIP_AUTO_ASSIGN_FILTER);
+            }
+            r => r?,
+        }
     }
     Ok(())
 }

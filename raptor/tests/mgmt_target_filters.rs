@@ -350,3 +350,73 @@ async fn periodic_sweep_assigns_later_target() {
     .await;
     assert_eq!(actions["total"], 1);
 }
+
+/// A target type accepting no distribution-set type, so any assignment to a
+/// target carrying it fails. Returns its id.
+async fn incompatible_target_type(app: &axum::Router) -> i64 {
+    common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targettypes",
+                Some(json!([{"name": "nothing-fits", "compatibledistributionsettypes": []}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap()
+}
+
+/// #148: an earlier filter matching a target that cannot take its DS must not
+/// stop auto-assignment for the filters behind it.
+#[tokio::test]
+async fn sweep_carries_on_past_a_target_that_cannot_take_the_ds() {
+    let (app, st) = common::setup().await;
+    let ds = complete_ds(&app).await;
+    let tt = incompatible_target_type(&app).await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "a-1", "targetType": tt}])),
+        ))
+        .await
+        .unwrap();
+
+    let a = create_filter(&app, "a", "controllerId==a-*").await["id"]
+        .as_i64()
+        .unwrap();
+    let b = create_filter(&app, "b", "controllerId==b-*").await["id"]
+        .as_i64()
+        .unwrap();
+    for id in [a, b] {
+        // Attaching runs the filter at once; a-1 is skipped, not a 400 for a
+        // setting that has already been saved.
+        let resp = app
+            .clone()
+            .oneshot(common::req(
+                "POST",
+                &format!("/rest/v1/targetfilters/{id}/autoAssignDS"),
+                Some(json!({"id": ds})),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "filter {id}");
+    }
+
+    // Arrives after the filters, so only the sweep can assign it.
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "b-1"}])),
+        ))
+        .await
+        .unwrap();
+
+    auto_assign_all(&st).await.unwrap();
+    assert_eq!(assigned_ds_id(&app, "a-1").await, None);
+    assert_eq!(assigned_ds_id(&app, "b-1").await, Some(ds));
+}

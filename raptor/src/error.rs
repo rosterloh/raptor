@@ -25,6 +25,15 @@ pub enum AppError {
     Io(std::io::Error),
 }
 
+impl AppError {
+    /// The database or disk failing, as opposed to one entity's data being
+    /// unacceptable. Background sweeps skip an entity on the latter but abort
+    /// on this: carrying on against a broken database gains nothing.
+    pub fn is_infrastructure(&self) -> bool {
+        matches!(self, AppError::Db(_) | AppError::Io(_))
+    }
+}
+
 impl From<sea_orm::DbErr> for AppError {
     fn from(e: sea_orm::DbErr) -> Self {
         AppError::Db(e)

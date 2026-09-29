@@ -77,6 +77,13 @@ it already has that DS assigned, or if it has any active action. So a device
 mid-deployment is never clobbered by an auto-assign rule; it's picked up on a
 later sweep once it's idle.
 
+A matching target that *cannot* take the DS — typically because its target type
+is not compatible with the set's type — is skipped with a warning in the server
+log, on every sweep until it is fixed, and counted in the `raptor.sweep.skipped`
+metric (`kind="auto_assign_target"`) when built with `otel`. It never blocks
+other targets or other filters, and never fails the device's poll or the
+request attaching the DS.
+
 > **Note:** FIQL auto-assignment matches on the standard target fields
 > (`controllerId`, `name`, `updateStatus`, …). Matching on device-reported
 > *attributes* is not yet supported.

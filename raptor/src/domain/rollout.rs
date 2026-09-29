@@ -7,6 +7,7 @@ use crate::entity::{
     action, distribution_set, rollout, rollout_group, rollout_target_group, target,
 };
 use crate::error::AppError;
+use crate::metrics::{SWEEP_SKIP_ROLLOUT, SWEEP_SKIP_ROLLOUT_TARGET};
 use crate::state::AppState;
 use crate::util::now_ms;
 use raptor_api_types::RolloutCreate;
@@ -217,12 +218,27 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
         .filter(rollout_target_group::Column::RolloutGroupId.eq(group.id))
         .all(&st.db)
         .await?;
+    // A member that cannot take the set is logged and skipped, as in the
+    // dynamic fill. Failing here instead would leave the group unscheduled
+    // after the one before it had already finished, so the rollout would sit
+    // in `running` with no running group, never advancing (#148).
     for m in members {
         let t = target::Entity::find_by_id(m.target_id)
             .one(&st.db)
             .await?
             .ok_or(AppError::NotFound("target"))?;
-        schedule_target(st, &r, group, &t).await?;
+        match schedule_target(st, &r, group, &t).await {
+            Err(e) if !e.is_infrastructure() => {
+                tracing::warn!(
+                    error = ?e,
+                    rollout_id = r.id,
+                    target_id = t.id,
+                    "could not deploy to rollout group member"
+                );
+                st.metrics.sweep_skipped(SWEEP_SKIP_ROLLOUT_TARGET);
+            }
+            res => res?,
+        }
     }
     let mut gm: rollout_group::ActiveModel = group.clone().into();
     gm.status = Set("running".into());
@@ -508,24 +524,45 @@ pub async fn delete_rollout(st: &AppState, r: rollout::Model) -> Result<(), AppE
 /// Scans all running rollouts and advances/pauses their current group based on
 /// action outcomes. Called from the background evaluator and after resume.
 pub async fn evaluate_rollouts(st: &AppState) -> Result<(), AppError> {
+    // One rollout that cannot be processed must not starve the ones behind it
+    // (#148), so each is skipped on its own error — unless the database itself
+    // is failing, which would fail every one after it too.
     let running = rollout::Entity::find()
         .filter(rollout::Column::Status.eq("running"))
+        .order_by_asc(rollout::Column::Id)
         .all(&st.db)
         .await?;
     for r in running {
-        evaluate_rollout(st, &r).await?;
+        skip_on_data_error(st, r.id, evaluate_rollout(st, &r).await)?;
     }
 
     // Rollouts an operator stopped stay in `stopping` until the cancels they
     // issued have drained out of the devices.
     for r in rollout::Entity::find()
         .filter(rollout::Column::Status.eq("stopping"))
+        .order_by_asc(rollout::Column::Id)
         .all(&st.db)
         .await?
     {
-        settle_stopping(st, r).await?;
+        let id = r.id;
+        skip_on_data_error(st, id, settle_stopping(st, r).await.map(drop))?;
     }
     Ok(())
+}
+
+fn skip_on_data_error(
+    st: &AppState,
+    rollout_id: i64,
+    res: Result<(), AppError>,
+) -> Result<(), AppError> {
+    match res {
+        Err(e) if !e.is_infrastructure() => {
+            tracing::warn!(error = ?e, rollout_id, "rollout evaluation skipped a rollout");
+            st.metrics.sweep_skipped(SWEEP_SKIP_ROLLOUT);
+            Ok(())
+        }
+        r => r,
+    }
 }
 
 async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppError> {
@@ -574,7 +611,13 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
         return Ok(());
     }
 
-    if success * 100 / total >= group.success_threshold {
+    // A static group with no actions to measure — every member skipped as
+    // unable to take the set, or already carrying it — has met its success
+    // condition, as in hawkBit's `ThresholdRolloutGroupSuccessCondition`.
+    // Otherwise it would sit in `running` forever, holding up every group
+    // behind it.
+    let nothing_to_measure = !group.dynamic && actions.is_empty();
+    if nothing_to_measure || success * 100 / total >= group.success_threshold {
         // The trailing group of a dynamic rollout never completes, however
         // many of its targets succeed — there may always be another target
         // about to match. Only an operator ends a dynamic rollout, by stopping
@@ -740,13 +783,16 @@ async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), App
         absorbed += 1;
         if running {
             match schedule_target(st, r, &group, t).await {
-                Ok(()) => {}
-                Err(e) => tracing::warn!(
-                    error = ?e,
-                    rollout_id = r.id,
-                    target_id = t.id,
-                    "could not deploy to target absorbed by dynamic rollout"
-                ),
+                Err(e) if !e.is_infrastructure() => {
+                    tracing::warn!(
+                        error = ?e,
+                        rollout_id = r.id,
+                        target_id = t.id,
+                        "could not deploy to target absorbed by dynamic rollout"
+                    );
+                    st.metrics.sweep_skipped(SWEEP_SKIP_ROLLOUT_TARGET);
+                }
+                res => res?,
             }
         }
     }

@@ -18,6 +18,14 @@ is caught on a small group before it reaches the whole fleet.
      group is scheduled.
 5. When the last group finishes, the rollout is **finished**.
 
+A group member that can no longer take the set when its group is scheduled —
+its target type has become incompatible, say — is skipped with a warning in the
+server log (and counted in the `raptor.sweep.skipped` metric when built with
+`otel`); the rest of the group is deployed to as normal, and thresholds are
+measured against the targets actually deployed to. A group left with nothing to
+measure — every member skipped, or already carrying the set — finishes on the
+next evaluation and the rollout moves on, as in hawkBit.
+
 ## Creating a rollout
 
 ```bash
@@ -234,7 +242,7 @@ the rollout.
   being drawn onto further devices; use `cancelRollouts` to stop the rollout
   itself as well.
 - A target that cannot take the set — an incompatible target type — is skipped
-  with a warning rather than failing the sweep.
+  with a warning rather than failing the sweep, as for static groups.
 
 Absorbing starts as soon as the rollout does, not when the trailing group's turn
 comes: while the static groups ahead of it are still running, newcomers join the

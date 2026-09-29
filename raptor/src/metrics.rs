@@ -8,13 +8,20 @@
 //!
 //! The instruments mirror what matters for an OTA server: HTTP request volume
 //! and latency (DDI polling is the capacity signal), deployment action
-//! lifecycle counts, artifact bytes moved, auth failures, and gauges for
-//! fleet state (targets by update status, active actions).
+//! lifecycle counts, artifact bytes moved, auth failures, entities skipped by
+//! the background sweeps, and gauges for fleet state (targets by update
+//! status, active actions).
 
 /// Which API surface an HTTP request hit — kept low-cardinality on purpose.
 pub const API_DDI: &str = "ddi";
 pub const API_MGMT: &str = "mgmt";
 pub const API_OTHER: &str = "other";
+
+/// What a background sweep skipped, for `raptor.sweep.skipped`.
+pub const SWEEP_SKIP_AUTO_ASSIGN_TARGET: &str = "auto_assign_target";
+pub const SWEEP_SKIP_AUTO_ASSIGN_FILTER: &str = "auto_assign_filter";
+pub const SWEEP_SKIP_ROLLOUT: &str = "rollout";
+pub const SWEEP_SKIP_ROLLOUT_TARGET: &str = "rollout_target";
 
 #[cfg(not(feature = "otel"))]
 mod imp {
@@ -48,6 +55,8 @@ mod imp {
         pub fn auth_failure(&self, _zone: &str) {}
         #[inline]
         pub fn observe_fleet(&self, _by_status: &[(String, i64)], _active_actions: i64) {}
+        #[inline]
+        pub fn sweep_skipped(&self, _kind: &str) {}
     }
 }
 
@@ -67,6 +76,7 @@ mod imp {
         artifact_bytes_uploaded: Counter<u64>,
         artifact_bytes_downloaded: Counter<u64>,
         auth_failures: Counter<u64>,
+        sweep_skipped: Counter<u64>,
         targets_by_status: Gauge<u64>,
         active_actions: Gauge<u64>,
     }
@@ -112,6 +122,12 @@ mod imp {
                 auth_failures: meter
                     .u64_counter("raptor.auth.failures")
                     .with_description("Rejected requests, by zone (ddi/mgmt)")
+                    .build(),
+                sweep_skipped: meter
+                    .u64_counter("raptor.sweep.skipped")
+                    .with_description(
+                        "Entities a background sweep skipped because they could not be processed, by kind",
+                    )
                     .build(),
                 targets_by_status: meter
                     .u64_gauge("raptor.targets")
@@ -194,6 +210,16 @@ mod imp {
             if let Some(i) = &self.inner {
                 i.auth_failures
                     .add(1, &[KeyValue::new("zone", zone.to_string())]);
+            }
+        }
+
+        /// One entity skipped by a sweep (#148). `kind` is one of
+        /// `SWEEP_SKIP_*`: without this, a skip is only a log line, repeated
+        /// every tick while the cause persists.
+        pub fn sweep_skipped(&self, kind: &str) {
+            if let Some(i) = &self.inner {
+                i.sweep_skipped
+                    .add(1, &[KeyValue::new("kind", kind.to_string())]);
             }
         }
 

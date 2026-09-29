@@ -41,6 +41,17 @@ decisions.
 - `raptorctl ds get` prints `valid`, which is how an invalidated set is
   distinguished from a deployable one (#141)
 
+### Fixed
+
+- One target that cannot take a distribution set (e.g. an incompatible target
+  type) no longer stops the background sweep for every rollout or auto-assign
+  filter behind it, stalls its own rollout in `running` with no group running,
+  or fails a device's poll or the `autoAssignDS` request; it is logged,
+  counted in a new `raptor.sweep.skipped` metric, and skipped (#148)
+- A static rollout group with no actions to measure — every member skipped or
+  already on the set — finishes instead of holding the rollout in `running`
+  forever, as in hawkBit (#148)
+
 ## [1.2.0] - 2026-09-07
 
 Closes the last four gaps on the deployment path against hawkBit 1.x, and adds
