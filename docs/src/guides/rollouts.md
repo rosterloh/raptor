@@ -217,7 +217,7 @@ the rollout.
   device about to match, so the trailing group stays `running` no matter how
   many of its targets succeed. Ending one is an operator action:
   [`POST /rest/v1/rollouts/{id}/stop`](../reference/management-api.md), or
-  `raptorctl` — see below.
+  [`raptorctl rollout stop`](cli.md#rollouts).
 - **Groups do not reopen.** Newcomers only ever land in the trailing group;
   a group that has finished stays finished.
 - **Full groups roll over.** Once the trailing group holds `targetCount`

@@ -28,6 +28,10 @@ decisions.
   the CLI into hand-written `curl` with credentials on the command line.
   Defaults to the safe path, prints what was withdrawn, and confirms on a TTY
   (#141)
+- `raptorctl rollout create|get|start|pause|resume|stop`, so a rollout — and a
+  dynamic one's mandatory stop — no longer needs hand-written `curl`. `create`
+  flattens the conditions and dynamic-group template into flags; `stop`
+  confirms on a TTY unless `-y` (#149)
 
 ### Changed
 
