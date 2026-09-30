@@ -40,6 +40,7 @@ async fn otel_pipeline_initializes_and_records() {
     metrics.bytes_uploaded(1024);
     metrics.bytes_downloaded(2048);
     metrics.auth_failure("ddi");
+    metrics.sweep_skipped(raptor::metrics::SWEEP_SKIP_ROLLOUT);
     metrics.record_http("mgmt", "/rest/v1/targets", "GET", 200, 0.012);
     metrics.observe_fleet(&[("pending".into(), 3), ("in_sync".into(), 7)], 2);
 

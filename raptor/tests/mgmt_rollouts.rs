@@ -5,7 +5,9 @@ use axum::http::{Request, StatusCode, header};
 use raptor::domain::rollout::evaluate_rollouts;
 use raptor::entity::action;
 use raptor::state::AppState;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -1112,4 +1114,110 @@ async fn approval_states_are_stoppable() {
             "stopped"
         );
     }
+}
+
+/// #148: a rollout whose next group holds a target that can no longer take the
+/// set must not stall itself, nor stop the evaluator reaching later rollouts.
+#[tokio::test]
+async fn evaluator_carries_on_past_a_target_that_cannot_take_the_ds() {
+    use raptor::entity::{rollout_group, target};
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 0).await;
+    for cid in ["a-0", "a-1", "b-0", "b-1"] {
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targets",
+                Some(json!([{"controllerId": cid}])),
+            ))
+            .await
+            .unwrap();
+    }
+    let mut ids = vec![];
+    for prefix in ["a", "b"] {
+        let mut body = create_body(ds, 2, "100", None);
+        body["name"] = json!(prefix);
+        body["targetFilterQuery"] = json!(format!("controllerId=={prefix}-*"));
+        let r = common::body_json(
+            app.clone()
+                .oneshot(common::req("POST", "/rest/v1/rollouts", Some(body)))
+                .await
+                .unwrap(),
+        )
+        .await;
+        let id = r["id"].as_i64().unwrap();
+        assert_eq!(
+            post_status(&app, &format!("/rest/v1/rollouts/{id}/start")).await,
+            StatusCode::OK
+        );
+        ids.push(id);
+    }
+
+    // After start, rollout a's targets stop accepting the set: a-1, waiting
+    // in a's second group, can no longer be deployed to.
+    let tt = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targettypes",
+                Some(json!([{"name": "nothing-fits", "compatibledistributionsettypes": []}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    for t in target::Entity::find()
+        .filter(target::Column::ControllerId.starts_with("a-"))
+        .all(&st.db)
+        .await
+        .unwrap()
+    {
+        let mut am: target::ActiveModel = t.into();
+        am.type_id = Set(Some(tt));
+        am.update(&st.db).await.unwrap();
+    }
+
+    let groups = |rollout_id: i64| {
+        rollout_group::Entity::find()
+            .filter(rollout_group::Column::RolloutId.eq(rollout_id))
+            .all(&st.db)
+    };
+    for &id in &ids {
+        let first = groups(id)
+            .await
+            .unwrap()
+            .into_iter()
+            .min_by_key(|g| g.order_index);
+        finish_group_actions(&st, first.unwrap().id, false).await;
+    }
+
+    evaluate_rollouts(&st).await.unwrap();
+    for &id in &ids {
+        let statuses: Vec<_> = {
+            let mut g = groups(id).await.unwrap();
+            g.sort_by_key(|g| g.order_index);
+            g.into_iter().map(|g| g.status).collect()
+        };
+        assert_eq!(statuses, ["finished", "running"], "rollout {id}");
+    }
+    // b's second group was actually deployed to.
+    let b_actions = action::Entity::find()
+        .filter(action::Column::RolloutId.eq(ids[1]))
+        .filter(action::Column::Active.eq(true))
+        .count(&st.db)
+        .await
+        .unwrap();
+    assert_eq!(b_actions, 1);
+
+    // a's second group has nothing to measure, so the next sweep finishes it
+    // (and with it the rollout) instead of leaving it `running` for good.
+    evaluate_rollouts(&st).await.unwrap();
+    let status = |id: i64| {
+        let app = app.clone();
+        async move { get_json(&app, &format!("/rest/v1/rollouts/{id}")).await["status"].clone() }
+    };
+    assert_eq!(status(ids[0]).await, "finished");
+    assert_eq!(status(ids[1]).await, "running");
 }
