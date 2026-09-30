@@ -128,5 +128,7 @@ raptor's test suite drives its DDI API with the Rust `hawkbit` crate and the
 JSON-contract test above — not with the Zephyr client itself, which needs
 hardware or QEMU. For an end-to-end check, build Zephyr's
 `samples/subsys/mgmt/hawkbit` sample against a raptor instance and watch the
-server log: a successful cycle is a base poll, a `configData` PUT, a
-`deploymentBase` GET, artifact GETs, then feedback with `execution: "closed"`.
+server log with `RUST_LOG=raptor=debug,tower_http=debug`: a successful cycle is a
+base poll, a `configData` PUT, a `deploymentBase` GET, artifact GETs, then
+feedback with `execution: "closed"` — which also logs `update finished` at the
+default level.

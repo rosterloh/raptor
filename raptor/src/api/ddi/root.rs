@@ -104,6 +104,7 @@ pub async fn get_or_register(
             }
             .insert(&st.db)
             .await?;
+            tracing::info!(controller_id = %created.controller_id, "target registered");
             // A freshly registered target may match a saved filter with an
             // attached auto-assign DS; assign it now rather than waiting for the
             // periodic sweep so this very poll can return a deploymentBase link.

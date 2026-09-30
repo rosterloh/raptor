@@ -223,6 +223,11 @@ pub async fn assign_ds(
             &["superseded by new assignment".into()],
         )
         .await?;
+        tracing::info!(
+            controller_id = %target.controller_id,
+            action_id = cid,
+            "action superseded by new assignment"
+        );
     }
     // With the confirmation flow enabled, an assignment waits for confirmation
     // before becoming an active deployment — unless the target has auto-confirm on.
@@ -250,6 +255,14 @@ pub async fn assign_ds(
     .await?;
     add_action_status(&st.db, a.id, initial, &[]).await?;
     st.metrics.action_created();
+    tracing::info!(
+        controller_id = %target.controller_id,
+        action_id = a.id,
+        ds_id = ds.id,
+        action_type,
+        status = initial,
+        "action created"
+    );
 
     let mut tm: target::ActiveModel = target.clone().into();
     tm.assigned_ds_id = Set(Some(ds.id));
@@ -336,11 +349,18 @@ pub async fn apply_feedback(
             set_action(st, a, "error", false).await?;
             set_target_status(st, t, None, "error").await?;
             st.metrics.action_failed();
+            tracing::warn!(
+                controller_id = %t.controller_id,
+                action_id = a.id,
+                details = details.join("; "),
+                "device reported update failed"
+            );
         }
         ("closed", _) => {
             set_action(st, a, "finished", false).await?;
             set_target_status(st, t, Some(a.ds_id), "in_sync").await?;
             st.metrics.action_finished();
+            tracing::info!(controller_id = %t.controller_id, action_id = a.id, "update finished");
         }
         ("canceled", _) => {
             set_action(st, a, "canceled", false).await?;
@@ -351,6 +371,7 @@ pub async fn apply_feedback(
             };
             set_target_status(st, t, None, status).await?;
             st.metrics.action_canceled();
+            tracing::info!(controller_id = %t.controller_id, action_id = a.id, "action canceled by device");
         }
         // A downloadonly action is complete once the bytes are down: nothing is
         // installed, so the action closes as `downloaded` and `installed_ds_id`
@@ -361,6 +382,7 @@ pub async fn apply_feedback(
             set_action(st, a, "downloaded", false).await?;
             set_target_status(st, t, None, "in_sync").await?;
             st.metrics.action_finished();
+            tracing::info!(controller_id = %t.controller_id, action_id = a.id, "download-only action finished");
         }
         _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
     }
@@ -394,9 +416,16 @@ pub async fn apply_cancel_feedback(
             tm.updated_at = Set(now_ms());
             tm.update(&st.db).await?;
             st.metrics.action_canceled();
+            tracing::info!(controller_id = %t.controller_id, action_id = a.id, "device confirmed cancellation");
         }
         "rejected" => {
             set_action(st, a, "running", true).await?;
+            tracing::info!(
+                controller_id = %t.controller_id,
+                action_id = a.id,
+                details = details.join("; "),
+                "device rejected cancellation"
+            );
         }
         _ => {}
     }
@@ -417,6 +446,7 @@ pub async fn confirm_action(
     }
     add_action_status(&st.db, a.id, "confirmed", details).await?;
     set_action(st, a, "running", true).await?;
+    tracing::info!(action_id = a.id, "action confirmed");
     Ok(())
 }
 
@@ -433,6 +463,11 @@ pub async fn deny_action(
         ));
     }
     add_action_status(&st.db, a.id, "denied", details).await?;
+    tracing::info!(
+        action_id = a.id,
+        details = details.join("; "),
+        "action denied by device"
+    );
     Ok(())
 }
 

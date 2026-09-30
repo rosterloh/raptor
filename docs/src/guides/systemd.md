@@ -82,5 +82,30 @@ raptor logs to stdout/stderr, captured by the journal:
 $ journalctl -u raptor -f
 ```
 
-Adjust verbosity with the `RUST_LOG` env var (e.g. `RUST_LOG=raptor=debug`) via a
-`systemctl edit` drop-in or `raptor.env`.
+At the default level (`raptor=info,tower_http=info`) the journal carries what an
+operator needs to follow a deployment, and nothing that repeats per poll:
+
+- one line per Management API **write** (method, path, status, latency) — reads
+  are left out, since the console and `raptorctl tui` poll them constantly;
+- domain events: a target registering, each action created (by assignment,
+  rollout or auto-assign) or superseded, the device's outcome (`update
+  finished`, or a warning with its messages when it reports failure), rollout
+  groups starting and finishing, a rollout pausing on its error threshold,
+  finishing, or settling to stopped;
+- warnings for failed authentication — on DDI, the usual reason a device
+  silently never updates — and for anything a background sweep skipped.
+
+```text
+INFO raptor::api::ddi::root: target registered controller_id=dev-1
+INFO assign_ds{target_id=1}: raptor::domain::deployment: action created controller_id=dev-1 action_id=1 ds_id=1 action_type="forced" status="running"
+INFO raptor::app: mgmt request method=POST path="/rest/v1/targets/dev-1/assignedDS" status=200 latency_ms=12
+INFO apply_feedback{action_id=1}: raptor::domain::deployment: update finished controller_id=dev-1 action_id=1
+```
+
+Individual HTTP requests — every device poll, artifact download and read — are
+logged at `debug`. Turn them on to trace one device's conversation with the
+server, via a `systemctl edit` drop-in or `raptor.env`:
+
+```sh
+RUST_LOG=raptor=debug,tower_http=debug
+```

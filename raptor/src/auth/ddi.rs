@@ -39,6 +39,8 @@ pub async fn ddi_auth(
         Ok(kind) => kind,
         Err(e) => {
             state.metrics.auth_failure("ddi");
+            // The usual reason a device silently never updates.
+            tracing::warn!(path = req.uri().path(), "ddi authentication failed");
             return Err(e);
         }
     };

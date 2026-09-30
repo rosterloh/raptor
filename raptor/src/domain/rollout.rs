@@ -244,6 +244,7 @@ async fn schedule_group(st: &AppState, group: &rollout_group::Model) -> Result<(
     gm.status = Set("running".into());
     gm.updated_at = Set(now_ms());
     gm.update(&st.db).await?;
+    tracing::info!(rollout_id = r.id, group = %group.name, "rollout group started");
     Ok(())
 }
 
@@ -479,7 +480,9 @@ async fn settle_stopping(st: &AppState, r: rollout::Model) -> Result<rollout::Mo
     let mut rm: rollout::ActiveModel = r.into();
     rm.status = Set("stopped".into());
     rm.updated_at = Set(now_ms());
-    Ok(rm.update(&st.db).await?)
+    let r = rm.update(&st.db).await?;
+    tracing::info!(rollout_id = r.id, "rollout stopped");
+    Ok(r)
 }
 
 pub async fn delete_rollout(st: &AppState, r: rollout::Model) -> Result<(), AppError> {
@@ -608,6 +611,13 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
         rm.status = Set("paused".into());
         rm.updated_at = Set(now_ms());
         rm.update(&st.db).await?;
+        tracing::warn!(
+            rollout_id = r.id,
+            group = %group.name,
+            errored = error,
+            total,
+            "rollout paused: group reached its error threshold"
+        );
         return Ok(());
     }
 
@@ -627,6 +637,7 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
             return Ok(());
         }
         let order_index = group.order_index;
+        tracing::info!(rollout_id = r.id, group = %group.name, "rollout group finished");
         let mut gm: rollout_group::ActiveModel = group.into();
         gm.status = Set("finished".into());
         gm.updated_at = Set(now_ms());
@@ -645,6 +656,7 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
                 rm.status = Set("finished".into());
                 rm.updated_at = Set(now_ms());
                 rm.update(&st.db).await?;
+                tracing::info!(rollout_id = r.id, "rollout finished");
             }
         }
     }
@@ -724,9 +736,9 @@ async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), App
         rm.update(&st.db).await?;
         // Nothing has finished the filled group yet, so the new one waits its
         // turn exactly as a static group would.
-        tracing::debug!(
+        tracing::info!(
             rollout_id = r.id,
-            group_id = new_group.id,
+            group = %new_group.name,
             "created dynamic rollout group"
         );
         return Ok(());
