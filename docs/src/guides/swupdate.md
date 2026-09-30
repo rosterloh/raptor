@@ -33,8 +33,9 @@ If the loop is one of the four below, you will see:
 - the action stuck `running` and `active`, never `finished`;
 - a status history with the initial entries and **nothing since** — no
   `proceeding`, no `success`, no `failure`;
-- in the server log, repeated `GET .../deploymentBase/{id}` and artifact GETs
-  with **no `POST .../feedback` between them**.
+- in the server log, with `RUST_LOG=raptor=debug,tower_http=debug` (see
+  [Logging](systemd.md#logs)), repeated `GET .../deploymentBase/{id}` and
+  artifact GETs with **no `POST .../feedback` between them**.
 
 Repeated downloads plus zero feedback is the signature. A slow-but-healthy
 install looks different: it reports `proceeding` at least once. If you are

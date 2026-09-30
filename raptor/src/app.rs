@@ -21,7 +21,9 @@ pub fn build_app(state: AppState) -> Router {
     let app = app
         .route("/ui", get(crate::ui::serve))
         .route("/ui/{*path}", get(crate::ui::serve));
-    let app = app.layer(tower_http::trace::TraceLayer::new_for_http());
+    let app = app
+        .layer(middleware::from_fn(log_mgmt_writes))
+        .layer(tower_http::trace::TraceLayer::new_for_http());
     // Only attach the metrics middleware when export is live, so builds without
     // OTLP configured carry no per-request instrumentation overhead.
     let app = if state.metrics.enabled() {
@@ -41,6 +43,28 @@ fn api_group(route: &str) -> &'static str {
     } else {
         metrics::API_OTHER
     }
+}
+
+/// One `info` line per Management API write: the operator's audit trail.
+/// Reads stay at `TraceLayer`'s debug level, as do DDI polls — the console
+/// and TUI poll list endpoints every few seconds, and a fleet polls
+/// constantly, either of which would bury the writes.
+async fn log_mgmt_writes(req: Request, next: Next) -> Response {
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    if method.is_safe() || api_group(&path) != metrics::API_MGMT {
+        return next.run(req).await;
+    }
+    let start = std::time::Instant::now();
+    let resp = next.run(req).await;
+    tracing::info!(
+        %method,
+        path,
+        status = resp.status().as_u16(),
+        latency_ms = start.elapsed().as_millis() as u64,
+        "mgmt request"
+    );
+    resp
 }
 
 /// Records request count + duration keyed by the *matched* route template

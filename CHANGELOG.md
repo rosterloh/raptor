@@ -32,6 +32,9 @@ decisions.
   dynamic one's mandatory stop — no longer needs hand-written `curl`. `create`
   flattens the conditions and dynamic-group template into flags; `stop`
   confirms on a TTY unless `-y` (#149)
+- The server log at the default level now records Management API writes and
+  domain events (registration, actions, device outcomes, rollout progress,
+  auth failures); polls and reads stay at `debug` (#155)
 
 ### Changed
 

@@ -17,10 +17,16 @@ pub async fn mgmt_auth(
     req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    let req_path = req.uri().path().to_string();
     match check_auth(&state, &req) {
         Ok(()) => Ok(next.run(req).await),
         Err(e) => {
             state.metrics.auth_failure("mgmt");
+            // The console's own session probe (quiet) fails on every
+            // logged-out page load; that is not worth a warning.
+            if !matches!(e, AppError::UnauthorizedQuiet) {
+                tracing::warn!(path = req_path, "mgmt authentication failed");
+            }
             Err(e)
         }
     }
