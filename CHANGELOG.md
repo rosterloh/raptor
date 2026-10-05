@@ -57,7 +57,7 @@ decisions.
 - `raptorctl tui`: an assign, tag, cancel or force acts on the target chosen
   when its prompt opened, not whichever row a refresh left selected; stale or
   hung fetches no longer overwrite a newer filter or spin forever; SIGTERM/SIGHUP
-  restore the terminal; the list keeps its scroll position
+  restore the terminal; the list keeps its scroll position (#158)
 
 ## [1.2.0] - 2026-09-07
 
