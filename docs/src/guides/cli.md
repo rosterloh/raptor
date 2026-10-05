@@ -241,10 +241,12 @@ $ raptorctl tui [--refresh <seconds>]   # default 5, 0 disables auto-refresh
 | `/` | filter targets (sent server-side as a FIQL `q=`) |
 | `a` | assign a distribution set to the selected target |
 | `t` | tag the selected target |
-| `c` / `f` | cancel / force the target's active action (`y` to confirm) |
+| `c` / `f` | cancel / force the target's active action (`y` to confirm, `n`/`Esc` to back out) |
 | `r` | refresh now |
 | `?` | help |
 | `q` / `Esc` | quit |
 
 It respects `NO_COLOR`, works over SSH and inside tmux, and requires at least
 an 80x24 terminal.
+An active filter shows in the targets panel title; a failed or timed-out
+refresh (15 s) leaves `⚠ stale` in the header until that fetch succeeds again.

@@ -14,20 +14,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Mode::Search { .. } => handle_search(app, key),
         Mode::Assign { .. } => handle_assign(app, key),
         Mode::TagInput { .. } => handle_tag_input(app, key),
-        Mode::ConfirmCancel(aid) => {
-            let aid = *aid;
-            if key.code == KeyCode::Char('y') {
-                spawn_cancel(app, aid);
-            }
-            app.mode = Mode::Normal;
-        }
-        Mode::ConfirmForce(aid) => {
-            let aid = *aid;
-            if key.code == KeyCode::Char('y') {
-                spawn_force(app, aid);
-            }
-            app.mode = Mode::Normal;
-        }
+        Mode::ConfirmCancel { .. } | Mode::ConfirmForce { .. } => handle_confirm(app, key),
         Mode::Help => app.mode = Mode::Normal,
     }
 }
@@ -48,31 +35,50 @@ fn handle_normal(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char('a') => {
-            if app.selected_target().is_some() {
-                app.fetch_ds_list();
+            if let Some(cid) = app.selected_cid() {
+                app.set_status("loading distribution sets…");
+                app.fetch_ds_list(cid);
             }
         }
         KeyCode::Char('t') => {
-            if app.selected_target().is_some() {
+            if let Some(cid) = app.selected_cid() {
                 app.mode = Mode::TagInput {
+                    cid,
                     input: String::new(),
                 };
             }
         }
-        KeyCode::Char('c') => {
-            if let Some(a) = app.detail_actions.iter().find(|a| a.status == "pending") {
-                app.mode = Mode::ConfirmCancel(a.id);
-            } else {
-                app.set_status("no active action to cancel");
-            }
-        }
-        KeyCode::Char('f') => {
-            if let Some(a) = app.detail_actions.iter().find(|a| a.status == "pending") {
-                app.mode = Mode::ConfirmForce(a.id);
-            } else {
-                app.set_status("no active action to force");
-            }
-        }
+        KeyCode::Char('c') => match pending_action(app) {
+            Some((cid, aid)) => app.mode = Mode::ConfirmCancel { cid, aid },
+            None => app.set_status("no active action to cancel"),
+        },
+        KeyCode::Char('f') => match pending_action(app) {
+            Some((cid, aid)) => app.mode = Mode::ConfirmForce { cid, aid },
+            None => app.set_status("no active action to force"),
+        },
+        _ => {}
+    }
+}
+
+fn pending_action(app: &App) -> Option<(String, i64)> {
+    let aid = app
+        .detail_actions
+        .iter()
+        .find(|a| a.status == "pending")?
+        .id;
+    Some((app.selected_cid()?, aid))
+}
+
+/// `y` confirms, `n`/`Esc` cancel, anything else is swallowed so a stray key
+/// neither fires nor silently dismisses the prompt.
+fn handle_confirm(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') => match std::mem::replace(&mut app.mode, Mode::Normal) {
+            Mode::ConfirmCancel { cid, aid } => spawn_cancel(app, cid, aid),
+            Mode::ConfirmForce { cid, aid } => spawn_force(app, cid, aid),
+            _ => {}
+        },
+        KeyCode::Char('n') | KeyCode::Esc => app.mode = Mode::Normal,
         _ => {}
     }
 }
@@ -80,7 +86,7 @@ fn handle_normal(app: &mut App, key: KeyEvent) {
 /// Yanks the controller ID — the one string an operator retypes constantly,
 /// into `raptorctl target show`, a `q=` filter, or a ticket.
 fn yank_selected(app: &mut App) {
-    let Some(cid) = app.selected_target().map(|t| t.controller_id.clone()) else {
+    let Some(cid) = app.selected_cid() else {
         return;
     };
     match osc52::copy(&cid) {
@@ -113,17 +119,15 @@ fn handle_search(app: &mut App, key: KeyEvent) {
 }
 
 fn handle_tag_input(app: &mut App, key: KeyEvent) {
-    let Mode::TagInput { input } = &mut app.mode else {
+    let Mode::TagInput { cid, input } = &mut app.mode else {
         return;
     };
     match key.code {
         KeyCode::Esc => app.mode = Mode::Normal,
         KeyCode::Enter => {
-            let tag = input.clone();
+            let (cid, tag) = (cid.clone(), input.clone());
             app.mode = Mode::Normal;
-            if let Some(cid) = app.selected_target().map(|t| t.controller_id.clone())
-                && !tag.is_empty()
-            {
+            if !tag.is_empty() {
                 spawn_tag(app, cid, tag);
             }
         }
@@ -137,6 +141,7 @@ fn handle_tag_input(app: &mut App, key: KeyEvent) {
 
 fn handle_assign(app: &mut App, key: KeyEvent) {
     let Mode::Assign {
+        cid,
         filter,
         items,
         selected,
@@ -166,12 +171,12 @@ fn handle_assign(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Enter => {
             if let Some(&idx) = filtered.get(*selected) {
-                let ds_id = items[idx].id;
-                let cid = app.selected_target().map(|t| t.controller_id.clone());
+                let ds = &items[idx];
+                let (cid, ds_id) = (cid.clone(), ds.id);
+                let label = format!("{}:{}", ds.name, ds.version);
                 app.mode = Mode::Normal;
-                if let Some(cid) = cid {
-                    spawn_assign(app, cid, ds_id);
-                }
+                app.set_status(format!("assigning {label} to {cid}…"));
+                spawn_assign(app, cid, ds_id);
             }
         }
         _ => {}
@@ -180,62 +185,54 @@ fn handle_assign(app: &mut App, key: KeyEvent) {
 
 fn spawn_assign(app: &App, cid: String, ds_id: i64) {
     let client = app.client.clone();
-    let tx = app.tx.clone();
-    tokio::spawn(async move {
-        let body = DsAssignment {
-            id: ds_id,
-            assign_type: None,
-            forcetime: None,
-            maintenance_window: None,
-        };
-        let r = api::actions::assign(&client, &cid, &body).await.map(|res| {
-            format!(
+    let body = DsAssignment {
+        id: ds_id,
+        assign_type: None,
+        forcetime: None,
+        maintenance_window: None,
+    };
+    app.spawn(
+        async move {
+            let res = api::actions::assign(&client, &cid, &body).await?;
+            Ok(format!(
                 "assigned {} (already assigned {})",
                 res.assigned, res.already_assigned
-            )
-        });
-        let _ = tx.send(Msg::Done(r));
-    });
+            ))
+        },
+        Msg::Done,
+    );
 }
 
-fn spawn_cancel(app: &App, action_id: i64) {
-    let Some(cid) = app.selected_target().map(|t| t.controller_id.clone()) else {
-        return;
-    };
+fn spawn_cancel(app: &App, cid: String, action_id: i64) {
     let client = app.client.clone();
-    let tx = app.tx.clone();
-    tokio::spawn(async move {
-        let r = api::actions::cancel(&client, &cid, action_id, false)
-            .await
-            .map(|_| format!("cancelled action {action_id}"));
-        let _ = tx.send(Msg::Done(r));
-    });
+    app.spawn(
+        async move {
+            api::actions::cancel(&client, &cid, action_id, false).await?;
+            Ok(format!("cancelled action {action_id} on {cid}"))
+        },
+        Msg::Done,
+    );
 }
 
-fn spawn_force(app: &App, action_id: i64) {
-    let Some(cid) = app.selected_target().map(|t| t.controller_id.clone()) else {
-        return;
-    };
+fn spawn_force(app: &App, cid: String, action_id: i64) {
     let client = app.client.clone();
-    let tx = app.tx.clone();
-    tokio::spawn(async move {
-        let r = api::actions::force(&client, &cid, action_id)
-            .await
-            .map(|_| format!("forced action {action_id}"));
-        let _ = tx.send(Msg::Done(r));
-    });
+    app.spawn(
+        async move {
+            api::actions::force(&client, &cid, action_id).await?;
+            Ok(format!("forced action {action_id} on {cid}"))
+        },
+        Msg::Done,
+    );
 }
 
 fn spawn_tag(app: &App, cid: String, tag: String) {
     let client = app.client.clone();
-    let tx = app.tx.clone();
-    tokio::spawn(async move {
-        let r = async {
+    app.spawn(
+        async move {
             let id = api::tags::find_id(&client, api::tags::Kind::Target, &tag).await?;
             api::tags::assign(&client, api::tags::Kind::Target, id, &cid).await?;
             Ok(format!("tagged {cid} with {tag}"))
-        }
-        .await;
-        let _ = tx.send(Msg::Done(r));
-    });
+        },
+        Msg::Done,
+    );
 }

@@ -54,6 +54,10 @@ decisions.
 - A static rollout group with no actions to measure — every member skipped or
   already on the set — finishes instead of holding the rollout in `running`
   forever, as in hawkBit (#148)
+- `raptorctl tui`: an assign, tag, cancel or force acts on the target chosen
+  when its prompt opened, not whichever row a refresh left selected; stale or
+  hung fetches no longer overwrite a newer filter or spin forever; SIGTERM/SIGHUP
+  restore the terminal; the list keeps its scroll position (#158)
 
 ## [1.2.0] - 2026-09-07
 

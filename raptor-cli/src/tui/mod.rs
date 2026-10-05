@@ -45,10 +45,15 @@ async fn event_loop(
     let mut events = EventStream::new();
     let mut ticker = tokio::time::interval(TICK);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
 
     terminal.draw(|f| panels::draw(f, app, theme))?;
     loop {
         tokio::select! {
+            // Closing the window, an SSH drop or `kill` would otherwise end
+            // the process without restoring the terminal.
+            _ = &mut shutdown => return Ok(()),
             Some(msg) = rx.recv() => app.handle_msg(msg),
             _ = ticker.tick() => app.tick(),
             event = events.next() => match event {
@@ -75,4 +80,24 @@ async fn event_loop(
         }
         terminal.draw(|f| panels::draw(f, app, theme))?;
     }
+}
+
+#[cfg(unix)]
+async fn shutdown_signal() {
+    use tokio::signal::unix::{SignalKind, signal};
+    let (Ok(mut term), Ok(mut hup)) = (
+        signal(SignalKind::terminate()),
+        signal(SignalKind::hangup()),
+    ) else {
+        return std::future::pending().await;
+    };
+    tokio::select! {
+        _ = term.recv() => {}
+        _ = hup.recv() => {}
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    std::future::pending().await
 }
