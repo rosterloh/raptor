@@ -8,9 +8,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Cell, Clear, List, ListItem, Paragraph, Row, Table, TableState,
-};
+use ratatui::widgets::{Block, BorderType, Cell, Clear, List, ListItem, Paragraph, Row, Table};
 use std::fmt::Display;
 
 const MIN_WIDTH: u16 = 80;
@@ -48,7 +46,7 @@ fn chip(label: &str, value: impl Display, color: Color) -> [Span<'static>; 2] {
     ]
 }
 
-pub fn draw(f: &mut Frame, app: &App, theme: &Theme) {
+pub fn draw(f: &mut Frame, app: &mut App, theme: &Theme) {
     let area = f.area();
     if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
         let msg = format!("terminal too small — need at least {MIN_WIDTH}x{MIN_HEIGHT}");
@@ -73,14 +71,22 @@ pub fn draw(f: &mut Frame, app: &App, theme: &Theme) {
     match &app.mode {
         Mode::Assign { .. } => draw_assign_modal(f, app, theme, area),
         Mode::Help => draw_help_modal(f, theme, area),
-        Mode::TagInput { input } => draw_prompt(f, theme, area, "tag name", input),
+        Mode::TagInput { cid, input } => {
+            draw_prompt(f, theme, area, &format!("tag {cid} with"), input)
+        }
         Mode::Search { input } => draw_prompt(f, theme, area, "filter (FIQL q=)", input),
-        Mode::ConfirmCancel(id) => {
-            draw_confirm(f, theme, area, &format!("cancel action {id}? (y/n)"))
-        }
-        Mode::ConfirmForce(id) => {
-            draw_confirm(f, theme, area, &format!("force action {id}? (y/n)"))
-        }
+        Mode::ConfirmCancel { cid, aid } => draw_confirm(
+            f,
+            theme,
+            area,
+            &format!("cancel action {aid} on {cid}? (y/n)"),
+        ),
+        Mode::ConfirmForce { cid, aid } => draw_confirm(
+            f,
+            theme,
+            area,
+            &format!("force action {aid} on {cid}? (y/n)"),
+        ),
         Mode::Normal => {}
     }
 }
@@ -121,10 +127,16 @@ fn draw_header(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
             },
         ));
     }
+    if let Some((source, err)) = app.errors.iter().next() {
+        spans.push(Span::styled(
+            format!(" ⚠ stale · {source}: {err}"),
+            Style::default().fg(theme.error),
+        ));
+    }
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn draw_body(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
+fn draw_body(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
     if area.width < DETAIL_BREAKPOINT {
         draw_left_column(f, app, theme, area);
         return;
@@ -135,14 +147,14 @@ fn draw_body(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     draw_detail(f, app, theme, right);
 }
 
-fn draw_left_column(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
+fn draw_left_column(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
     let [targets_area, rollouts_area] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(5)]).areas(area);
     draw_targets(f, app, theme, targets_area);
     draw_rollouts(f, app, theme, rollouts_area);
 }
 
-fn draw_targets(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
+fn draw_targets(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
     let rows: Vec<Row> = app
         .targets
         .iter()
@@ -173,6 +185,10 @@ fn draw_targets(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
         Constraint::Length(11),
         Constraint::Min(10),
     ];
+    let title = match &app.query {
+        Some(q) => format!("Targets ({}) · q={q}", app.targets.len()),
+        None => format!("Targets ({})", app.targets.len()),
+    };
     let table = Table::new(rows, widths)
         .header(
             Row::new(vec!["", "target", "status", "distribution set"]).style(
@@ -181,17 +197,9 @@ fn draw_targets(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
         )
-        .block(panel(
-            theme,
-            format!("Targets ({})", app.targets.len()),
-            theme.accent,
-        ))
+        .block(panel(theme, title, theme.accent))
         .row_highlight_style(theme.selection.add_modifier(Modifier::BOLD));
-    let mut state = TableState::default();
-    if !app.targets.is_empty() {
-        state.select(Some(app.selected));
-    }
-    f.render_stateful_widget(table, area, &mut state);
+    f.render_stateful_widget(table, area, &mut app.table);
 }
 
 fn draw_rollouts(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
@@ -322,6 +330,7 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
 
 fn draw_assign_modal(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     let Mode::Assign {
+        cid,
         filter,
         items,
         selected,
@@ -349,7 +358,7 @@ fn draw_assign_modal(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
         .collect();
     let block = panel(
         theme,
-        format!("assign distribution set · filter: {filter}"),
+        format!("assign to {cid} · filter: {filter}"),
         theme.accent,
     );
     f.render_widget(List::new(rows).block(block), rect);
@@ -399,6 +408,8 @@ mod tests {
     use super::*;
     use crate::client::Client;
     use crate::config::Resolved;
+    use crate::tui::actions::handle_key;
+    use crate::tui::app::Msg;
     use raptor_api_types::TargetRest;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -420,6 +431,79 @@ mod tests {
         .unwrap()
     }
 
+    fn test_app() -> App {
+        let cfg = Resolved {
+            url: "http://127.0.0.1:1".into(),
+            user: "u".into(),
+            pass: "p".into(),
+        };
+        App::new(Client::new(&cfg), 0).0
+    }
+
+    fn ds(id: i64, name: &str) -> raptor_api_types::DsRest {
+        serde_json::from_value(serde_json::json!({
+            "id": id, "name": name, "version": "1.0", "type": "os",
+            "description": null, "requiredMigrationStep": false,
+            "complete": true, "deleted": false,
+            "createdAt": 0, "lastModifiedAt": 0, "modules": [],
+        }))
+        .unwrap()
+    }
+
+    fn key(code: crossterm::event::KeyCode) -> crossterm::event::KeyEvent {
+        crossterm::event::KeyEvent::new(code, crossterm::event::KeyModifiers::NONE)
+    }
+
+    /// A refresh that drops the chosen target while the assign prompt is open
+    /// used to move the selection to row 0, and Enter assigned the set to
+    /// whichever target landed there.
+    #[tokio::test]
+    async fn assign_goes_to_the_target_chosen_when_the_prompt_opened() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(
+            0,
+            Ok(vec![target("a", "error"), target("b", "error")]),
+        ));
+        app.select_last();
+        app.handle_msg(Msg::DsList("b".into(), Ok(vec![ds(7, "fw")])));
+
+        // `b` recovered and fell out of an `updateStatus==error` filter.
+        app.fetch_targets();
+        let generation = app.targets_gen();
+        app.handle_msg(Msg::Targets(generation, Ok(vec![target("a", "error")])));
+        assert_eq!(app.selected_cid().as_deref(), Some("a"));
+
+        handle_key(&mut app, key(crossterm::event::KeyCode::Enter));
+        let (status, _) = app.status.as_ref().unwrap();
+        assert!(status.ends_with("to b…"), "{status}");
+    }
+
+    #[tokio::test]
+    async fn superseded_targets_reply_is_dropped() {
+        let mut app = test_app();
+        app.fetch_targets();
+        app.fetch_targets();
+        let stale = app.targets_gen() - 1;
+        app.handle_msg(Msg::Targets(
+            stale,
+            Ok(vec![target("unfiltered", "in_sync")]),
+        ));
+        assert!(app.targets.is_empty());
+        assert!(app.loading, "the current request is still out");
+    }
+
+    /// No panic below the size gate, nor between it and the detail breakpoint.
+    #[tokio::test]
+    async fn renders_at_awkward_sizes() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        let theme = Theme::detect();
+        for (w, h) in [(10, 3), (90, 24), (200, 60)] {
+            let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+            terminal.draw(|f| draw(f, &mut app, &theme)).unwrap();
+        }
+    }
+
     fn row_text(buf: &ratatui::buffer::Buffer, y: u16) -> String {
         (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect()
     }
@@ -429,12 +513,7 @@ mod tests {
     /// remaining cells right, breaking alignment for that row only.
     #[tokio::test]
     async fn long_controller_id_does_not_shift_the_status_column() {
-        let cfg = Resolved {
-            url: "http://127.0.0.1:1".into(),
-            user: "u".into(),
-            pass: "p".into(),
-        };
-        let (mut app, _rx) = App::new(Client::new(&cfg), 0);
+        let mut app = test_app();
         app.targets = vec![
             target("short", "in_sync"),
             target("a-controller-id-far-wider-than-its-column", "error"),
@@ -443,7 +522,7 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(50, 6)).unwrap();
         let theme = Theme::detect();
         terminal
-            .draw(|f| draw_targets(f, &app, &theme, f.area()))
+            .draw(|f| draw_targets(f, &mut app, &theme, f.area()))
             .unwrap();
         let buf = terminal.backend().buffer();
 

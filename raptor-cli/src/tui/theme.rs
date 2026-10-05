@@ -24,7 +24,7 @@ impl Theme {
     /// requirement. Otherwise use portable ANSI names; they inherit the
     /// user's terminal theme rather than fighting it with fixed RGB.
     pub fn detect() -> Self {
-        if std::env::var_os("NO_COLOR").is_some() {
+        if std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty()) {
             return Self {
                 fg: Color::Reset,
                 fg_muted: Color::Reset,
@@ -40,7 +40,8 @@ impl Theme {
         Self {
             fg: Color::Reset,
             fg_muted: Color::DarkGray,
-            fg_emphasis: Color::White,
+            // Emphasis comes from BOLD at the call site; White vanishes on light themes.
+            fg_emphasis: Color::Reset,
             selection: Style::new().bg(Color::Blue),
             accent: Color::Cyan,
             success: Color::Green,
