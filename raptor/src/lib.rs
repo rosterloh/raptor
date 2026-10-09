@@ -8,6 +8,7 @@ pub mod config;
 pub mod domain;
 pub mod entity;
 pub mod error;
+pub mod events;
 pub mod fiql;
 pub mod metrics;
 pub mod state;

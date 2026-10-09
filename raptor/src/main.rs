@@ -109,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 });
             }
+            let shutdown_state = state.clone();
             let app = raptor::app::build_app(state);
             let listener = tokio::net::TcpListener::bind(bind).await?;
             tracing::info!(%bind, "raptor listening");
@@ -118,7 +119,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 listener,
                 app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
             )
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(async move {
+                shutdown_signal().await;
+                // Ends open SSE streams so graceful shutdown doesn't wait on them.
+                shutdown_state.events.shutdown();
+            })
             .await?;
             tracing::info!("shutting down; flushing telemetry");
             telemetry.shutdown();
