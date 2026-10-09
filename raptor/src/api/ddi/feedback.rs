@@ -29,6 +29,14 @@ pub struct FeedbackStatus {
 pub struct FeedbackResult {
     #[serde(default = "none_str")]
     pub finished: String,
+    #[serde(default)]
+    pub progress: Option<FeedbackProgress>,
+}
+
+#[derive(Deserialize)]
+pub struct FeedbackProgress {
+    pub cnt: u32,
+    pub of: u32,
 }
 
 fn none_str() -> String {
@@ -54,6 +62,18 @@ pub async fn deployment_feedback(
         &fb.status.details,
     )
     .await?;
+    // Terminal feedback already cleared the action's progress; recording now would resurrect it.
+    let exec = fb.status.execution.as_str();
+    let terminal = matches!(exec, "closed" | "canceled")
+        || (exec == "downloaded" && a.action_type == "downloadonly");
+    if let (Some(p), false) = (&fb.status.result.progress, terminal) {
+        st.events.record_progress(raptor_api_types::ProgressEvent {
+            controller_id: cid,
+            action_id,
+            cnt: p.cnt,
+            of: p.of,
+        });
+    }
     Ok(StatusCode::OK)
 }
 

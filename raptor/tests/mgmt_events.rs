@@ -546,3 +546,77 @@ async fn zero_byte_artifact_reports_complete() {
     );
     common::sse_none(&mut body, 300).await;
 }
+
+fn ddi_feedback_progress(
+    action_id: i64,
+    execution: &str,
+    progress: serde_json::Value,
+) -> Request<Body> {
+    let body = json!({
+        "status": {"execution": execution, "result": {"finished": "none", "progress": progress}}
+    });
+    Request::post(format!(
+        "/DEFAULT/controller/v1/dev-1/deploymentBase/{action_id}/feedback"
+    ))
+    .header(header::CONTENT_TYPE, "application/json")
+    .body(Body::from(body.to_string()))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn feedback_progress_is_streamed() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback_progress(
+            action,
+            "proceeding",
+            json!({"cnt": 2, "of": 5}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let mut seen = vec![];
+    for _ in 0..2 {
+        seen.push(common::sse_next(&mut body).await);
+    }
+    let p = seen
+        .iter()
+        .find(|m| m.0 == "progress")
+        .expect("progress event");
+    assert_eq!(p.1["cnt"], 2);
+    assert_eq!(p.1["of"], 5);
+    assert_eq!(p.1["actionId"], action);
+}
+
+#[tokio::test]
+async fn feedback_without_progress_still_ok() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback(action, "proceeding", "none"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn terminal_feedback_progress_leaves_no_snapshot() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback_progress(
+            action,
+            "closed",
+            json!({"cnt": 5, "of": 5}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    common::sse_none(&mut body, 300).await;
+}
