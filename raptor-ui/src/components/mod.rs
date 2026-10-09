@@ -101,7 +101,7 @@ pub const LINK_CELL: &str = "block text-primary hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
 /// This is the fallback when live events are disconnected; while the stream is
-/// up the beat relaxes to 30s (see [`use_polling_every`]).
+/// up the beat relaxes to `ms.max(30s)`, so slower polls never speed up (see [`use_polling_every`]).
 ///
 ///
 /// Deliberately not paired with `SuspenseBoundary`/`.suspend()` (see #85):
@@ -132,7 +132,7 @@ pub fn use_polling_every<T: 'static>(mut res: Resource<T>, ms: u32) {
         loop {
             // Live events carry the changes; polling is only a safety net then.
             let wait = if live.is_some_and(|l| *l.0.peek()) {
-                30_000
+                ms.max(30_000)
             } else {
                 ms
             };

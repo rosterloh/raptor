@@ -161,6 +161,7 @@ fn open_source(
 /// Subscribes to the event stream for as long as the component is mounted,
 /// re-opening when `filter` changes. Returns whether the stream is connected.
 /// Off-wasm this is inert and always false.
+/// `on_event` is captured once at mount: capture only `Copy` handles (signals, resources), never plain values that change across renders.
 pub fn use_live_events(filter: LiveFilter, on_event: Callback<LiveEvent>) -> Signal<bool> {
     let connected = use_signal(|| false);
     #[cfg(target_arch = "wasm32")]
@@ -195,6 +196,7 @@ pub fn use_live_events(filter: LiveFilter, on_event: Callback<LiveEvent>) -> Sig
 
 /// Returns a callback that marks `K` as changed; `on_due` runs for each marked
 /// key at most once per second (checked on a 250 ms tick).
+/// `on_due` is captured once at mount: capture only `Copy` handles (signals, resources), never plain values that change across renders.
 pub fn use_coalesced_refetch<K: Eq + Hash + Clone + 'static>(
     on_due: impl FnMut(K) + 'static,
 ) -> Callback<K> {
@@ -213,5 +215,5 @@ pub fn use_coalesced_refetch<K: Eq + Hash + Clone + 'static>(
             }
         }
     });
-    Callback::new(move |k| dirty.borrow_mut().mark(k))
+    use_callback(move |k| dirty.borrow_mut().mark(k))
 }
