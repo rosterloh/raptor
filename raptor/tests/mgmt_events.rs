@@ -34,6 +34,27 @@ async fn create_target(app: &axum::Router, cid: &str) {
 
 /// Creates dev-1 with an active action; returns the action id.
 async fn active_action(app: &axum::Router) -> i64 {
+    active_action_with(app, None).await.1
+}
+
+fn upload(uri: &str, content: &[u8]) -> Request<Body> {
+    let b = "raptorboundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"fw.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n").as_bytes());
+    body.extend_from_slice(content);
+    body.extend_from_slice(format!("\r\n--{b}--\r\n").as_bytes());
+    Request::post(uri)
+        .header(header::AUTHORIZATION, common::mgmt_auth_header())
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={b}"),
+        )
+        .body(Body::from(body))
+        .unwrap()
+}
+
+/// As `active_action`, optionally uploading `fw.bin`; returns (module id, action id).
+async fn active_action_with(app: &axum::Router, artifact: Option<&[u8]>) -> (i64, i64) {
     let sm = common::body_json(
         app.clone()
             .oneshot(common::req(
@@ -60,6 +81,17 @@ async fn active_action(app: &axum::Router) -> i64 {
     .await[0]["id"]
         .as_i64()
         .unwrap();
+    if let Some(bytes) = artifact {
+        let r = app
+            .clone()
+            .oneshot(upload(
+                &format!("/rest/v1/softwaremodules/{sm}/artifacts"),
+                bytes,
+            ))
+            .await
+            .unwrap();
+        assert!(r.status().is_success());
+    }
     create_target(app, "dev-1").await;
     let body = common::body_json(
         app.clone()
@@ -72,7 +104,7 @@ async fn active_action(app: &axum::Router) -> i64 {
             .unwrap(),
     )
     .await;
-    body["assignedActions"][0]["id"].as_i64().unwrap()
+    (sm, body["assignedActions"][0]["id"].as_i64().unwrap())
 }
 
 fn dl(action_id: i64, sent: u64) -> DownloadEvent {
@@ -418,4 +450,99 @@ async fn invalidate_cancel_rollouts_publishes_rollout() {
         }
     }
     assert!(found, "no rollout event");
+}
+
+fn ddi_get(sm: i64, range: Option<&str>) -> Request<Body> {
+    let mut r = Request::get(format!(
+        "/DEFAULT/controller/v1/dev-1/softwaremodules/{sm}/artifacts/fw.bin"
+    ));
+    if let Some(v) = range {
+        r = r.header(header::RANGE, v);
+    }
+    r.body(Body::empty()).unwrap()
+}
+
+async fn drain(resp: axum::http::Response<Body>) -> usize {
+    use http_body_util::BodyExt;
+    resp.into_body().collect().await.unwrap().to_bytes().len()
+}
+
+#[tokio::test]
+async fn download_streams_progress_to_target_subscriber() {
+    let (app, _) = common::setup().await;
+    let (sm, action) = active_action_with(&app, Some(&vec![7u8; 300_000])).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app.clone().oneshot(ddi_get(sm, None)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(drain(resp).await, 300_000);
+    loop {
+        let (name, d) = common::sse_next(&mut body).await;
+        if name == "download" {
+            assert_eq!(d["actionId"], action);
+            assert_eq!(d["filename"], "fw.bin");
+            assert_eq!(d["total"], 300_000);
+            if d["sent"] == 300_000 {
+                break;
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn range_download_reports_from_offset() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = active_action_with(&app, Some(&vec![7u8; 1000])).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(ddi_get(sm, Some("bytes=400-")))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(drain(resp).await, 600);
+    loop {
+        let (name, d) = common::sse_next(&mut body).await;
+        if name == "download" {
+            assert!(d["sent"].as_u64().unwrap() >= 400, "{d}");
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn download_without_active_action_publishes_nothing() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = active_action_with(&app, Some(b"hello world")).await;
+    create_target(&app, "dev-2").await;
+    let mut body = open(&app, "?target=dev-2").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/DEFAULT/controller/v1/dev-2/softwaremodules/{sm}/artifacts/fw.bin"
+            ))
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(drain(resp).await, 11);
+    common::sse_none(&mut body, 300).await;
+}
+
+#[tokio::test]
+async fn zero_byte_artifact_reports_complete() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = active_action_with(&app, Some(b"")).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app.clone().oneshot(ddi_get(sm, None)).await.unwrap();
+    assert_eq!(drain(resp).await, 0);
+    let (name, d) = common::sse_next(&mut body).await;
+    assert_eq!(name, "download");
+    assert_eq!(
+        (d["sent"].as_u64(), d["total"].as_u64()),
+        (Some(0), Some(0))
+    );
+    common::sse_none(&mut body, 300).await;
 }

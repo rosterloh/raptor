@@ -2,7 +2,7 @@
 //! the `.MD5SUM` companion file. Actual blob storage lives in `storage`; this
 //! module only resolves metadata and streams bytes.
 
-use crate::entity::artifact;
+use crate::entity::{artifact, ds_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::base_url;
@@ -11,6 +11,8 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
 use axum::{Extension, Json};
+use futures::StreamExt;
+use raptor_api_types::DownloadEvent;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -61,7 +63,7 @@ pub async fn download(
     State(st): State<AppState>,
     Extension(_auth): Extension<crate::auth::ddi::AuthKind>,
     headers: HeaderMap,
-    Path((_tenant, _cid, module_id, filename)): Path<(String, String, i64, String)>,
+    Path((_tenant, cid, module_id, filename)): Path<(String, String, i64, String)>,
 ) -> Result<Response, AppError> {
     // .MD5SUM companion file
     if let Some(real) = filename.strip_suffix(".MD5SUM") {
@@ -74,6 +76,40 @@ pub async fn download(
 
     let a = find(&st, module_id, &filename).await?;
     let path = st.store.path_for(&a.sha256);
+    let owner = download_owner(&st, &cid, module_id)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = ?e, "download progress lookup failed");
+            None
+        });
+    let total = a.size.max(0) as u64;
+    let progress = |start: u64| {
+        let (st, cid, filename) = (st.clone(), cid.clone(), a.filename.clone());
+        let mut sent = start;
+        move |chunk: std::io::Result<bytes::Bytes>| {
+            if let (Some(action_id), Ok(b)) = (owner, &chunk) {
+                sent += b.len() as u64;
+                st.events.record_download(DownloadEvent {
+                    controller_id: cid.clone(),
+                    action_id,
+                    filename: filename.clone(),
+                    sent,
+                    total,
+                });
+            }
+            chunk
+        }
+    };
+    // An empty body may yield no chunks, so report completion up front.
+    if let (Some(action_id), 0) = (owner, total) {
+        st.events.record_download(DownloadEvent {
+            controller_id: cid.clone(),
+            action_id,
+            filename: a.filename.clone(),
+            sent: 0,
+            total: 0,
+        });
+    }
 
     if let Some(range) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
         let Some((start, end)) = parse_range(range, a.size) else {
@@ -87,7 +123,8 @@ pub async fn download(
         file.seek(std::io::SeekFrom::Start(start as u64)).await?;
         let len = end - start + 1;
         st.metrics.bytes_downloaded(len.max(0) as u64);
-        let stream = tokio_util::io::ReaderStream::new(file.take(len as u64));
+        let stream =
+            tokio_util::io::ReaderStream::new(file.take(len as u64)).map(progress(start as u64));
         return Ok(Response::builder()
             .status(StatusCode::PARTIAL_CONTENT)
             .header(header::ACCEPT_RANGES, "bytes")
@@ -115,7 +152,9 @@ pub async fn download(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", a.filename),
         )
-        .body(Body::from_stream(tokio_util::io::ReaderStream::new(file)))
+        .body(Body::from_stream(
+            tokio_util::io::ReaderStream::new(file).map(progress(0)),
+        ))
         .unwrap())
 }
 
@@ -126,4 +165,24 @@ async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact:
         .one(&st.db)
         .await?
         .ok_or(AppError::NotFound("artifact"))
+}
+
+/// Active action id iff `cid` has an active action whose DS contains `module_id`.
+async fn download_owner(st: &AppState, cid: &str, module_id: i64) -> Result<Option<i64>, AppError> {
+    let Some(t) = target::Entity::find()
+        .filter(target::Column::ControllerId.eq(cid))
+        .one(&st.db)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let Some(a) = crate::domain::deployment::active_action(&st.db, t.id).await? else {
+        return Ok(None);
+    };
+    let linked = ds_module::Entity::find()
+        .filter(ds_module::Column::DsId.eq(a.ds_id))
+        .filter(ds_module::Column::ModuleId.eq(module_id))
+        .one(&st.db)
+        .await?;
+    Ok(linked.map(|_| a.id))
 }
