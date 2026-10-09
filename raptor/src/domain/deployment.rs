@@ -9,8 +9,10 @@ use crate::entity::{
     target_type, target_type_ds_type,
 };
 use crate::error::AppError;
+use crate::events::Event;
 use crate::state::AppState;
 use crate::util::now_ms;
+use raptor_api_types::{ActionEvent, TargetEvent};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait,
     PaginatorTrait, QueryFilter,
@@ -79,14 +81,16 @@ pub fn effective_force_type(a: &action::Model, now: i64) -> &'static str {
     }
 }
 
+/// Inserts a status entry and publishes an `Action` change notice.
 pub async fn add_action_status(
-    db: &DatabaseConnection,
-    action_id: i64,
+    st: &AppState,
+    a: &action::Model,
     status: &str,
     messages: &[String],
 ) -> Result<(), AppError> {
+    let db = &st.db;
     let row = action_status::ActiveModel {
-        action_id: Set(action_id),
+        action_id: Set(a.id),
         status: Set(status.to_string()),
         created_at: Set(now_ms()),
         ..Default::default()
@@ -102,7 +106,20 @@ pub async fn add_action_status(
         .insert(db)
         .await?;
     }
+    if let Some(t) = target::Entity::find_by_id(a.target_id).one(db).await? {
+        st.events.publish(Event::Action(ActionEvent {
+            controller_id: t.controller_id,
+            action_id: a.id,
+            rollout_id: a.rollout_id,
+        }));
+    }
     Ok(())
+}
+
+pub fn publish_target(st: &AppState, controller_id: &str) {
+    st.events.publish(Event::Target(TargetEvent {
+        controller_id: controller_id.into(),
+    }));
 }
 
 pub async fn active_action(
@@ -210,22 +227,21 @@ pub async fn assign_ds(
             });
         }
         // v1: hard-cancel the superseded action (hawkBit soft-cancels; devices tolerate both)
-        let cid = current.id;
-        let mut am: action::ActiveModel = current.into();
+        let mut am: action::ActiveModel = current.clone().into();
         am.status = Set("canceled".into());
         am.active = Set(false);
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
         add_action_status(
-            &st.db,
-            cid,
+            st,
+            &current,
             "canceled",
             &["superseded by new assignment".into()],
         )
         .await?;
         tracing::info!(
             controller_id = %target.controller_id,
-            action_id = cid,
+            action_id = current.id,
             "action superseded by new assignment"
         );
     }
@@ -253,7 +269,7 @@ pub async fn assign_ds(
     }
     .insert(&st.db)
     .await?;
-    add_action_status(&st.db, a.id, initial, &[]).await?;
+    add_action_status(st, &a, initial, &[]).await?;
     st.metrics.action_created();
     tracing::info!(
         controller_id = %target.controller_id,
@@ -269,6 +285,7 @@ pub async fn assign_ds(
     tm.update_status = Set("pending".into());
     tm.updated_at = Set(now);
     tm.update(&st.db).await?;
+    publish_target(st, &target.controller_id);
 
     Ok(AssignResult {
         action_id: Some(a.id),
@@ -335,7 +352,7 @@ pub async fn apply_feedback(
     let closes_action = matches!(execution, "closed" | "canceled")
         || (execution == "downloaded" && a.action_type == "downloadonly");
     assert_feedback_quota(st, a.id, details, closes_action).await?;
-    add_action_status(&st.db, a.id, execution, details).await?;
+    add_action_status(st, a, execution, details).await?;
     // Any feedback — even the "history only" kinds below — proves the device
     // is still communicating, so it clears the repeated-fetch-with-no-feedback
     // diagnostic counter incremented by DDI's deploymentBase handler.
@@ -400,7 +417,7 @@ pub async fn apply_cancel_feedback(
     // running: both resolve it, so neither is an intermediate report.
     let resolves = matches!(execution, "closed" | "rejected");
     assert_feedback_quota(st, a.id, details, resolves).await?;
-    add_action_status(&st.db, a.id, &format!("cancel_{execution}"), details).await?;
+    add_action_status(st, a, &format!("cancel_{execution}"), details).await?;
     match execution {
         "closed" => {
             set_action(st, a, "canceled", false).await?;
@@ -415,6 +432,7 @@ pub async fn apply_cancel_feedback(
             tm.update_status = Set(status.into());
             tm.updated_at = Set(now_ms());
             tm.update(&st.db).await?;
+            publish_target(st, &t.controller_id);
             st.metrics.action_canceled();
             tracing::info!(controller_id = %t.controller_id, action_id = a.id, "device confirmed cancellation");
         }
@@ -444,7 +462,7 @@ pub async fn confirm_action(
             "action is not waiting for confirmation".into(),
         ));
     }
-    add_action_status(&st.db, a.id, "confirmed", details).await?;
+    add_action_status(st, a, "confirmed", details).await?;
     set_action(st, a, "running", true).await?;
     tracing::info!(action_id = a.id, "action confirmed");
     Ok(())
@@ -462,7 +480,7 @@ pub async fn deny_action(
             "action is not waiting for confirmation".into(),
         ));
     }
-    add_action_status(&st.db, a.id, "denied", details).await?;
+    add_action_status(st, a, "denied", details).await?;
     tracing::info!(
         action_id = a.id,
         details = details.join("; "),
@@ -496,6 +514,9 @@ async fn set_action(
     am.active = Set(active);
     am.updated_at = Set(now_ms());
     am.update(&st.db).await?;
+    if !active {
+        st.events.clear_action(a.id);
+    }
     Ok(())
 }
 
@@ -512,6 +533,7 @@ async fn set_target_status(
     tm.update_status = Set(status.into());
     tm.updated_at = Set(now_ms());
     tm.update(&st.db).await?;
+    publish_target(st, &t.controller_id);
     Ok(())
 }
 

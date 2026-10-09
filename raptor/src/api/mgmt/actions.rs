@@ -282,8 +282,8 @@ pub async fn update_action(
         am.updated_at = Set(now_ms());
         let a = am.update(&st.db).await?;
         crate::domain::deployment::add_action_status(
-            &st.db,
-            a.id,
+            &st,
+            &a,
             "forced",
             &[format!("force type set to {parsed} by operator")],
         )
@@ -321,16 +321,15 @@ pub async fn cancel_action(
     if !a.active {
         return Err(AppError::Gone);
     }
-    let action_id = a.id;
-    let mut am: action::ActiveModel = a.into();
+    let mut am: action::ActiveModel = a.clone().into();
     if cp.force {
         am.status = Set("canceled".into());
         am.active = Set(false);
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
         crate::domain::deployment::add_action_status(
-            &st.db,
-            action_id,
+            &st,
+            &a,
             "canceled",
             &["force canceled by operator".into()],
         )
@@ -343,13 +342,15 @@ pub async fn cancel_action(
         });
         tm.updated_at = Set(now_ms());
         tm.update(&st.db).await?;
+        st.events.clear_action(a.id);
+        crate::domain::deployment::publish_target(&st, &t.controller_id);
     } else {
         am.status = Set("canceling".into());
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
         crate::domain::deployment::add_action_status(
-            &st.db,
-            action_id,
+            &st,
+            &a,
             "canceling",
             &["cancel requested by operator".into()],
         )

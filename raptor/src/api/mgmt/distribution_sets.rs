@@ -389,16 +389,16 @@ pub async fn invalidate(
             .all(&st.db)
             .await?
         {
-            let (aid, target_id) = (a.id, a.target_id);
-            let mut aam: action::ActiveModel = a.into();
+            let target_id = a.target_id;
+            let mut aam: action::ActiveModel = a.clone().into();
             if mode == "force" {
                 aam.status = Set("canceled".into());
                 aam.active = Set(false);
                 aam.updated_at = Set(now_ms());
                 aam.update(&st.db).await?;
                 crate::domain::deployment::add_action_status(
-                    &st.db,
-                    aid,
+                    &st,
+                    &a,
                     "canceled",
                     &["distribution set invalidated".into()],
                 )
@@ -406,18 +406,21 @@ pub async fn invalidate(
                 // Reset the target so it isn't left "pending" forever.
                 if let Some(t) = target::Entity::find_by_id(target_id).one(&st.db).await? {
                     let installed = t.installed_ds_id.is_some();
+                    let cid = t.controller_id.clone();
                     let mut tm: target::ActiveModel = t.into();
                     tm.update_status = Set(if installed { "in_sync" } else { "registered" }.into());
                     tm.updated_at = Set(now_ms());
                     tm.update(&st.db).await?;
+                    crate::domain::deployment::publish_target(&st, &cid);
                 }
+                st.events.clear_action(a.id);
             } else {
                 aam.status = Set("canceling".into());
                 aam.updated_at = Set(now_ms());
                 aam.update(&st.db).await?;
                 crate::domain::deployment::add_action_status(
-                    &st.db,
-                    aid,
+                    &st,
+                    &a,
                     "canceling",
                     &["distribution set invalidated".into()],
                 )

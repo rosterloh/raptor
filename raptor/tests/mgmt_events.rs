@@ -248,3 +248,111 @@ async fn snapshot_respects_rollout_filter() {
     let mut body = open(&app, "?target=dev-1&rollout=7").await.into_body();
     common::sse_none(&mut body, 300).await;
 }
+
+fn ddi_feedback(action_id: i64, execution: &str, finished: &str) -> Request<Body> {
+    let body = json!({
+        "id": action_id.to_string(),
+        "time": "20260704T120000",
+        "status": {"execution": execution, "result": {"finished": finished}, "details": ["msg"]}
+    });
+    Request::post(format!(
+        "/DEFAULT/controller/v1/dev-1/deploymentBase/{action_id}/feedback"
+    ))
+    .header(header::CONTENT_TYPE, "application/json")
+    .body(Body::from(body.to_string()))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn assign_publishes_target_and_action() {
+    let (app, _) = common::setup().await;
+    create_target(&app, "dev-1").await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let action = active_action(&app).await;
+    let mut names = [
+        common::sse_next(&mut body).await,
+        common::sse_next(&mut body).await,
+    ];
+    names.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(names[0].0, "action");
+    assert_eq!(names[0].1["actionId"], action);
+    assert_eq!(names[0].1["controllerId"], "dev-1");
+    assert_eq!(names[1].0, "target");
+    assert_eq!(names[1].1, json!({"controllerId": "dev-1"}));
+}
+
+#[tokio::test]
+async fn feedback_publishes_action_and_finish_publishes_target() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback(action, "proceeding", "none"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let (name, data) = common::sse_next(&mut body).await;
+    assert_eq!(name, "action");
+    assert_eq!(data["actionId"], action);
+
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback(action, "closed", "success"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let mut seen = vec![];
+    for _ in 0..2 {
+        seen.push(common::sse_next(&mut body).await.0);
+    }
+    assert!(seen.contains(&"target".to_string()), "{seen:?}");
+}
+
+#[tokio::test]
+async fn rollout_start_publishes_rollout() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await; // creates dev-1 + a DS
+    let _ = action;
+    let ds = common::body_json(open_get(&app, "/rest/v1/distributionsets").await).await["content"]
+        [0]["id"]
+        .as_i64()
+        .unwrap();
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(json!({
+                    "name": "r1",
+                    "distributionSetId": ds,
+                    "targetFilterQuery": "controllerId==dev-*",
+                    "amountGroups": 1,
+                    "successCondition": {"condition": "THRESHOLD", "expression": "100"},
+                })),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+    let mut body = open(&app, &format!("?rollout={id}")).await.into_body();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+    let (name, data) = common::sse_next(&mut body).await;
+    assert_eq!(name, "rollout");
+    assert_eq!(data["rolloutId"], id);
+}
+
+async fn open_get(app: &axum::Router, uri: &str) -> axum::http::Response<Body> {
+    app.clone()
+        .oneshot(common::req("GET", uri, None))
+        .await
+        .unwrap()
+}
