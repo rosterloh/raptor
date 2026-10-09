@@ -227,3 +227,24 @@ async fn dropped_subscriber_is_released() {
     state.events.publish(target("dev-1"));
     assert_eq!(state.events.receiver_count(), 0);
 }
+
+#[tokio::test]
+async fn stream_opened_after_shutdown_ends() {
+    use http_body_util::BodyExt;
+    let (app, state) = common::setup().await;
+    state.events.shutdown();
+    let mut body = open(&app, "").await.into_body();
+    let next = tokio::time::timeout(std::time::Duration::from_secs(2), body.frame())
+        .await
+        .expect("stream did not end");
+    assert!(next.is_none());
+}
+
+#[tokio::test]
+async fn snapshot_respects_rollout_filter() {
+    let (app, state) = common::setup().await;
+    let action = active_action(&app).await;
+    state.events.record_download(dl(action, 4));
+    let mut body = open(&app, "?target=dev-1&rollout=7").await.into_body();
+    common::sse_none(&mut body, 300).await;
+}

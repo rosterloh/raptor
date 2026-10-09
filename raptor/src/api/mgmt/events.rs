@@ -59,6 +59,10 @@ pub async fn stream(
     State(st): State<AppState>,
     Query(q): Query<EventsQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<sse::Event, Infallible>>>, AppError> {
+    let filter = Filter {
+        target: q.target.clone(),
+        rollout: q.rollout,
+    };
     let mut pending: VecDeque<sse::Event> = VecDeque::new();
     if let Some(cid) = &q.target {
         targets::find_by_cid(&st.db, cid).await?;
@@ -77,12 +81,14 @@ pub async fn stream(
                 st.events.clear_action(id);
             }
         }
-        pending.extend(st.events.snapshot(cid).iter().map(to_sse));
+        pending.extend(
+            st.events
+                .snapshot(cid)
+                .iter()
+                .filter(|e| filter.matches(e))
+                .map(to_sse),
+        );
     }
-    let filter = Filter {
-        target: q.target,
-        rollout: q.rollout,
-    };
     let s = stream::unfold(
         (rx, shutdown, pending, filter),
         |(mut rx, mut shutdown, mut pending, filter)| async move {
@@ -92,7 +98,7 @@ pub async fn stream(
                 }
                 let next = tokio::select! {
                     r = rx.recv() => r,
-                    _ = shutdown.changed() => return None,
+                    _ = shutdown.wait_for(|v| *v) => return None,
                 };
                 match next {
                     Ok(ev) if filter.matches(&ev) => pending.push_back(to_sse(&ev)),
