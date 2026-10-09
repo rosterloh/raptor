@@ -592,3 +592,19 @@ fn assign_result_shape() {
         "assigned": 1, "alreadyAssigned": 0, "total": 1, "assignedActions": [{"id": 7}]
     }));
 }
+
+#[test]
+fn event_payloads_round_trip() {
+    round_trip::<TargetEvent>(json!({"controllerId": "dev-1"}));
+    round_trip::<ActionEvent>(json!({"controllerId": "dev-1", "actionId": 42, "rolloutId": 7}));
+    // No `rolloutId` key when absent, rather than `null`.
+    round_trip::<ActionEvent>(json!({"controllerId": "dev-1", "actionId": 42}));
+    round_trip::<RolloutEvent>(json!({"rolloutId": 7}));
+    round_trip::<DownloadEvent>(json!({
+        "controllerId": "dev-1", "actionId": 42, "filename": "rootfs.img",
+        "sent": 5242880, "total": 104857600
+    }));
+    round_trip::<ProgressEvent>(
+        json!({"controllerId": "dev-1", "actionId": 42, "cnt": 2, "of": 5}),
+    );
+}

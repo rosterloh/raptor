@@ -8,6 +8,7 @@
 mod actions;
 mod common;
 mod distribution_sets;
+mod events;
 mod metadata;
 mod rollouts;
 mod software_modules;
@@ -18,6 +19,7 @@ mod targets;
 pub use actions::*;
 pub use common::*;
 pub use distribution_sets::*;
+pub use events::*;
 pub use metadata::*;
 pub use rollouts::*;
 pub use software_modules::*;
