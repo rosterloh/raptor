@@ -620,3 +620,35 @@ async fn terminal_feedback_progress_leaves_no_snapshot() {
     let mut body = open(&app, "?target=dev-1").await.into_body();
     common::sse_none(&mut body, 300).await;
 }
+
+#[tokio::test]
+async fn malformed_progress_is_ignored() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(ddi_feedback_progress(
+            action,
+            "proceeding",
+            json!({"cnt": -1}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let (name, _) = common::sse_next(&mut body).await;
+    assert_eq!(name, "action");
+    common::sse_none(&mut body, 300).await;
+    let h = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                &format!("/rest/v1/targets/dev-1/actions/{action}/status"),
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(h.to_string().contains("proceeding"), "{h}");
+}

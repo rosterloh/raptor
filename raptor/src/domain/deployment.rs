@@ -314,6 +314,12 @@ pub async fn assign_ds(
 /// #assertActionStatusQuota`, whose `isIntermediateStatus` excludes FINISHED
 /// and ERROR; its cancel path likewise exempts CANCELED and CANCEL_REJECTED).
 /// The *message* quota stays ungated, exactly as upstream leaves it.
+/// Whether feedback with this `execution` terminates the action.
+pub(crate) fn closes_action(execution: &str, action_type: &str) -> bool {
+    matches!(execution, "closed" | "canceled")
+        || (execution == "downloaded" && action_type == "downloadonly")
+}
+
 async fn assert_feedback_quota(
     st: &AppState,
     action_id: i64,
@@ -353,8 +359,7 @@ pub async fn apply_feedback(
     details: &[String],
 ) -> Result<(), AppError> {
     // The same set the match below closes the action on.
-    let closes_action = matches!(execution, "closed" | "canceled")
-        || (execution == "downloaded" && a.action_type == "downloadonly");
+    let closes_action = closes_action(execution, &a.action_type);
     assert_feedback_quota(st, a.id, details, closes_action).await?;
     add_action_status(st, a, execution, details).await?;
     // Any feedback — even the "history only" kinds below — proves the device
