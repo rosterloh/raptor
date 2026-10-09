@@ -229,14 +229,15 @@ normal Management API auth — Basic, or the session cookie (the console relies 
 the cookie because browser `EventSource` cannot send `Authorization`). An
 unknown `target` returns `404`.
 
-`target` and `rollout` are optional and combinable. Each message has an
+`target` and `rollout` are optional and combinable. `rollout={id}` delivers that
+rollout's `rollout` events plus `action` events whose `rolloutId` matches. Each message has an
 `event:` type and camelCase JSON `data:`:
 
 | `event:` | `data:` | Meaning |
 |---|---|---|
 | `target` | `{"controllerId"}` | update status, assigned or installed set changed |
 | `action` | `{"controllerId","actionId","rolloutId"?}` | action status changed, status-history entry added, cancel/confirm |
-| `rollout` | `{"rolloutId"}` | rollout or group state/counters changed |
+| `rollout` | `{"rolloutId"}` | rollout or group state transition (counters move with `action` events) |
 | `download` | `{"controllerId","actionId","filename","sent","total"}` | artifact bytes streamed to the device |
 | `progress` | `{"controllerId","actionId","cnt","of"}` | DDI `result.progress` reported by the device |
 | `resync` | `{}` | the subscriber lagged; refetch everything shown |
@@ -250,6 +251,12 @@ unknown `target` returns `404`.
 - A keep-alive comment is sent every 15 s. There are no event ids and no
   `Last-Event-ID` replay; treat a reconnect as a resync.
 - Events are in-process: they cover one raptor instance only.
+- Behind a reverse proxy, disable response buffering for `/rest/v1/events`,
+  or events arrive in bursts. raptor sends `X-Accel-Buffering: no`, which
+  covers nginx; other proxies need it configured.
+- Over plain HTTP/1.1 each open console tab holds one of the browser's ~6
+  connections per origin. If many tabs are expected, serve the console through
+  an HTTP/2 (TLS) proxy.
 
 ## Target filters
 

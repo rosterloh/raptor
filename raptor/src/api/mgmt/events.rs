@@ -1,17 +1,19 @@
 //! `GET /rest/v1/events`: raptor-only Server-Sent Events feed of live updates.
 
 use crate::api::mgmt::targets;
+use crate::entity::action;
 use crate::error::AppError;
 use crate::events::Event;
 use crate::state::AppState;
 use axum::Router;
 use axum::extract::{Query, State};
+use axum::response::IntoResponse;
 use axum::response::sse::{self, KeepAlive, Sse};
 use axum::routing::get;
-use futures::stream::{self, Stream};
-use sea_orm::EntityTrait;
+use futures::stream;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde::Deserialize;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::convert::Infallible;
 use std::time::Duration;
 use tokio::sync::broadcast::error::RecvError;
@@ -58,7 +60,7 @@ fn to_sse(ev: &Event) -> sse::Event {
 pub async fn stream(
     State(st): State<AppState>,
     Query(q): Query<EventsQuery>,
-) -> Result<Sse<impl Stream<Item = Result<sse::Event, Infallible>>>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     let filter = Filter {
         target: q.target.clone(),
         rollout: q.rollout,
@@ -71,20 +73,32 @@ pub async fn stream(
     let rx = st.events.subscribe();
     let shutdown = st.events.shutdown_signal();
     if let Some(cid) = &q.target {
-        // Progress table is bounded only by pruning actions that are over.
-        for id in st.events.action_ids() {
-            let active = crate::entity::action::Entity::find_by_id(id)
-                .one(&st.db)
+        // Progress table is bounded only by pruning actions that are over;
+        // prune just this target's entries, in one query.
+        let snap = st.events.snapshot(cid);
+        let mut ids: Vec<i64> = snap.iter().filter_map(Event::action_id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let active: HashSet<i64> = if ids.is_empty() {
+            HashSet::new()
+        } else {
+            action::Entity::find()
+                .select_only()
+                .column(action::Column::Id)
+                .filter(action::Column::Id.is_in(ids.clone()))
+                .filter(action::Column::Active.eq(true))
+                .into_tuple::<i64>()
+                .all(&st.db)
                 .await?
-                .is_some_and(|a| a.active);
-            if !active {
-                st.events.clear_action(id);
-            }
+                .into_iter()
+                .collect()
+        };
+        for id in ids.iter().filter(|id| !active.contains(id)) {
+            st.events.clear_action(*id);
         }
         pending.extend(
-            st.events
-                .snapshot(cid)
-                .iter()
+            snap.iter()
+                .filter(|e| e.action_id().is_some_and(|id| active.contains(&id)))
                 .filter(|e| filter.matches(e))
                 .map(to_sse),
         );
@@ -94,7 +108,7 @@ pub async fn stream(
         |(mut rx, mut shutdown, mut pending, filter)| async move {
             loop {
                 if let Some(ev) = pending.pop_front() {
-                    return Some((Ok(ev), (rx, shutdown, pending, filter)));
+                    return Some((Ok::<_, Infallible>(ev), (rx, shutdown, pending, filter)));
                 }
                 let next = tokio::select! {
                     r = rx.recv() => r,
@@ -111,5 +125,9 @@ pub async fn stream(
             }
         },
     );
-    Ok(Sse::new(s).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))))
+    // Tells nginx not to buffer the stream.
+    Ok((
+        [("x-accel-buffering", "no")],
+        Sse::new(s).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))),
+    ))
 }

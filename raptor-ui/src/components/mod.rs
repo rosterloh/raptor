@@ -125,8 +125,18 @@ pub fn use_polling<T: 'static>(res: Resource<T>) {
 /// console left open in a background tab keeps polling the API indefinitely — on
 /// the dashboard that is the most expensive read the app makes. Data is up to one
 /// interval stale when the tab comes back, which the next tick clears.
-pub fn use_polling_every<T: 'static>(mut res: Resource<T>, ms: u32) {
-    let live = try_use_context::<LiveContext>();
+pub fn use_polling_every<T: 'static>(res: Resource<T>, ms: u32) {
+    poll(res, ms, true);
+}
+
+/// [`use_polling_every`] without the slow-down while live events are up, for
+/// data that changes without producing an event.
+pub fn use_polling_always<T: 'static>(res: Resource<T>, ms: u32) {
+    poll(res, ms, false);
+}
+
+fn poll<T: 'static>(mut res: Resource<T>, ms: u32, relax_when_live: bool) {
+    let live = try_use_context::<LiveContext>().filter(|_| relax_when_live);
     use_future(move || async move {
         loop {
             // Live events carry the changes; polling is only a safety net then.

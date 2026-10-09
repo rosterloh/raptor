@@ -160,6 +160,7 @@ async fn events_accepts_session_cookie() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(resp.headers()[header::CONTENT_TYPE], "text/event-stream");
+    assert_eq!(resp.headers()["x-accel-buffering"], "no");
 }
 
 #[tokio::test]
@@ -228,7 +229,7 @@ async fn no_snapshot_for_inactive_action() {
     state.events.record_download(dl(9999, 4));
     let mut body = open(&app, "?target=dev-1").await.into_body();
     common::sse_none(&mut body, 300).await;
-    assert!(!state.events.action_ids().contains(&9999));
+    assert!(state.events.snapshot("dev-1").is_empty());
 }
 
 #[tokio::test]
@@ -339,6 +340,31 @@ async fn feedback_publishes_action_and_finish_publishes_target() {
         seen.push(common::sse_next(&mut body).await.0);
     }
     assert!(seen.contains(&"target".to_string()), "{seen:?}");
+}
+
+#[tokio::test]
+async fn action_notice_follows_final_status_write() {
+    let (app, _) = common::setup().await;
+    let action = active_action(&app).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    // Not awaited first, so the GET can run before the handler returns.
+    let fb = tokio::spawn(
+        app.clone()
+            .oneshot(ddi_feedback(action, "closed", "success")),
+    );
+    loop {
+        let (name, data) = common::sse_next(&mut body).await;
+        if name == "action" && data["actionId"] == action {
+            break;
+        }
+    }
+    let a = common::body_json(
+        open_get(&app, &format!("/rest/v1/targets/dev-1/actions/{action}")).await,
+    )
+    .await;
+    assert_eq!(a["status"], "finished");
+    assert_eq!(a["detailStatus"], "finished");
+    assert_eq!(fb.await.unwrap().unwrap().status(), StatusCode::OK);
 }
 
 #[tokio::test]

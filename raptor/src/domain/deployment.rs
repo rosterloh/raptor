@@ -81,8 +81,20 @@ pub fn effective_force_type(a: &action::Model, now: i64) -> &'static str {
     }
 }
 
-/// Inserts a status entry and publishes an `Action` change notice.
+/// Inserts a status entry and publishes an `Action` change notice; callers
+/// must have written the action row's new state already.
 pub async fn add_action_status(
+    st: &AppState,
+    a: &action::Model,
+    status: &str,
+    messages: &[String],
+) -> Result<(), AppError> {
+    insert_action_status(st, a, status, messages).await?;
+    publish_action(st, a).await;
+    Ok(())
+}
+
+async fn insert_action_status(
     st: &AppState,
     a: &action::Model,
     status: &str,
@@ -106,8 +118,12 @@ pub async fn add_action_status(
         .insert(db)
         .await?;
     }
+    Ok(())
+}
+
+async fn publish_action(st: &AppState, a: &action::Model) {
     // The write is committed; a failed lookup must not turn it into an error.
-    match target::Entity::find_by_id(a.target_id).one(db).await {
+    match target::Entity::find_by_id(a.target_id).one(&st.db).await {
         Ok(Some(t)) => st.events.publish(Event::Action(ActionEvent {
             controller_id: t.controller_id,
             action_id: a.id,
@@ -116,7 +132,6 @@ pub async fn add_action_status(
         Ok(None) => tracing::warn!(action_id = a.id, "no target for action event"),
         Err(e) => tracing::warn!(error = ?e, action_id = a.id, "action event lookup failed"),
     }
-    Ok(())
 }
 
 pub fn publish_target(st: &AppState, controller_id: &str) {
@@ -297,6 +312,12 @@ pub async fn assign_ds(
     })
 }
 
+/// Whether feedback with this `execution` terminates the action.
+pub(crate) fn closes_action(execution: &str, action_type: &str) -> bool {
+    matches!(execution, "closed" | "canceled")
+        || (execution == "downloaded" && action_type == "downloadonly")
+}
+
 /// Quota check for a status entry a *device* is reporting: the number of
 /// entries already on the action, and the number of messages in this one.
 ///
@@ -314,12 +335,6 @@ pub async fn assign_ds(
 /// #assertActionStatusQuota`, whose `isIntermediateStatus` excludes FINISHED
 /// and ERROR; its cancel path likewise exempts CANCELED and CANCEL_REJECTED).
 /// The *message* quota stays ungated, exactly as upstream leaves it.
-/// Whether feedback with this `execution` terminates the action.
-pub(crate) fn closes_action(execution: &str, action_type: &str) -> bool {
-    matches!(execution, "closed" | "canceled")
-        || (execution == "downloaded" && action_type == "downloadonly")
-}
-
 async fn assert_feedback_quota(
     st: &AppState,
     action_id: i64,
@@ -361,7 +376,7 @@ pub async fn apply_feedback(
     // The same set the match below closes the action on.
     let closes_action = closes_action(execution, &a.action_type);
     assert_feedback_quota(st, a.id, details, closes_action).await?;
-    add_action_status(st, a, execution, details).await?;
+    insert_action_status(st, a, execution, details).await?;
     // Any feedback — even the "history only" kinds below — proves the device
     // is still communicating, so it clears the repeated-fetch-with-no-feedback
     // diagnostic counter incremented by DDI's deploymentBase handler.
@@ -412,6 +427,8 @@ pub async fn apply_feedback(
         }
         _ => {} // proceeding/download/downloaded/resumed/scheduled/rejected: history only
     }
+    // Only after the action row is final, so a notified reader sees it.
+    publish_action(st, a).await;
     Ok(())
 }
 
@@ -426,7 +443,7 @@ pub async fn apply_cancel_feedback(
     // running: both resolve it, so neither is an intermediate report.
     let resolves = matches!(execution, "closed" | "rejected");
     assert_feedback_quota(st, a.id, details, resolves).await?;
-    add_action_status(st, a, &format!("cancel_{execution}"), details).await?;
+    insert_action_status(st, a, &format!("cancel_{execution}"), details).await?;
     match execution {
         "closed" => {
             set_action(st, a, "canceled", false).await?;
@@ -456,6 +473,7 @@ pub async fn apply_cancel_feedback(
         }
         _ => {}
     }
+    publish_action(st, a).await;
     Ok(())
 }
 
@@ -471,9 +489,10 @@ pub async fn confirm_action(
             "action is not waiting for confirmation".into(),
         ));
     }
-    add_action_status(st, a, "confirmed", details).await?;
+    insert_action_status(st, a, "confirmed", details).await?;
     set_action(st, a, "running", true).await?;
     tracing::info!(action_id = a.id, "action confirmed");
+    publish_action(st, a).await;
     Ok(())
 }
 

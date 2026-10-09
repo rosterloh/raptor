@@ -81,12 +81,15 @@ The console surfaces the core read/observe workflow and common actions:
 
 The console subscribes to [`GET /rest/v1/events`](../reference/management-api.md#live-events-raptor-extension)
 so changes appear without waiting for a poll: target status, action history,
-rollout counters and the list pages refresh as they happen. The target page also
+rollout counters (which move with `action` events, not `rollout` ones) and the
+list pages refresh as they happen. The target page also
 shows per-artifact download bars while a device is fetching, and the device's
 reported step ("step cnt / of") when it sends `result.progress`.
 
 While the stream is connected, polling slows to 30 s (never faster than a page's
-own interval) as a safety net. If the stream is unavailable or drops — older
+own interval) as a safety net. The Targets list is the exception: it keeps
+polling every 5 s, because device polls and newly registered devices publish no
+events and its poll ages would otherwise go stale. If the stream is unavailable or drops — older
 server, a proxy that buffers responses, an expired session — the console falls
 back to the 5 s polling described below and is never worse than without it.
 Download and step progress are live only: they are held in memory, not stored,

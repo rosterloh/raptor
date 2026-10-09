@@ -17,7 +17,7 @@ pub const EVENT_PROGRESS: &str = "progress";
 /// SSE event name sent when a subscriber has missed events and must refetch.
 pub const EVENT_RESYNC: &str = "resync";
 
-/// A target was created, updated or polled.
+/// A target's update status, assigned or installed set changed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetEvent {

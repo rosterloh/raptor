@@ -80,7 +80,8 @@ pub fn Targets(
     }));
     // Polled because the rows carry poll ages: an age that silently stops
     // advancing is worse than no age at all.
-    use_polling(targets);
+    // Full rate even when live: polls and new devices publish no events.
+    use_polling_always(targets, 5_000);
     let refetch = use_coalesced_refetch(move |()| targets.restart());
     let on_event = use_callback(move |e| {
         if matches!(e, LiveEvent::Target(_) | LiveEvent::Resync) {

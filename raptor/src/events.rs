@@ -52,6 +52,15 @@ impl Event {
         }
     }
 
+    /// Action a data event belongs to.
+    pub fn action_id(&self) -> Option<i64> {
+        match self {
+            Event::Download(e) => Some(e.action_id),
+            Event::Progress(e) => Some(e.action_id),
+            _ => None,
+        }
+    }
+
     /// High-frequency events delivered only to per-target subscriptions.
     pub fn is_data(&self) -> bool {
         matches!(self, Event::Download(_) | Event::Progress(_))
@@ -147,19 +156,6 @@ impl Events {
         downloads.chain(progress).collect()
     }
 
-    pub fn action_ids(&self) -> Vec<i64> {
-        let t = self.table.lock().unwrap();
-        let mut ids: Vec<i64> = t
-            .downloads
-            .keys()
-            .map(|(id, _)| *id)
-            .chain(t.progress.keys().copied())
-            .collect();
-        ids.sort_unstable();
-        ids.dedup();
-        ids
-    }
-
     pub fn shutdown(&self) {
         self.shutdown.send_replace(true);
     }
@@ -228,10 +224,8 @@ mod tests {
         ev.record_download(dl("dev-1", 1, 3));
         ev.record_progress(prog("dev-1", 1));
         assert_eq!(ev.snapshot("dev-1").len(), 2);
-        assert_eq!(ev.action_ids(), vec![1]);
         ev.clear_action(1);
         assert!(ev.snapshot("dev-1").is_empty());
-        assert!(ev.action_ids().is_empty());
     }
 
     #[test]

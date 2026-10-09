@@ -123,8 +123,8 @@ pub async fn download(
         file.seek(std::io::SeekFrom::Start(start as u64)).await?;
         let len = end - start + 1;
         st.metrics.bytes_downloaded(len.max(0) as u64);
-        let stream =
-            tokio_util::io::ReaderStream::new(file.take(len as u64)).map(progress(start as u64));
+        let stream = tokio_util::io::ReaderStream::with_capacity(file.take(len as u64), 64 * 1024)
+            .map(progress(start as u64));
         return Ok(Response::builder()
             .status(StatusCode::PARTIAL_CONTENT)
             .header(header::ACCEPT_RANGES, "bytes")
@@ -153,7 +153,7 @@ pub async fn download(
             format!("attachment; filename=\"{}\"", a.filename),
         )
         .body(Body::from_stream(
-            tokio_util::io::ReaderStream::new(file).map(progress(0)),
+            tokio_util::io::ReaderStream::with_capacity(file, 64 * 1024).map(progress(0)),
         ))
         .unwrap())
 }
