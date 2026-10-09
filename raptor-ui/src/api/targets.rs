@@ -3,14 +3,21 @@
 use raptor_api_types::*;
 use std::collections::BTreeMap;
 
-use super::{ApiResult, delete, get_json, get_opt, list_path, post_json, post_nothing, put_json};
+use super::{
+    ApiResult, delete, get_json, get_opt, list_path, post_json, post_nothing, put_json, with_sort,
+};
 
 pub async fn list_targets(
     offset: u64,
     limit: u64,
     q: Option<&str>,
+    sort: Option<&str>,
 ) -> ApiResult<PagedList<TargetRest>> {
-    get_json(&list_path("/rest/v1/targets", offset, limit, q)).await
+    get_json(&with_sort(
+        list_path("/rest/v1/targets", offset, limit, q),
+        sort,
+    ))
+    .await
 }
 
 pub async fn get_target(cid: &str) -> ApiResult<TargetRest> {

@@ -11,17 +11,16 @@ const ACTION_ROWS: u64 = 20;
 const STATUS_ROWS: u64 = 50;
 
 #[component]
-pub fn TargetDetail(cid: String) -> Element {
-    let cid_s = use_signal(|| cid.clone());
-    let mut target = use_resource(move || async move { api::get_target(&cid_s()).await });
-    let attributes = use_resource(move || async move { api::target_attributes(&cid_s()).await });
-    let mut assigned = use_resource(move || async move { api::assigned_ds(&cid_s()).await });
-    let installed = use_resource(move || async move { api::installed_ds(&cid_s()).await });
+pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
+    let mut target = use_resource(move || async move { api::get_target(&cid()).await });
+    let attributes = use_resource(move || async move { api::target_attributes(&cid()).await });
+    let mut assigned = use_resource(move || async move { api::assigned_ds(&cid()).await });
+    let installed = use_resource(move || async move { api::installed_ds(&cid()).await });
     let mut actions =
-        use_resource(move || async move { api::target_actions(&cid_s(), 0, ACTION_ROWS).await });
-    let tags = use_resource(move || async move { api::target_tags(&cid_s()).await });
+        use_resource(move || async move { api::target_actions(&cid(), 0, ACTION_ROWS).await });
+    let tags = use_resource(move || async move { api::target_tags(&cid()).await });
     let mut auto_confirm =
-        use_resource(move || async move { api::auto_confirm_status(&cid_s()).await });
+        use_resource(move || async move { api::auto_confirm_status(&cid()).await });
     use_polling(actions);
 
     let mut show_assign = use_signal(|| false);
@@ -59,7 +58,7 @@ pub fn TargetDetail(cid: String) -> Element {
                     },
                     _ => rsx! {
                         h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
-                            "{cid_s()}"
+                            "{cid()}"
                         }
                     },
                 }
@@ -77,7 +76,7 @@ pub fn TargetDetail(cid: String) -> Element {
                             Button {
                                 variant: ButtonVariant::Outline,
                                 onclick: move |_| {
-                                    let cid = cid_s();
+                                    let cid = cid();
                                     spawn(async move {
                                         let result = if active {
                                             api::deactivate_auto_confirm(&cid).await
@@ -164,7 +163,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                         dt { class: "text-muted-foreground", "Group" }
                                         dd { class: "break-all text-fg-dim",
                                             GroupField {
-                                                cid: cid_s,
+                                                cid: cid,
                                                 group: t.group.clone(),
                                                 on_changed: move |_| target.restart(),
                                             }
@@ -175,7 +174,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                         dt { class: "text-muted-foreground", "Target type" }
                                         dd { class: "break-all text-fg-dim",
                                             TargetTypeField {
-                                                cid: cid_s,
+                                                cid: cid,
                                                 target_type_id: t.target_type,
                                                 on_changed: move |_| target.restart(),
                                             }
@@ -279,7 +278,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                 for a in page.content.clone() {
                                     ActionRow {
                                         key: "{a.id}",
-                                        cid: cid_s(),
+                                        cid: cid(),
                                         action: a,
                                         on_changed: move |_| {
                                             actions.restart();
@@ -295,27 +294,27 @@ pub fn TargetDetail(cid: String) -> Element {
                 }
 
                 TabPanel { index: 3, selected: tab,
-                    EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
+                    EntityTags { kind: TagKind::Target, entity_key: cid(), tags }
                 }
 
                 // --- metadata panel (issue #35) ---
                 TabPanel { index: 4, selected: tab,
-                    MetadataPanel { prefix: format!("/rest/v1/targets/{}/metadata", cid_s()) }
+                    MetadataPanel { prefix: format!("/rest/v1/targets/{}/metadata", cid()) }
                 }
                 // --- end metadata panel ---
             }
         }
 
-        AssignDsDialog { open: show_assign, cid: cid_s, on_done: move |_| refresh() }
+        AssignDsDialog { open: show_assign, cid: cid, on_done: move |_| refresh() }
         ConfirmDialog {
             title: "Delete target".to_string(),
             message: format!(
                 "Delete {} and its action history? The device re-registers on its next poll, without its tags or assignment.",
-                cid_s(),
+                cid(),
             ),
             open: confirm_delete,
             on_confirm: move |_| {
-                let cid = cid_s();
+                let cid = cid();
                 spawn(async move {
                     match api::delete_target(&cid).await {
                         Ok(()) => {
@@ -538,7 +537,7 @@ fn DsTile(label: String, res: Resource<api::ApiResult<Option<DsRest>>>) -> Eleme
 #[component]
 pub fn AssignDsDialog(
     open: Signal<bool>,
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     on_done: EventHandler<()>,
 ) -> Element {
     let sets = use_resource(move || async move {
@@ -641,7 +640,11 @@ pub fn AssignDsDialog(
 /// express it — an omitted `group` means "leave unchanged", so a group can be
 /// moved but never unset.
 #[component]
-fn GroupField(cid: Signal<String>, group: Option<String>, on_changed: EventHandler<()>) -> Element {
+fn GroupField(
+    cid: ReadSignal<String>,
+    group: Option<String>,
+    on_changed: EventHandler<()>,
+) -> Element {
     let mut editing = use_signal(|| false);
     let mut value = use_signal(String::new);
     let current = group.clone();
@@ -719,7 +722,7 @@ fn GroupField(cid: Signal<String>, group: Option<String>, on_changed: EventHandl
 /// alongside the other detail rows in `TargetDetail`'s Overview tab.
 #[component]
 fn TargetTypeField(
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     target_type_id: Option<i64>,
     on_changed: EventHandler<()>,
 ) -> Element {
@@ -765,7 +768,7 @@ fn TargetTypeField(
 #[component]
 fn AssignTargetTypeDialog(
     open: Signal<bool>,
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     on_done: EventHandler<()>,
 ) -> Element {
     let types = use_resource(move || async move {

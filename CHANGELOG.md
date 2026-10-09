@@ -35,6 +35,8 @@ decisions.
 - The server log at the default level now records Management API writes and
   domain events (registration, actions, device outcomes, rollout progress,
   auth failures); polls and reads stay at `debug` (#155)
+- Actions accept hawkBit's `createdAt` and `lastModifiedAt` as `sort=` and
+  `q=` fields (#TBD)
 
 ### Changed
 
@@ -43,6 +45,15 @@ decisions.
   (`POST /rest/v1/rollouts/{id}/stop`). Static rollouts are unaffected (#18)
 - `raptorctl ds get` prints `valid`, which is how an invalidated set is
   distinguished from a deployable one (#141)
+- Console: sorting the targets, actions and rollouts lists orders the whole
+  result server-side, not just the visible page; rollouts can no longer be
+  sorted by progress (#TBD)
+
+### Fixed
+
+- Console: jumping from one target's page to another (command palette, Back)
+  no longer keeps showing the first target's data (#TBD)
+- Console: dialogs closed by navigating away now return keyboard focus (#TBD)
 
 ### Fixed
 

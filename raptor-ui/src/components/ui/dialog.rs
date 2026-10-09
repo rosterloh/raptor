@@ -77,7 +77,7 @@ pub fn Dialog(
     let mut was_open = use_signal(|| false);
     use_effect(move || {
         let now_open = open();
-        if now_open != was_open() {
+        if now_open != *was_open.peek() {
             #[cfg(target_arch = "wasm32")]
             document::eval(if now_open {
                 TRAP_OPEN_JS
@@ -85,6 +85,14 @@ pub fn Dialog(
                 TRAP_CLOSE_JS
             });
             was_open.set(now_open);
+        }
+    });
+    // Callers often unmount the dialog with `open` still true (`if show { Dialog
+    // {..} }`), so the effect never sees the close edge — restore focus here.
+    use_drop(move || {
+        #[cfg(target_arch = "wasm32")]
+        if *was_open.peek() {
+            document::eval(TRAP_CLOSE_JS);
         }
     });
 

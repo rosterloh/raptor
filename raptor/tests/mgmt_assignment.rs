@@ -377,3 +377,30 @@ async fn action_status_history_unknown_action_404() {
         StatusCode::NOT_FOUND
     );
 }
+
+#[tokio::test]
+async fn actions_sort_by_hawkbit_timestamp_fields() {
+    let (app, _) = common::setup().await;
+    let (cid, ds) = fixture(&app).await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/targets/{cid}/assignedDS"),
+            Some(json!({"id": ds})),
+        ))
+        .await
+        .unwrap();
+    for sort in ["createdAt:ASC", "lastModifiedAt:DESC"] {
+        let resp = app
+            .clone()
+            .oneshot(common::req(
+                "GET",
+                &format!("/rest/v1/actions?sort={sort}"),
+                None,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{sort}");
+        assert_eq!(common::body_json(resp).await["total"], 1, "{sort}");
+    }
+}

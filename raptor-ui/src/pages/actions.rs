@@ -23,13 +23,18 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
     // A missing `filter` param (a bare `/actions` visit or an old bookmark)
     // falls back to "" via `Default`, which the match below already treats
     // the same as "all".
-    let mut actions = use_resource(use_reactive!(|filter, offset| async move {
+    // `status` is pending/finished, i.e. the `active` flag server-side.
+    let api_sort = logic::api_sort(
+        &sort,
+        &[("status", "active"), ("updated", "lastModifiedAt")],
+    );
+    let mut actions = use_resource(use_reactive!(|filter, api_sort, offset| async move {
         let q = match filter.as_str() {
             "pending" => Some("active==true"),
             "finished" => Some("active==false"),
             _ => None,
         };
-        api::all_actions(offset, LIMIT, q).await
+        api::all_actions(offset, LIMIT, q, api_sort.as_deref()).await
     }));
     use_polling(actions);
     let select_value = if filter.is_empty() {
@@ -69,13 +74,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                 }
             },
             Some(Ok(page)) => {
-                let mut rows = page.content.clone();
-                match sort.trim_start_matches('-') {
-                    "status" => rows.sort_by(|a, b| a.status.cmp(&b.status)),
-                    "updated" => rows.sort_by_key(|a| a.last_modified_at),
-                    _ => {}
-                }
-                if sort.starts_with('-') { rows.reverse(); }
+                let rows = page.content.clone();
                 let status_mark = logic::sort_mark(&sort, "status");
                 let updated_mark = logic::sort_mark(&sort, "updated");
                 let (pager_filter, pager_sort) = (filter.clone(), sort.clone());

@@ -68,8 +68,15 @@ pub fn Targets(
         logic::fiql_eq("group", &group),
     ]);
 
-    let mut targets = use_resource(use_reactive!(|fiql, offset| async move {
-        api::list_targets(offset, LIMIT, fiql.as_deref()).await
+    let api_sort = logic::api_sort(
+        &sort,
+        &[
+            ("state", "updateStatus"),
+            ("last_poll", "lastControllerRequestAt"),
+        ],
+    );
+    let mut targets = use_resource(use_reactive!(|fiql, api_sort, offset| async move {
+        api::list_targets(offset, LIMIT, fiql.as_deref(), api_sort.as_deref()).await
     }));
     // Polled because the rows carry poll ages: an age that silently stops
     // advancing is worse than no age at all.
@@ -224,13 +231,7 @@ pub fn Targets(
                     }
                 },
                 Some(Ok(page)) => {
-                    let mut rows = page.content.clone();
-                    match sort.trim_start_matches('-') {
-                        "state" => rows.sort_by(|a, b| a.update_status.cmp(&b.update_status)),
-                        "last_poll" => rows.sort_by_key(|t| t.last_controller_request_at),
-                        _ => {}
-                    }
-                    if sort.starts_with('-') { rows.reverse(); }
+                    let rows = page.content.clone();
                     let state_mark = logic::sort_mark(&sort, "state");
                     let last_poll_mark = logic::sort_mark(&sort, "last_poll");
                     rsx! {

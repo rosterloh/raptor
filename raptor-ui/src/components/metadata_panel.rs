@@ -11,9 +11,11 @@ use dioxus::prelude::*;
 use raptor_api_types::{MetadataCreate, MetadataRest, MetadataUpdate};
 
 #[component]
-pub fn MetadataPanel(prefix: String, #[props(default = false)] show_visible: bool) -> Element {
-    let prefix_s = use_signal(|| prefix.clone());
-    let mut entries = use_resource(move || async move { api::list_metadata(&prefix_s()).await });
+pub fn MetadataPanel(
+    prefix: ReadSignal<String>,
+    #[props(default = false)] show_visible: bool,
+) -> Element {
+    let mut entries = use_resource(move || async move { api::list_metadata(&prefix()).await });
 
     let mut show_form = use_signal(|| false);
     // None = create, Some = edit that entry.
@@ -78,7 +80,7 @@ pub fn MetadataPanel(prefix: String, #[props(default = false)] show_visible: boo
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
                                                 let key = m.key.clone();
-                                                let prefix = prefix_s();
+                                                let prefix = prefix();
                                                 move |_| {
                                                     let key = key.clone();
                                                     let prefix = prefix.clone();
@@ -112,7 +114,7 @@ pub fn MetadataPanel(prefix: String, #[props(default = false)] show_visible: boo
         if show_form() {
             MetadataFormDialog {
                 open: show_form,
-                prefix: prefix_s(),
+                prefix: prefix(),
                 show_visible,
                 existing: form_for(),
                 on_saved: move |_| entries.restart(),

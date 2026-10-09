@@ -80,6 +80,18 @@ pub fn name_version_error(name: &str, version: &str) -> Option<&'static str> {
     }
 }
 
+/// A URL sort key (`state`, `-state`) as the API's `sort=` value
+/// (`updateStatus:DESC`), via `fields` mapping URL keys to hawkBit field names.
+/// Unknown keys (an old bookmark) give `None`, i.e. the server's default order.
+pub fn api_sort(sort: &str, fields: &[(&str, &str)]) -> Option<String> {
+    let (key, dir) = match sort.strip_prefix('-') {
+        Some(k) => (k, "DESC"),
+        None => (sort, "ASC"),
+    };
+    let (_, field) = fields.iter().find(|(k, _)| *k == key)?;
+    Some(format!("{field}:{dir}"))
+}
+
 pub fn next_sort(current: &str, key: &str) -> String {
     if current == key {
         format!("-{key}")
@@ -622,5 +634,20 @@ mod tests {
         assert_eq!(next_sort("status", "status"), "-status");
         assert_eq!(next_sort("-status", "status"), "status");
         assert_eq!(next_sort("status", "updated"), "updated");
+    }
+
+    #[test]
+    fn api_sort_maps_url_key_and_direction() {
+        let fields = [("state", "updateStatus")];
+        assert_eq!(
+            api_sort("state", &fields).as_deref(),
+            Some("updateStatus:ASC")
+        );
+        assert_eq!(
+            api_sort("-state", &fields).as_deref(),
+            Some("updateStatus:DESC")
+        );
+        assert_eq!(api_sort("progress", &fields), None);
+        assert_eq!(api_sort("", &fields), None);
     }
 }

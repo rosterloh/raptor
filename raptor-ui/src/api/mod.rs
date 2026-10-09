@@ -182,6 +182,14 @@ fn list_path(prefix: &str, offset: u64, limit: u64, q: Option<&str>) -> String {
     p
 }
 
+fn with_sort(mut path: String, sort: Option<&str>) -> String {
+    if let Some(s) = sort {
+        path.push_str("&sort=");
+        path.push_str(&crate::logic::urlencode(s));
+    }
+    path
+}
+
 // ---- auth ----
 
 pub async fn login(username: &str, password: &str) -> ApiResult<()> {

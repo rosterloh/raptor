@@ -45,6 +45,8 @@ fn fiql_map(f: &str) -> Option<action::Column> {
         "id" => Some(action::Column::Id),
         "active" => Some(action::Column::Active),
         "detailstatus" | "detailStatus" => Some(action::Column::Status),
+        "createdAt" => Some(action::Column::CreatedAt),
+        "lastModifiedAt" => Some(action::Column::UpdatedAt),
         _ => None,
     }
 }

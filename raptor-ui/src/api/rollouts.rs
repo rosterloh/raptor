@@ -2,14 +2,19 @@
 
 use raptor_api_types::*;
 
-use super::{ApiResult, delete, get_json, list_path, post_empty, post_nothing};
+use super::{ApiResult, delete, get_json, list_path, post_empty, post_nothing, with_sort};
 
 pub async fn list_rollouts(
     offset: u64,
     limit: u64,
     q: Option<&str>,
+    sort: Option<&str>,
 ) -> ApiResult<PagedList<RolloutRest>> {
-    get_json(&list_path("/rest/v1/rollouts", offset, limit, q)).await
+    get_json(&with_sort(
+        list_path("/rest/v1/rollouts", offset, limit, q),
+        sort,
+    ))
+    .await
 }
 
 pub async fn get_rollout(id: i64) -> ApiResult<RolloutRest> {

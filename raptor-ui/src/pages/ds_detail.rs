@@ -181,7 +181,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
     let targets = use_resource(move || async move {
         if open() {
             let q = crate::logic::fiql_contains(&["name", "controllerId"], &query());
-            api::list_targets(0, 50, q.as_deref()).await
+            api::list_targets(0, 50, q.as_deref(), None).await
         } else {
             Ok(raptor_api_types::PagedList::new(vec![], 0))
         }

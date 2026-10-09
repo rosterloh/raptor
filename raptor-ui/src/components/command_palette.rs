@@ -54,7 +54,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
             return Vec::new();
         }
         let fiql = logic::fiql_contains(&["name", "controllerId"], term);
-        api::list_targets(0, TARGET_LIMIT, fiql.as_deref())
+        api::list_targets(0, TARGET_LIMIT, fiql.as_deref(), None)
             .await
             .map(|p| p.content)
             .unwrap_or_default()
@@ -66,7 +66,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
         if !open() {
             return Vec::new();
         }
-        api::list_rollouts(0, ROLLOUT_LIMIT, Some("status==running"))
+        api::list_rollouts(0, ROLLOUT_LIMIT, Some("status==running"), None)
             .await
             .map(|p| p.content)
             .unwrap_or_default()

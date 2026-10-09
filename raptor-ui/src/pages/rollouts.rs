@@ -16,8 +16,10 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
     };
 
     let q = logic::fiql_contains(&["name"], &query);
-    let mut rollouts = use_resource(use_reactive!(|q, offset| async move {
-        api::list_rollouts(offset, LIMIT, q.as_deref()).await
+    // Ids are assigned in creation order, so `id` sorts by created.
+    let api_sort = logic::api_sort(&sort, &[("status", "status"), ("created", "id")]);
+    let mut rollouts = use_resource(use_reactive!(|q, api_sort, offset| async move {
+        api::list_rollouts(offset, LIMIT, q.as_deref(), api_sort.as_deref()).await
     }));
     use_polling(rollouts);
     let mut search_key = use_signal(|| 0u32);
@@ -58,16 +60,8 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                 }
             },
             Some(Ok(page)) => {
-                let mut rows = page.content.clone();
-                match sort.trim_start_matches('-') {
-                    "status" => rows.sort_by(|a, b| a.status.cmp(&b.status)),
-                    "progress" => rows.sort_by_key(|r| r.total_targets_per_status.finished),
-                    "created" => rows.sort_by_key(|r| r.created_at),
-                    _ => {}
-                }
-                if sort.starts_with('-') { rows.reverse(); }
+                let rows = page.content.clone();
                 let status_mark = logic::sort_mark(&sort, "status");
-                let progress_mark = logic::sort_mark(&sort, "progress");
                 let created_mark = logic::sort_mark(&sort, "created");
                 let (pager_query, pager_sort) = (query.clone(), sort.clone());
                 rsx! {
@@ -83,12 +77,7 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                                 }, "Status{status_mark}" }
                             }
                             th { class: TH, "Targets" }
-                            th { class: TH,
-                                button { onclick: {
-                                    let (query, sort) = (query.clone(), sort.clone());
-                                    move |_| goto(query.clone(), logic::next_sort(&sort, "progress"), 0)
-                                }, "Progress{progress_mark}" }
-                            }
+                            th { class: TH, "Progress" }
                             th { class: TH,
                                 button { onclick: {
                                     let (query, sort) = (query.clone(), sort.clone());
