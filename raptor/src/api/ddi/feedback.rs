@@ -29,6 +29,14 @@ pub struct FeedbackStatus {
 pub struct FeedbackResult {
     #[serde(default = "none_str")]
     pub finished: String,
+    #[serde(default)]
+    pub progress: Option<Value>,
+}
+
+/// Lenient: stock clients' odd values were ignored before this field existed, so keep ignoring them.
+fn parse_progress(v: &Value) -> Option<(u32, u32)> {
+    let n = |k| u32::try_from(v.get(k)?.as_u64()?).ok();
+    Some((n("cnt")?, n("of")?))
 }
 
 fn none_str() -> String {
@@ -54,6 +62,19 @@ pub async fn deployment_feedback(
         &fb.status.details,
     )
     .await?;
+    // Terminal feedback already cleared the action's progress; recording now would resurrect it.
+    let terminal = crate::domain::deployment::closes_action(&fb.status.execution, &a.action_type);
+    if let (Some((cnt, of)), false) = (
+        fb.status.result.progress.as_ref().and_then(parse_progress),
+        terminal,
+    ) {
+        st.events.record_progress(raptor_api_types::ProgressEvent {
+            controller_id: cid,
+            action_id,
+            cnt,
+            of,
+        });
+    }
     Ok(StatusCode::OK)
 }
 

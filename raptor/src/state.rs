@@ -3,6 +3,7 @@
 //! handler receives via axum's `State` extractor.
 
 use crate::config::Config;
+use crate::events::Events;
 use crate::metrics::Metrics;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ pub struct Inner {
     pub store: crate::storage::ArtifactStore,
     pub sessions: crate::auth::session::SessionStore,
     pub metrics: Metrics,
+    pub events: crate::events::Events,
 }
 
 impl AppState {
@@ -33,12 +35,34 @@ impl AppState {
         store: crate::storage::ArtifactStore,
         metrics: Metrics,
     ) -> Self {
+        Self::build(db, cfg, store, metrics, Events::default())
+    }
+
+    /// Construct state with a caller-supplied event hub (tests that need a
+    /// small broadcast capacity).
+    pub fn with_events(
+        db: DatabaseConnection,
+        cfg: Config,
+        store: crate::storage::ArtifactStore,
+        events: Events,
+    ) -> Self {
+        Self::build(db, cfg, store, Metrics::disabled(), events)
+    }
+
+    fn build(
+        db: DatabaseConnection,
+        cfg: Config,
+        store: crate::storage::ArtifactStore,
+        metrics: Metrics,
+        events: Events,
+    ) -> Self {
         Self(Arc::new(Inner {
             db,
             cfg,
             store,
             sessions: Default::default(),
             metrics,
+            events,
         }))
     }
 }

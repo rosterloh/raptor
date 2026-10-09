@@ -141,6 +141,10 @@ module has no visible metadata.
 - `execution` ∈ `proceeding`, `scheduled`, `resumed`, `downloading`,
   `downloaded`, `canceled`, `rejected`, `closed`.
 - `result.finished` ∈ `none`, `success`, `failure`.
+- `result.progress` (`{"cnt": 3, "of": 10}`) is optional. raptor accepts it,
+  shows it live in the console and on the
+  [events stream](management-api.md#live-events-raptor-extension), and does not
+  persist it. A malformed value is ignored; it never fails the feedback.
 
 `closed` is terminal for every action type. For a `downloadonly` action
 `downloaded` is *also* terminal — that is the whole job, so the action closes

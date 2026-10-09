@@ -23,7 +23,9 @@ pub fn SearchBox(
     // fetch — and it makes the initial mount a no-op, since both signals start
     // empty and the parent already treats an empty query as "no filter".
     let mut dispatch = move |v: String| {
-        if dispatched() != v {
+        // peek: read inside the debounce resource, so a tracked read would
+        // subscribe it to the write below and restart it once per dispatch.
+        if *dispatched.peek() != v {
             dispatched.set(v.clone());
             on_search.call(v);
         }

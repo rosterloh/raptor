@@ -45,5 +45,5 @@ pub async fn clear_auto_assign_ds(id: i64) -> ApiResult<()> {
 /// How many targets a FIQL query currently matches — a one-row page read for
 /// its `total`, used by the filter form's live preview.
 pub async fn count_targets(q: &str) -> ApiResult<u64> {
-    list_targets(0, 1, Some(q)).await.map(|p| p.total)
+    list_targets(0, 1, Some(q), None).await.map(|p| p.total)
 }

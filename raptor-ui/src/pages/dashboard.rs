@@ -31,15 +31,18 @@ pub fn Dashboard() -> Element {
     // Live half: counters, in-flight work, and what is failing right now.
     let mut data = use_resource(|| async {
         let stats = api::system_statistics().await?;
-        let recent = api::all_actions(0, 10, None).await?;
-        let rollouts = api::list_rollouts(0, 50, None).await?;
+        let recent = api::all_actions(0, 10, None, None).await?;
+        let rollouts = api::list_rollouts(0, 50, None, None).await?;
         // Errors are fetched then sorted here rather than server-side: the
         // Management API has no "order by staleness", and the useful question is
         // which device has been failing longest, not which failed most recently.
-        let failing = api::list_targets(0, ERROR_SCAN, Some("updateStatus==error")).await?;
+        let failing = api::list_targets(0, ERROR_SCAN, Some("updateStatus==error"), None).await?;
         Ok::<_, api::ApiError>((stats, recent, rollouts, failing))
     });
     use_polling(data);
+    let refetch = use_coalesced_refetch(move |()| data.restart());
+    let on_event = use_callback(move |_| refetch.call(()));
+    use_live_events(LiveFilter::default(), on_event);
 
     // Slow half: the fleet's segments. One scoped statistics call per saved
     // filter — possible at all because of the `q=` parameter on

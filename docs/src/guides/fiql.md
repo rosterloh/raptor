@@ -55,7 +55,7 @@ Request`. Common maps:
 - **distribution sets** — `id`, `name`, `version`, `description`, `complete`,
   `tag`
 - **target tags / DS tags** — `id`, `name`, `description`, `colour`
-- **actions** — `id`, `active`, `detailStatus`
+- **actions** — `id`, `active`, `detailStatus`, `createdAt`, `lastModifiedAt`
 - **rollouts** — `id`, `name`, `status`
 - **target filters** — `id`, `name`
 

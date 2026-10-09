@@ -3,26 +3,78 @@ use crate::components::*;
 use crate::pages::{EntityTags, TagKind};
 use crate::{Route, api, logic};
 use dioxus::prelude::*;
-use raptor_api_types::{ActionRest, AutoConfirmState, DsRest};
+use raptor_api_types::{ActionRest, AutoConfirmState, DownloadEvent, DsRest, ProgressEvent};
+use std::collections::HashMap;
 
 const ACTION_ROWS: u64 = 20;
 /// A single action's history is short — assignment through to finished is a
 /// handful of entries even on a device that retried.
 const STATUS_ROWS: u64 = 50;
 
+/// What a live event makes stale on this page; refetched at most once a second each.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum TargetRes {
+    Target,
+    Actions,
+    History(i64),
+}
+
 #[component]
-pub fn TargetDetail(cid: String) -> Element {
-    let cid_s = use_signal(|| cid.clone());
-    let mut target = use_resource(move || async move { api::get_target(&cid_s()).await });
-    let attributes = use_resource(move || async move { api::target_attributes(&cid_s()).await });
-    let mut assigned = use_resource(move || async move { api::assigned_ds(&cid_s()).await });
-    let installed = use_resource(move || async move { api::installed_ds(&cid_s()).await });
+pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
+    let mut target = use_resource(move || async move { api::get_target(&cid()).await });
+    let attributes = use_resource(move || async move { api::target_attributes(&cid()).await });
+    let mut assigned = use_resource(move || async move { api::assigned_ds(&cid()).await });
+    let mut installed = use_resource(move || async move { api::installed_ds(&cid()).await });
     let mut actions =
-        use_resource(move || async move { api::target_actions(&cid_s(), 0, ACTION_ROWS).await });
-    let tags = use_resource(move || async move { api::target_tags(&cid_s()).await });
+        use_resource(move || async move { api::target_actions(&cid(), 0, ACTION_ROWS).await });
+    let tags = use_resource(move || async move { api::target_tags(&cid()).await });
     let mut auto_confirm =
-        use_resource(move || async move { api::auto_confirm_status(&cid_s()).await });
+        use_resource(move || async move { api::auto_confirm_status(&cid()).await });
     use_polling(actions);
+
+    let mut history_tick = use_signal(|| 0u64);
+    // Last-write-wins per key; in memory only, like the server's copy.
+    let mut downloads = use_signal(HashMap::<(i64, String), DownloadEvent>::new);
+    let mut steps = use_signal(HashMap::<i64, ProgressEvent>::new);
+    let refetch = use_coalesced_refetch(move |k| match k {
+        TargetRes::Target => {
+            target.restart();
+            assigned.restart();
+            installed.restart();
+            auto_confirm.restart();
+        }
+        TargetRes::Actions => actions.restart(),
+        TargetRes::History(_) => history_tick += 1,
+    });
+    let on_event = use_callback(move |e| match e {
+        LiveEvent::Target(_) => refetch.call(TargetRes::Target),
+        LiveEvent::Action(a) => {
+            refetch.call(TargetRes::Actions);
+            refetch.call(TargetRes::History(a.action_id));
+        }
+        LiveEvent::Download(d) => {
+            downloads
+                .write()
+                .insert((d.action_id, d.filename.clone()), d);
+        }
+        LiveEvent::Progress(p) => {
+            steps.write().insert(p.action_id, p);
+        }
+        LiveEvent::Resync => {
+            refetch.call(TargetRes::Target);
+            refetch.call(TargetRes::Actions);
+            // Any id will do: every open history panel reads the same tick.
+            refetch.call(TargetRes::History(0));
+        }
+        LiveEvent::Rollout(_) => {}
+    });
+    use_live_events(
+        LiveFilter {
+            target: Some(cid()),
+            rollout: None,
+        },
+        on_event,
+    );
 
     let mut show_assign = use_signal(|| false);
     let mut confirm_delete = use_signal(|| false);
@@ -59,7 +111,7 @@ pub fn TargetDetail(cid: String) -> Element {
                     },
                     _ => rsx! {
                         h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
-                            "{cid_s()}"
+                            "{cid()}"
                         }
                     },
                 }
@@ -77,7 +129,7 @@ pub fn TargetDetail(cid: String) -> Element {
                             Button {
                                 variant: ButtonVariant::Outline,
                                 onclick: move |_| {
-                                    let cid = cid_s();
+                                    let cid = cid();
                                     spawn(async move {
                                         let result = if active {
                                             api::deactivate_auto_confirm(&cid).await
@@ -164,7 +216,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                         dt { class: "text-muted-foreground", "Group" }
                                         dd { class: "break-all text-fg-dim",
                                             GroupField {
-                                                cid: cid_s,
+                                                cid: cid,
                                                 group: t.group.clone(),
                                                 on_changed: move |_| target.restart(),
                                             }
@@ -175,7 +227,7 @@ pub fn TargetDetail(cid: String) -> Element {
                                         dt { class: "text-muted-foreground", "Target type" }
                                         dd { class: "break-all text-fg-dim",
                                             TargetTypeField {
-                                                cid: cid_s,
+                                                cid: cid,
                                                 target_type_id: t.target_type,
                                                 on_changed: move |_| target.restart(),
                                             }
@@ -279,8 +331,11 @@ pub fn TargetDetail(cid: String) -> Element {
                                 for a in page.content.clone() {
                                     ActionRow {
                                         key: "{a.id}",
-                                        cid: cid_s(),
+                                        cid: cid(),
                                         action: a,
+                                        history_tick,
+                                        downloads,
+                                        steps,
                                         on_changed: move |_| {
                                             actions.restart();
                                             auto_confirm.restart();
@@ -295,27 +350,27 @@ pub fn TargetDetail(cid: String) -> Element {
                 }
 
                 TabPanel { index: 3, selected: tab,
-                    EntityTags { kind: TagKind::Target, entity_key: cid_s(), tags }
+                    EntityTags { kind: TagKind::Target, entity_key: cid(), tags }
                 }
 
                 // --- metadata panel (issue #35) ---
                 TabPanel { index: 4, selected: tab,
-                    MetadataPanel { prefix: format!("/rest/v1/targets/{}/metadata", cid_s()) }
+                    MetadataPanel { prefix: format!("/rest/v1/targets/{}/metadata", cid()) }
                 }
                 // --- end metadata panel ---
             }
         }
 
-        AssignDsDialog { open: show_assign, cid: cid_s, on_done: move |_| refresh() }
+        AssignDsDialog { open: show_assign, cid: cid, on_done: move |_| refresh() }
         ConfirmDialog {
             title: "Delete target".to_string(),
             message: format!(
                 "Delete {} and its action history? The device re-registers on its next poll, without its tags or assignment.",
-                cid_s(),
+                cid(),
             ),
             open: confirm_delete,
             on_confirm: move |_| {
-                let cid = cid_s();
+                let cid = cid();
                 spawn(async move {
                     match api::delete_target(&cid).await {
                         Ok(()) => {
@@ -337,7 +392,14 @@ pub fn TargetDetail(cid: String) -> Element {
 /// and what the device said on the way. Fetched only when expanded, so a target
 /// with twenty actions costs one request until you ask about a specific one.
 #[component]
-fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> Element {
+fn ActionRow(
+    cid: String,
+    action: ActionRest,
+    history_tick: ReadSignal<u64>,
+    downloads: ReadSignal<HashMap<(i64, String), DownloadEvent>>,
+    steps: ReadSignal<HashMap<i64, ProgressEvent>>,
+    on_changed: EventHandler<()>,
+) -> Element {
     let mut open = use_signal(|| false);
     let aid = action.id;
     let cid_for_history = cid.clone();
@@ -346,6 +408,8 @@ fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> E
         let cid = cid_for_history.clone();
         async move {
             if open() {
+                // Subscribes an open panel to live refetches.
+                history_tick();
                 Some(api::action_status_history(&cid, aid, 0, STATUS_ROWS).await)
             } else {
                 None
@@ -354,6 +418,23 @@ fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> E
     });
     let cancellable = action.status == "pending";
     let waiting = action.detail_status == "wait_for_confirmation";
+    // Progress only means something while the action is still running.
+    let mut files: Vec<DownloadEvent> = if cancellable {
+        downloads
+            .read()
+            .iter()
+            .filter(|((id, _), _)| *id == aid)
+            // A device can report past the end; the bar never does.
+            .map(|(_, d)| DownloadEvent {
+                sent: d.sent.min(d.total),
+                ..d.clone()
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    files.sort_by(|a, b| a.filename.cmp(&b.filename));
+    let step = steps.read().get(&aid).filter(|_| cancellable).cloned();
     rsx! {
         div { class: "py-3",
             div { class: "flex flex-wrap items-center gap-3",
@@ -420,6 +501,31 @@ fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> E
                     }
                 }
             }
+            for d in files {
+                div { key: "{d.filename}", class: "mt-2 ml-5",
+                    div { class: "flex justify-between gap-3 font-mono text-[11px] text-muted-foreground",
+                        span { class: "truncate", "{d.filename}" }
+                        span { {logic::progress_label(d.sent, d.total)} }
+                    }
+                    div {
+                        class: "mt-1 h-1.5 w-full overflow-hidden rounded bg-accent",
+                        role: "progressbar",
+                        aria_label: "Download of {d.filename}",
+                        aria_valuemin: 0,
+                        aria_valuemax: d.total,
+                        aria_valuenow: d.sent,
+                        div {
+                            class: "h-full rounded bg-primary transition-all",
+                            style: "width: {download_percent(d.sent, d.total)}%",
+                        }
+                    }
+                }
+            }
+            if let Some(p) = step {
+                p { class: "mt-2 ml-5 font-mono text-[11px] text-muted-foreground",
+                    "step {p.cnt} / {p.of}"
+                }
+            }
             if open() {
                 div { class: "mt-3 ml-3 border-l border-border-soft pl-4",
                     match &*history.read_unchecked() {
@@ -464,6 +570,15 @@ fn ActionRow(cid: String, action: ActionRest, on_changed: EventHandler<()>) -> E
                 }
             }
         }
+    }
+}
+
+/// A zero-byte file is complete as soon as it is announced.
+fn download_percent(sent: u64, total: u64) -> f64 {
+    if total == 0 {
+        100.0
+    } else {
+        sent as f64 * 100.0 / total as f64
     }
 }
 
@@ -538,7 +653,7 @@ fn DsTile(label: String, res: Resource<api::ApiResult<Option<DsRest>>>) -> Eleme
 #[component]
 pub fn AssignDsDialog(
     open: Signal<bool>,
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     on_done: EventHandler<()>,
 ) -> Element {
     let sets = use_resource(move || async move {
@@ -641,7 +756,11 @@ pub fn AssignDsDialog(
 /// express it — an omitted `group` means "leave unchanged", so a group can be
 /// moved but never unset.
 #[component]
-fn GroupField(cid: Signal<String>, group: Option<String>, on_changed: EventHandler<()>) -> Element {
+fn GroupField(
+    cid: ReadSignal<String>,
+    group: Option<String>,
+    on_changed: EventHandler<()>,
+) -> Element {
     let mut editing = use_signal(|| false);
     let mut value = use_signal(String::new);
     let current = group.clone();
@@ -719,7 +838,7 @@ fn GroupField(cid: Signal<String>, group: Option<String>, on_changed: EventHandl
 /// alongside the other detail rows in `TargetDetail`'s Overview tab.
 #[component]
 fn TargetTypeField(
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     target_type_id: Option<i64>,
     on_changed: EventHandler<()>,
 ) -> Element {
@@ -765,7 +884,7 @@ fn TargetTypeField(
 #[component]
 fn AssignTargetTypeDialog(
     open: Signal<bool>,
-    cid: Signal<String>,
+    cid: ReadSignal<String>,
     on_done: EventHandler<()>,
 ) -> Element {
     let types = use_resource(move || async move {

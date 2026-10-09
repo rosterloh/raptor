@@ -218,6 +218,46 @@ group. Creation takes `dynamic` plus an optional `dynamicGroupTemplate`
 [Dynamic rollouts](../guides/rollouts.md#dynamic-rollouts). A dynamic rollout
 does not finish on its own; it runs until stopped.
 
+## Live events (raptor extension)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/rest/v1/events` | server-sent event stream (`text/event-stream`); `?target={controllerId}`, `?rollout={id}` |
+
+This endpoint is a raptor extension; hawkBit has no equivalent. It uses the
+normal Management API auth — Basic, or the session cookie (the console relies on
+the cookie because browser `EventSource` cannot send `Authorization`). An
+unknown `target` returns `404`.
+
+`target` and `rollout` are optional and combinable. `rollout={id}` delivers that
+rollout's `rollout` events plus `action` events whose `rolloutId` matches. Each message has an
+`event:` type and camelCase JSON `data:`:
+
+| `event:` | `data:` | Meaning |
+|---|---|---|
+| `target` | `{"controllerId"}` | update status, assigned or installed set changed |
+| `action` | `{"controllerId","actionId","rolloutId"?}` | action status changed, status-history entry added, cancel/confirm |
+| `rollout` | `{"rolloutId"}` | rollout or group state transition (counters move with `action` events) |
+| `download` | `{"controllerId","actionId","filename","sent","total"}` | artifact bytes streamed to the device |
+| `progress` | `{"controllerId","actionId","cnt","of"}` | DDI `result.progress` reported by the device |
+| `resync` | `{}` | the subscriber lagged; refetch everything shown |
+
+- `target`, `action` and `rollout` are change notices: refetch the resource
+  over REST, which stays the source of truth.
+- `download` and `progress` carry data and are sent **only** to subscriptions
+  with a `target` filter, so a fleet-wide stream is never flooded.
+- On connect the server first sends a snapshot: the latest `download` /
+  `progress` for each in-flight action matching the filter.
+- A keep-alive comment is sent every 15 s. There are no event ids and no
+  `Last-Event-ID` replay; treat a reconnect as a resync.
+- Events are in-process: they cover one raptor instance only.
+- Behind a reverse proxy, disable response buffering for `/rest/v1/events`,
+  or events arrive in bursts. raptor sends `X-Accel-Buffering: no`, which
+  covers nginx; other proxies need it configured.
+- Over plain HTTP/1.1 each open console tab holds one of the browser's ~6
+  connections per origin. If many tabs are expected, serve the console through
+  an HTTP/2 (TLS) proxy.
+
 ## Target filters
 
 | Method | Path | Description |

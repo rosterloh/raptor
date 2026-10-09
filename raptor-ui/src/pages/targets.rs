@@ -68,12 +68,27 @@ pub fn Targets(
         logic::fiql_eq("group", &group),
     ]);
 
-    let mut targets = use_resource(use_reactive!(|fiql, offset| async move {
-        api::list_targets(offset, LIMIT, fiql.as_deref()).await
+    let api_sort = logic::api_sort(
+        &sort,
+        &[
+            ("state", "updateStatus"),
+            ("last_poll", "lastControllerRequestAt"),
+        ],
+    );
+    let mut targets = use_resource(use_reactive!(|fiql, api_sort, offset| async move {
+        api::list_targets(offset, LIMIT, fiql.as_deref(), api_sort.as_deref()).await
     }));
     // Polled because the rows carry poll ages: an age that silently stops
     // advancing is worse than no age at all.
-    use_polling(targets);
+    // Full rate even when live: polls and new devices publish no events.
+    use_polling_always(targets, 5_000);
+    let refetch = use_coalesced_refetch(move |()| targets.restart());
+    let on_event = use_callback(move |e| {
+        if matches!(e, LiveEvent::Target(_) | LiveEvent::Resync) {
+            refetch.call(());
+        }
+    });
+    use_live_events(LiveFilter::default(), on_event);
 
     let tags = use_resource(move || async move {
         api::list_tags(TagKind::Target.prefix(), 0, 100, None).await
@@ -224,13 +239,7 @@ pub fn Targets(
                     }
                 },
                 Some(Ok(page)) => {
-                    let mut rows = page.content.clone();
-                    match sort.trim_start_matches('-') {
-                        "state" => rows.sort_by(|a, b| a.update_status.cmp(&b.update_status)),
-                        "last_poll" => rows.sort_by_key(|t| t.last_controller_request_at),
-                        _ => {}
-                    }
-                    if sort.starts_with('-') { rows.reverse(); }
+                    let rows = page.content.clone();
                     let state_mark = logic::sort_mark(&sort, "state");
                     let last_poll_mark = logic::sort_mark(&sort, "last_poll");
                     rsx! {

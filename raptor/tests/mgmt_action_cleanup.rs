@@ -121,9 +121,14 @@ async fn an_expired_action_goes_with_its_whole_status_history() {
     let aid = assign(&app, "dev-0", ds).await;
 
     // Give it some history to reclaim, messages included.
+    let action = raptor::entity::action::Entity::find_by_id(aid)
+        .one(&st.db)
+        .await
+        .unwrap()
+        .unwrap();
     raptor::domain::deployment::add_action_status(
-        &st.db,
-        aid,
+        &st,
+        &action,
         "proceeding",
         &["step one".into(), "step two".into()],
     )

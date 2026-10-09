@@ -13,7 +13,7 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
-## [1.3.0] - unreleased
+## [1.2.1] - unreleased
 
 ### Added
 
@@ -35,6 +35,13 @@ decisions.
 - The server log at the default level now records Management API writes and
   domain events (registration, actions, device outcomes, rollout progress,
   auth failures); polls and reads stay at `debug` (#155)
+- Actions accept hawkBit's `createdAt` and `lastModifiedAt` as `sort=` and
+  `q=` fields (#TBD)
+- `GET /rest/v1/events`, a server-sent event stream (raptor extension, no
+  hawkBit equivalent), and console live updates with per-file download progress;
+  polling remains as the fallback (#TBD)
+- DDI feedback accepts `result.progress {cnt, of}`, shown live and not
+  persisted; malformed values are ignored (#TBD)
 
 ### Changed
 
@@ -43,6 +50,15 @@ decisions.
   (`POST /rest/v1/rollouts/{id}/stop`). Static rollouts are unaffected (#18)
 - `raptorctl ds get` prints `valid`, which is how an invalidated set is
   distinguished from a deployable one (#141)
+- Console: sorting the targets, actions and rollouts lists orders the whole
+  result server-side, not just the visible page; rollouts can no longer be
+  sorted by progress (#TBD)
+
+### Fixed
+
+- Console: jumping from one target's page to another (command palette, Back)
+  no longer keeps showing the first target's data (#TBD)
+- Console: dialogs closed by navigating away now return keyboard focus (#TBD)
 
 ### Fixed
 

@@ -57,7 +57,7 @@ impl std::fmt::Display for ApiError {
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
-fn base() -> String {
+pub(crate) fn base() -> String {
     #[cfg(target_arch = "wasm32")]
     {
         web_sys::window().unwrap().location().origin().unwrap()
@@ -180,6 +180,14 @@ fn list_path(prefix: &str, offset: u64, limit: u64, q: Option<&str>) -> String {
         p.push_str(&crate::logic::urlencode(q));
     }
     p
+}
+
+fn with_sort(mut path: String, sort: Option<&str>) -> String {
+    if let Some(s) = sort {
+        path.push_str("&sort=");
+        path.push_str(&crate::logic::urlencode(s));
+    }
+    path
 }
 
 // ---- auth ----

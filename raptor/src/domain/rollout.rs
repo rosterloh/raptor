@@ -7,11 +7,12 @@ use crate::entity::{
     action, distribution_set, rollout, rollout_group, rollout_target_group, target,
 };
 use crate::error::AppError;
+use crate::events::Event;
 use crate::metrics::{SWEEP_SKIP_ROLLOUT, SWEEP_SKIP_ROLLOUT_TARGET};
 use crate::state::AppState;
 use crate::util::now_ms;
-use raptor_api_types::RolloutCreate;
 pub(crate) use raptor_api_types::RolloutTargetsPerStatus as TargetsPerStatus;
+use raptor_api_types::{RolloutCreate, RolloutEvent};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ModelTrait, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
@@ -23,6 +24,11 @@ fn parse_percent(expr: &str) -> Result<i64, AppError> {
         .ok()
         .filter(|v| (0..=100).contains(v))
         .ok_or_else(|| AppError::BadRequest(format!("invalid threshold expression: {expr}")))
+}
+
+pub(crate) fn publish_rollout(st: &AppState, rollout_id: i64) {
+    st.events
+        .publish(Event::Rollout(RolloutEvent { rollout_id }));
 }
 
 pub async fn create_rollout(
@@ -179,6 +185,7 @@ pub async fn create_rollout(
     }
 
     txn.commit().await?;
+    publish_rollout(st, r.id);
     Ok(r)
 }
 
@@ -281,7 +288,14 @@ async fn schedule_target(
         let mut am: action::ActiveModel = a.into();
         am.rollout_id = Set(Some(r.id));
         am.rollout_group_id = Set(Some(group.id));
-        am.update(&st.db).await?;
+        let a = am.update(&st.db).await?;
+        // assign_ds already announced this action, before it had a rollout id.
+        st.events
+            .publish(Event::Action(raptor_api_types::ActionEvent {
+                controller_id: t.controller_id.clone(),
+                action_id: a.id,
+                rollout_id: a.rollout_id,
+            }));
     }
     Ok(())
 }
@@ -333,7 +347,9 @@ pub async fn decide_approval(
         rm.approval_remark = Set(Some(remark));
     }
     rm.updated_at = Set(now_ms());
-    Ok(rm.update(&st.db).await?)
+    let r = rm.update(&st.db).await?;
+    publish_rollout(st, r.id);
+    Ok(r)
 }
 
 pub async fn start_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
@@ -355,6 +371,7 @@ pub async fn start_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::
         .await?
         .ok_or(AppError::NotFound("rollout group"))?;
     schedule_group(st, &first).await?;
+    publish_rollout(st, r.id);
     Ok(r)
 }
 
@@ -368,7 +385,9 @@ pub async fn pause_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::
     let mut rm: rollout::ActiveModel = r.into();
     rm.status = Set("paused".into());
     rm.updated_at = Set(now_ms());
-    Ok(rm.update(&st.db).await?)
+    let r = rm.update(&st.db).await?;
+    publish_rollout(st, r.id);
+    Ok(r)
 }
 
 pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::Model, AppError> {
@@ -382,6 +401,7 @@ pub async fn resume_rollout(st: &AppState, r: rollout::Model) -> Result<rollout:
     rm.status = Set("running".into());
     rm.updated_at = Set(now_ms());
     let r = rm.update(&st.db).await?;
+    publish_rollout(st, r.id);
     evaluate_rollout(st, &r).await?;
     Ok(r)
 }
@@ -427,14 +447,13 @@ pub async fn stop_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::M
         .all(&st.db)
         .await?;
     for a in actions {
-        let aid = a.id;
-        let mut am: action::ActiveModel = a.into();
+        let mut am: action::ActiveModel = a.clone().into();
         am.status = Set("canceling".into());
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
         crate::domain::deployment::add_action_status(
-            &st.db,
-            aid,
+            st,
+            &a,
             "canceling",
             &["rollout stopped".into()],
         )
@@ -460,6 +479,7 @@ pub async fn stop_rollout(st: &AppState, r: rollout::Model) -> Result<rollout::M
     rm.updated_at = Set(now_ms());
     let r = rm.update(&st.db).await?;
 
+    publish_rollout(st, r.id);
     // A rollout with nothing in flight (never started, or every device already
     // done) settles now rather than waiting for the next evaluator sweep.
     settle_stopping(st, r).await
@@ -482,6 +502,7 @@ async fn settle_stopping(st: &AppState, r: rollout::Model) -> Result<rollout::Mo
     rm.updated_at = Set(now_ms());
     let r = rm.update(&st.db).await?;
     tracing::info!(rollout_id = r.id, "rollout stopped");
+    publish_rollout(st, r.id);
     Ok(r)
 }
 
@@ -497,19 +518,19 @@ pub async fn delete_rollout(st: &AppState, r: rollout::Model) -> Result<(), AppE
             .all(&st.db)
             .await?;
         for a in actions {
-            let aid = a.id;
-            let mut am: action::ActiveModel = a.into();
+            let mut am: action::ActiveModel = a.clone().into();
             am.status = Set("canceled".into());
             am.active = Set(false);
             am.updated_at = Set(now_ms());
             am.update(&st.db).await?;
             crate::domain::deployment::add_action_status(
-                &st.db,
-                aid,
+                st,
+                &a,
                 "canceled",
                 &["rollout deleted".into()],
             )
             .await?;
+            st.events.clear_action(a.id);
         }
         rollout_target_group::Entity::delete_many()
             .filter(rollout_target_group::Column::RolloutGroupId.eq(g.id))
@@ -520,7 +541,9 @@ pub async fn delete_rollout(st: &AppState, r: rollout::Model) -> Result<(), AppE
         .filter(rollout_group::Column::RolloutId.eq(r.id))
         .exec(&st.db)
         .await?;
+    let id = r.id;
     r.delete(&st.db).await?;
+    publish_rollout(st, id);
     Ok(())
 }
 
@@ -618,6 +641,7 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
             total,
             "rollout paused: group reached its error threshold"
         );
+        publish_rollout(st, r.id);
         return Ok(());
     }
 
@@ -659,6 +683,7 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
                 tracing::info!(rollout_id = r.id, "rollout finished");
             }
         }
+        publish_rollout(st, r.id);
     }
     Ok(())
 }
@@ -734,6 +759,7 @@ async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), App
         rm.group_count = Set(next_index + 1);
         rm.updated_at = Set(now_ms());
         rm.update(&st.db).await?;
+        publish_rollout(st, r.id);
         // Nothing has finished the filled group yet, so the new one waits its
         // turn exactly as a static group would.
         tracing::info!(
@@ -817,6 +843,7 @@ async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), App
     rm.total_targets = Set(r.total_targets + absorbed);
     rm.updated_at = Set(now_ms());
     rm.update(&st.db).await?;
+    publish_rollout(st, r.id);
     Ok(())
 }
 

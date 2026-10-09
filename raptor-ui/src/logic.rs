@@ -80,6 +80,18 @@ pub fn name_version_error(name: &str, version: &str) -> Option<&'static str> {
     }
 }
 
+/// A URL sort key (`state`, `-state`) as the API's `sort=` value
+/// (`updateStatus:DESC`), via `fields` mapping URL keys to hawkBit field names.
+/// Unknown keys (an old bookmark) give `None`, i.e. the server's default order.
+pub fn api_sort(sort: &str, fields: &[(&str, &str)]) -> Option<String> {
+    let (key, dir) = match sort.strip_prefix('-') {
+        Some(k) => (k, "DESC"),
+        None => (sort, "ASC"),
+    };
+    let (_, field) = fields.iter().find(|(k, _)| *k == key)?;
+    Some(format!("{field}:{dir}"))
+}
+
 pub fn next_sort(current: &str, key: &str) -> String {
     if current == key {
         format!("-{key}")
@@ -350,9 +362,80 @@ pub fn format_config_value(v: &serde_json::Value) -> String {
     }
 }
 
+/// Coalesces bursts of change marks into at most one refetch per key per second.
+/// Marks arriving inside the window are kept for the next due tick.
+pub struct Dirty<K> {
+    pending: std::collections::HashSet<K>,
+    last: std::collections::HashMap<K, i64>,
+}
+
+impl<K> Default for Dirty<K> {
+    fn default() -> Self {
+        Self {
+            pending: Default::default(),
+            last: Default::default(),
+        }
+    }
+}
+
+impl<K: Eq + std::hash::Hash + Clone> Dirty<K> {
+    pub fn mark(&mut self, k: K) {
+        self.pending.insert(k);
+    }
+
+    pub fn take_due(&mut self, now_ms: i64) -> Vec<K> {
+        let due: Vec<K> = self
+            .pending
+            .iter()
+            .filter(|k| self.last.get(*k).is_none_or(|t| now_ms - t >= 1000))
+            .cloned()
+            .collect();
+        for k in &due {
+            self.pending.remove(k);
+            self.last.insert(k.clone(), now_ms);
+        }
+        due
+    }
+}
+
+/// "42% · 5.0 / 100.0 MiB"; an empty artifact reads as done.
+pub fn progress_label(sent: u64, total: u64) -> String {
+    if total == 0 {
+        return "100%".into();
+    }
+    let mib = |b: u64| b as f64 / 1_048_576.0;
+    format!(
+        "{}% · {:.1} / {:.1} MiB",
+        sent * 100 / total,
+        mib(sent),
+        mib(total)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dirty_coalesces_within_a_second() {
+        let mut d = Dirty::default();
+        d.mark("A");
+        assert_eq!(d.take_due(0), vec!["A"]);
+        d.mark("A");
+        d.mark("A");
+        assert!(d.take_due(500).is_empty());
+        assert_eq!(d.take_due(1000), vec!["A"]);
+        assert!(d.take_due(2500).is_empty());
+    }
+
+    #[test]
+    fn progress_label_formats() {
+        assert_eq!(
+            progress_label(52_428_800, 104_857_600),
+            "50% · 50.0 / 100.0 MiB"
+        );
+        assert_eq!(progress_label(0, 0), "100%");
+    }
 
     #[test]
     fn fiql_builds_wildcard_or_query() {
@@ -622,5 +705,20 @@ mod tests {
         assert_eq!(next_sort("status", "status"), "-status");
         assert_eq!(next_sort("-status", "status"), "status");
         assert_eq!(next_sort("status", "updated"), "updated");
+    }
+
+    #[test]
+    fn api_sort_maps_url_key_and_direction() {
+        let fields = [("state", "updateStatus")];
+        assert_eq!(
+            api_sort("state", &fields).as_deref(),
+            Some("updateStatus:ASC")
+        );
+        assert_eq!(
+            api_sort("-state", &fields).as_deref(),
+            Some("updateStatus:DESC")
+        );
+        assert_eq!(api_sort("progress", &fields), None);
+        assert_eq!(api_sort("", &fields), None);
     }
 }

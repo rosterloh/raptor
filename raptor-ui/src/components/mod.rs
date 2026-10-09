@@ -9,6 +9,7 @@ pub mod chip;
 pub mod command_palette;
 pub mod confirm;
 pub mod error_pane;
+pub mod live;
 pub mod metadata_panel;
 pub mod paginator;
 pub mod progress;
@@ -24,6 +25,7 @@ pub use chip::Chip;
 pub use command_palette::CommandPalette;
 pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;
+pub use live::{LiveContext, LiveEvent, LiveFilter, use_coalesced_refetch, use_live_events};
 pub use metadata_panel::MetadataPanel;
 pub use paginator::Paginator;
 pub use progress::{ProgressBar, ProgressLegend};
@@ -97,6 +99,9 @@ pub const ROW: &str = "hover:bg-card";
 pub const LINK_CELL: &str = "block text-primary hover:underline";
 
 /// Restart a resource every 5s while mounted (dashboard, running actions).
+/// This is the fallback when live events are disconnected; while the stream is
+/// up the beat relaxes to `ms.max(30s)`, so slower polls never speed up (see [`use_polling_every`]).
+///
 ///
 /// Deliberately not paired with `SuspenseBoundary`/`.suspend()` (see #85):
 /// `Resource::restart` sets the resource's state back to `Pending`
@@ -120,10 +125,27 @@ pub fn use_polling<T: 'static>(res: Resource<T>) {
 /// console left open in a background tab keeps polling the API indefinitely — on
 /// the dashboard that is the most expensive read the app makes. Data is up to one
 /// interval stale when the tab comes back, which the next tick clears.
-pub fn use_polling_every<T: 'static>(mut res: Resource<T>, ms: u32) {
+pub fn use_polling_every<T: 'static>(res: Resource<T>, ms: u32) {
+    poll(res, ms, true);
+}
+
+/// [`use_polling_every`] without the slow-down while live events are up, for
+/// data that changes without producing an event.
+pub fn use_polling_always<T: 'static>(res: Resource<T>, ms: u32) {
+    poll(res, ms, false);
+}
+
+fn poll<T: 'static>(mut res: Resource<T>, ms: u32, relax_when_live: bool) {
+    let live = try_use_context::<LiveContext>().filter(|_| relax_when_live);
     use_future(move || async move {
         loop {
-            gloo_timers::future::TimeoutFuture::new(ms).await;
+            // Live events carry the changes; polling is only a safety net then.
+            let wait = if live.is_some_and(|l| *l.0.peek()) {
+                ms.max(30_000)
+            } else {
+                ms
+            };
+            gloo_timers::future::TimeoutFuture::new(wait).await;
             if !tab_hidden() {
                 res.restart();
             }
