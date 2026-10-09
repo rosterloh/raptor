@@ -9,6 +9,25 @@ pub fn RolloutDetail(id: i64) -> Element {
     let mut groups = use_resource(move || async move { api::rollout_groups(id, 0, 100).await });
     use_polling(rollout);
     use_polling(groups);
+    let refetch = use_coalesced_refetch(move |()| {
+        rollout.restart();
+        groups.restart();
+    });
+    let on_event = use_callback(move |e| {
+        if matches!(
+            e,
+            LiveEvent::Rollout(_) | LiveEvent::Action(_) | LiveEvent::Resync
+        ) {
+            refetch.call(());
+        }
+    });
+    use_live_events(
+        LiveFilter {
+            target: None,
+            rollout: Some(id),
+        },
+        on_event,
+    );
 
     let mut confirm_delete = use_signal(|| false);
     let mut confirm_stop = use_signal(|| false);

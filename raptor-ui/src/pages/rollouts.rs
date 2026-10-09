@@ -22,6 +22,13 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
         api::list_rollouts(offset, LIMIT, q.as_deref(), api_sort.as_deref()).await
     }));
     use_polling(rollouts);
+    let refetch = use_coalesced_refetch(move |()| rollouts.restart());
+    let on_event = use_callback(move |e| {
+        if matches!(e, LiveEvent::Rollout(_) | LiveEvent::Resync) {
+            refetch.call(());
+        }
+    });
+    use_live_events(LiveFilter::default(), on_event);
     let mut search_key = use_signal(|| 0u32);
 
     let active = !query.is_empty();

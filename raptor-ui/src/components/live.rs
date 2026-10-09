@@ -1,7 +1,5 @@
 //! Live updates from `GET /rest/v1/events` (SSE). Pages react to [`LiveEvent`]s
 //! by refetching; while connected, `use_polling_every` slows to a safety-net beat.
-// Task 8 wires the pages; until then some items are unused on the host build.
-#![allow(dead_code)]
 
 use std::cell::RefCell;
 use std::hash::Hash;
@@ -12,6 +10,8 @@ use raptor_api_types::{ActionEvent, DownloadEvent, ProgressEvent, RolloutEvent, 
 
 use crate::logic::Dirty;
 
+// Only the wasm `EventSource` listener constructs these.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiveEvent {
     Target(TargetEvent),

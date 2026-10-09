@@ -399,7 +399,6 @@ impl<K: Eq + std::hash::Hash + Clone> Dirty<K> {
 }
 
 /// "42% · 5.0 / 100.0 MiB"; an empty artifact reads as done.
-#[allow(dead_code)] // used by the pages in the next task
 pub fn progress_label(sent: u64, total: u64) -> String {
     if total == 0 {
         return "100%".into();

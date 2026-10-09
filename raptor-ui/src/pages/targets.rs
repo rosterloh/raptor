@@ -81,6 +81,13 @@ pub fn Targets(
     // Polled because the rows carry poll ages: an age that silently stops
     // advancing is worse than no age at all.
     use_polling(targets);
+    let refetch = use_coalesced_refetch(move |()| targets.restart());
+    let on_event = use_callback(move |e| {
+        if matches!(e, LiveEvent::Target(_) | LiveEvent::Resync) {
+            refetch.call(());
+        }
+    });
+    use_live_events(LiveFilter::default(), on_event);
 
     let tags = use_resource(move || async move {
         api::list_tags(TagKind::Target.prefix(), 0, 100, None).await

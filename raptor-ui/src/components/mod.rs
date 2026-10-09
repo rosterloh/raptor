@@ -25,7 +25,6 @@ pub use chip::Chip;
 pub use command_palette::CommandPalette;
 pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;
-#[allow(unused_imports)] // consumed by the pages in the next task
 pub use live::{LiveContext, LiveEvent, LiveFilter, use_coalesced_refetch, use_live_events};
 pub use metadata_panel::MetadataPanel;
 pub use paginator::Paginator;
