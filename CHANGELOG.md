@@ -13,7 +13,7 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
-## [1.3.0] - unreleased
+## [1.2.1] - unreleased
 
 ### Added
 
