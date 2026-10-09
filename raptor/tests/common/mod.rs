@@ -176,3 +176,42 @@ pub async fn body_json(resp: Response<Body>) -> serde_json::Value {
         .to_bytes();
     serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
 }
+
+/// Next complete SSE message (`event:` + `data:`) from the body, skipping
+/// comment/keep-alive lines. Panics if none arrives within 2 s.
+pub async fn sse_next(body: &mut Body) -> (String, serde_json::Value) {
+    use http_body_util::BodyExt;
+    let mut buf = String::new();
+    loop {
+        if let Some(i) = buf.find("\n\n") {
+            let msg: String = buf.drain(..i + 2).collect();
+            let mut name = None;
+            let mut data = None;
+            for l in msg.lines() {
+                if let Some(v) = l.strip_prefix("event:") {
+                    name = Some(v.trim().to_string());
+                } else if let Some(v) = l.strip_prefix("data:") {
+                    data = Some(serde_json::from_str(v.trim()).unwrap());
+                }
+            }
+            if let (Some(n), Some(d)) = (name, data) {
+                return (n, d);
+            }
+            continue;
+        }
+        let frame = tokio::time::timeout(std::time::Duration::from_secs(2), body.frame())
+            .await
+            .expect("timed out waiting for SSE frame")
+            .expect("SSE body ended")
+            .unwrap();
+        if let Ok(data) = frame.into_data() {
+            buf.push_str(std::str::from_utf8(&data).unwrap());
+        }
+    }
+}
+
+/// Assert no SSE message arrives within `ms`.
+pub async fn sse_none(body: &mut Body, ms: u64) {
+    let r = tokio::time::timeout(std::time::Duration::from_millis(ms), sse_next(body)).await;
+    assert!(r.is_err(), "unexpected SSE message: {:?}", r.unwrap());
+}

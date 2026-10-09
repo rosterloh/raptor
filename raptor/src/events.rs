@@ -95,6 +95,10 @@ impl Events {
         self.tx.subscribe()
     }
 
+    pub fn receiver_count(&self) -> usize {
+        self.tx.receiver_count()
+    }
+
     pub fn record_download(&self, ev: DownloadEvent) {
         let now = Instant::now();
         let key = (ev.action_id, ev.filename.clone());

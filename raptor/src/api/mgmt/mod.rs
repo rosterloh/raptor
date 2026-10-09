@@ -7,6 +7,7 @@
 pub mod actions;
 pub mod artifacts;
 pub mod distribution_sets;
+pub mod events;
 pub mod login;
 pub mod mappers;
 pub mod metadata;
@@ -36,6 +37,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(target_filters::routes())
         .merge(tags::routes())
         .merge(system::routes())
+        .merge(events::routes())
         .merge(login::gated_routes())
         .route_layer(middleware::from_fn_with_state(
             state,
