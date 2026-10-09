@@ -770,7 +770,7 @@ async fn hawkbit_client_cycle_with_subscriber() {
     let mut names = Vec::new();
     let mut buf = String::new();
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
-    while !names.last().is_some_and(|n| n == "target") {
+    while names.last().is_none_or(|n| n != "target") {
         let chunk = tokio::time::timeout_at(deadline, sub.chunk())
             .await
             .expect("timed out waiting for target event")
