@@ -1,6 +1,6 @@
 use crate::Route;
 use crate::components::ui::Dialog;
-use crate::components::{CommandPalette, FilterClear, ToastStack, use_theme};
+use crate::components::{CommandPalette, FilterClear, LiveContext, ToastStack, use_theme};
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
@@ -8,6 +8,7 @@ const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
 #[component]
 pub fn Shell() -> Element {
     FilterClear::provide();
+    LiveContext::provide();
     let mut palette_open = use_signal(|| false);
     let mut drawer_open = use_signal(|| false);
     let (is_dark, toggle_theme) = use_theme();

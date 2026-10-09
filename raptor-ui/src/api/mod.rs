@@ -57,7 +57,7 @@ impl std::fmt::Display for ApiError {
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
-fn base() -> String {
+pub(crate) fn base() -> String {
     #[cfg(target_arch = "wasm32")]
     {
         web_sys::window().unwrap().location().origin().unwrap()
