@@ -652,3 +652,118 @@ async fn malformed_progress_is_ignored() {
     .await;
     assert!(h.to_string().contains("proceeding"), "{h}");
 }
+
+/// Stock `hawkbit` client cycle (poll -> download -> closed feedback) against a
+/// served app while a `?target=` subscriber is connected: DDI is unaffected and
+/// the subscriber sees `download` before the final `target`.
+#[tokio::test]
+async fn hawkbit_client_cycle_with_subscriber() {
+    use hawkbit::ddi::{Client, ClientAuthorization, Execution, Finished};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let (app, _state) = common::setup_with_url(&base).await;
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let http = reqwest::Client::new();
+    let auth = |b: reqwest::RequestBuilder| b.basic_auth("admin", Some(common::TEST_PASSWORD));
+    let id = |v: serde_json::Value| v[0]["id"].as_i64().unwrap();
+
+    let sm = id(auth(http.post(format!("{base}/rest/v1/softwaremodules")))
+        .json(&json!([{"name": "fw", "version": "1.0", "type": "os"}]))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap());
+    let part = reqwest::multipart::Part::bytes(b"raptor-e2e-payload".to_vec()).file_name("fw.bin");
+    auth(http.post(format!("{base}/rest/v1/softwaremodules/{sm}/artifacts")))
+        .multipart(reqwest::multipart::Form::new().part("file", part))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let ds = id(auth(http.post(format!("{base}/rest/v1/distributionsets")))
+        .json(&json!([{"name": "stable", "version": "1.0", "type": "os", "modules": [{"id": sm}]}]))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap());
+    auth(http.post(format!("{base}/rest/v1/targets")))
+        .json(&json!([{"controllerId": "sub-dev", "securityToken": "sub-token"}]))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    auth(http.post(format!("{base}/rest/v1/targets/sub-dev/assignedDS")))
+        .json(&json!({"id": ds, "type": "forced"}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+
+    let mut sub = auth(http.get(format!("{base}/rest/v1/events?target=sub-dev")))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+
+    let client = Client::new(
+        &base,
+        "DEFAULT",
+        "sub-dev",
+        ClientAuthorization::TargetToken("sub-token".into()),
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+    let update = client
+        .poll()
+        .await
+        .unwrap()
+        .update()
+        .expect("update")
+        .fetch()
+        .await
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    assert!(!update.download(dir.path()).await.unwrap().is_empty());
+    update
+        .send_feedback(Execution::Closed, Finished::Success, vec!["installed"])
+        .await
+        .unwrap();
+
+    // Read until the final `target` notice; `action` may interleave.
+    let mut names = Vec::new();
+    let mut buf = String::new();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !names.last().is_some_and(|n| n == "target") {
+        let chunk = tokio::time::timeout_at(deadline, sub.chunk())
+            .await
+            .expect("timed out waiting for target event")
+            .unwrap()
+            .expect("SSE body ended");
+        buf.push_str(std::str::from_utf8(&chunk).unwrap());
+        while let Some(i) = buf.find("\n\n") {
+            let msg: String = buf.drain(..i + 2).collect();
+            if let Some(n) = msg.lines().find_map(|l| l.strip_prefix("event:")) {
+                names.push(n.trim().to_string());
+            }
+        }
+    }
+    let dl = names
+        .iter()
+        .position(|n| n == "download")
+        .expect("download event");
+    assert!(
+        dl < names.len() - 1,
+        "download before final target: {names:?}"
+    );
+}

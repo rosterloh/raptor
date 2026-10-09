@@ -37,6 +37,11 @@ decisions.
   auth failures); polls and reads stay at `debug` (#155)
 - Actions accept hawkBit's `createdAt` and `lastModifiedAt` as `sort=` and
   `q=` fields (#TBD)
+- `GET /rest/v1/events`, a server-sent event stream (raptor extension, no
+  hawkBit equivalent), and console live updates with per-file download progress;
+  polling remains as the fallback (#TBD)
+- DDI feedback accepts `result.progress {cnt, of}`, shown live and not
+  persisted; malformed values are ignored (#TBD)
 
 ### Changed
 

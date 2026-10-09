@@ -218,6 +218,39 @@ group. Creation takes `dynamic` plus an optional `dynamicGroupTemplate`
 [Dynamic rollouts](../guides/rollouts.md#dynamic-rollouts). A dynamic rollout
 does not finish on its own; it runs until stopped.
 
+## Live events (raptor extension)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/rest/v1/events` | server-sent event stream (`text/event-stream`); `?target={controllerId}`, `?rollout={id}` |
+
+This endpoint is a raptor extension; hawkBit has no equivalent. It uses the
+normal Management API auth — Basic, or the session cookie (the console relies on
+the cookie because browser `EventSource` cannot send `Authorization`). An
+unknown `target` returns `404`.
+
+`target` and `rollout` are optional and combinable. Each message has an
+`event:` type and camelCase JSON `data:`:
+
+| `event:` | `data:` | Meaning |
+|---|---|---|
+| `target` | `{"controllerId"}` | update status, assigned or installed set changed |
+| `action` | `{"controllerId","actionId","rolloutId"?}` | action status changed, status-history entry added, cancel/confirm |
+| `rollout` | `{"rolloutId"}` | rollout or group state/counters changed |
+| `download` | `{"controllerId","actionId","filename","sent","total"}` | artifact bytes streamed to the device |
+| `progress` | `{"controllerId","actionId","cnt","of"}` | DDI `result.progress` reported by the device |
+| `resync` | `{}` | the subscriber lagged; refetch everything shown |
+
+- `target`, `action` and `rollout` are change notices: refetch the resource
+  over REST, which stays the source of truth.
+- `download` and `progress` carry data and are sent **only** to subscriptions
+  with a `target` filter, so a fleet-wide stream is never flooded.
+- On connect the server first sends a snapshot: the latest `download` /
+  `progress` for each in-flight action matching the filter.
+- A keep-alive comment is sent every 15 s. There are no event ids and no
+  `Last-Event-ID` replay; treat a reconnect as a resync.
+- Events are in-process: they cover one raptor instance only.
+
 ## Target filters
 
 | Method | Path | Description |
