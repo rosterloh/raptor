@@ -374,10 +374,12 @@ pub async fn invalidate(
             .all(&st.db)
             .await?
         {
+            let rid = r.id;
             let mut rm: rollout::ActiveModel = r.into();
             rm.status = Set("stopped".into());
             rm.updated_at = Set(now_ms());
             rm.update(&st.db).await?;
+            crate::domain::rollout::publish_rollout(&st, rid);
         }
     }
 

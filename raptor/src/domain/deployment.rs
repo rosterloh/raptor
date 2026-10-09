@@ -106,12 +106,15 @@ pub async fn add_action_status(
         .insert(db)
         .await?;
     }
-    if let Some(t) = target::Entity::find_by_id(a.target_id).one(db).await? {
-        st.events.publish(Event::Action(ActionEvent {
+    // The write is committed; a failed lookup must not turn it into an error.
+    match target::Entity::find_by_id(a.target_id).one(db).await {
+        Ok(Some(t)) => st.events.publish(Event::Action(ActionEvent {
             controller_id: t.controller_id,
             action_id: a.id,
             rollout_id: a.rollout_id,
-        }));
+        })),
+        Ok(None) => tracing::warn!(action_id = a.id, "no target for action event"),
+        Err(e) => tracing::warn!(error = ?e, action_id = a.id, "action event lookup failed"),
     }
     Ok(())
 }
@@ -232,6 +235,7 @@ pub async fn assign_ds(
         am.active = Set(false);
         am.updated_at = Set(now_ms());
         am.update(&st.db).await?;
+        st.events.clear_action(current.id);
         add_action_status(
             st,
             &current,

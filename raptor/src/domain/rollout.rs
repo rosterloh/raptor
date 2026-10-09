@@ -26,7 +26,7 @@ fn parse_percent(expr: &str) -> Result<i64, AppError> {
         .ok_or_else(|| AppError::BadRequest(format!("invalid threshold expression: {expr}")))
 }
 
-fn publish_rollout(st: &AppState, rollout_id: i64) {
+pub(crate) fn publish_rollout(st: &AppState, rollout_id: i64) {
     st.events
         .publish(Event::Rollout(RolloutEvent { rollout_id }));
 }

@@ -345,9 +345,17 @@ async fn rollout_start_publishes_rollout() {
         ))
         .await
         .unwrap();
-    let (name, data) = common::sse_next(&mut body).await;
-    assert_eq!(name, "rollout");
-    assert_eq!(data["rolloutId"], id);
+    // Action events carrying this rolloutId may precede it.
+    let mut found = false;
+    for _ in 0..10 {
+        let (name, data) = common::sse_next(&mut body).await;
+        if name == "rollout" {
+            assert_eq!(data["rolloutId"], id);
+            found = true;
+            break;
+        }
+    }
+    assert!(found, "no rollout event");
 }
 
 async fn open_get(app: &axum::Router, uri: &str) -> axum::http::Response<Body> {
@@ -355,4 +363,59 @@ async fn open_get(app: &axum::Router, uri: &str) -> axum::http::Response<Body> {
         .oneshot(common::req("GET", uri, None))
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn invalidate_cancel_rollouts_publishes_rollout() {
+    let (app, _) = common::setup().await;
+    active_action(&app).await;
+    let ds = common::body_json(open_get(&app, "/rest/v1/distributionsets").await).await["content"]
+        [0]["id"]
+        .as_i64()
+        .unwrap();
+    let r = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/rollouts",
+                Some(json!({
+                    "name": "r1",
+                    "distributionSetId": ds,
+                    "targetFilterQuery": "controllerId==dev-*",
+                    "amountGroups": 1,
+                    "successCondition": {"condition": "THRESHOLD", "expression": "100"},
+                })),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = r["id"].as_i64().unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+    let mut body = open(&app, &format!("?rollout={id}")).await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/distributionsets/{ds}/invalidate"),
+            Some(json!({"cancelRollouts": true})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let mut found = false;
+    for _ in 0..10 {
+        if common::sse_next(&mut body).await.0 == "rollout" {
+            found = true;
+            break;
+        }
+    }
+    assert!(found, "no rollout event");
 }
