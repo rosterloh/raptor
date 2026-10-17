@@ -23,6 +23,13 @@ decisions.
   documented setting, commented out at its default. Existing installs keep
   their edited copy (#179)
 
+### Fixed
+
+- Deleting a distribution set now clears targets, auto-assign filters and tags
+  that still reference it, and every cancel path reverts a target's
+  assigned set to the installed one. Already-affected targets need reassigning
+  by hand (#181)
+
 ## [1.3.0] - 2026-10-17
 
 S3-compatible artifact storage, release retention, and dynamic rollouts, plus

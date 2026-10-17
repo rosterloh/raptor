@@ -405,12 +405,8 @@ pub async fn apply_feedback(
         }
         ("canceled", _) => {
             set_action(st, a, "canceled", false).await?;
-            let status = if t.installed_ds_id.is_some() {
-                "in_sync"
-            } else {
-                "registered"
-            };
-            set_target_status(st, t, None, status).await?;
+            revert_to_installed(&st.db, t).await?;
+            publish_target(st, &t.controller_id);
             st.metrics.action_canceled();
             tracing::info!(controller_id = %t.controller_id, action_id = a.id, "action canceled by device");
         }
@@ -447,17 +443,7 @@ pub async fn apply_cancel_feedback(
     match execution {
         "closed" => {
             set_action(st, a, "canceled", false).await?;
-            let status = if t.installed_ds_id.is_some() {
-                "in_sync"
-            } else {
-                "registered"
-            };
-            // assigned reverts to installed on confirmed cancel
-            let mut tm: target::ActiveModel = t.clone().into();
-            tm.assigned_ds_id = Set(t.installed_ds_id);
-            tm.update_status = Set(status.into());
-            tm.updated_at = Set(now_ms());
-            tm.update(&st.db).await?;
+            revert_to_installed(&st.db, t).await?;
             publish_target(st, &t.controller_id);
             st.metrics.action_canceled();
             tracing::info!(controller_id = %t.controller_id, action_id = a.id, "device confirmed cancellation");
@@ -545,6 +531,24 @@ async fn set_action(
     if !active {
         st.events.clear_action(a.id);
     }
+    Ok(())
+}
+
+/// Settles a target whose action was cancelled: the assignment falls back to
+/// what is installed, as hawkBit does, so no stale set is left `assigned`.
+pub async fn revert_to_installed<C: sea_orm::ConnectionTrait>(
+    conn: &C,
+    t: &target::Model,
+) -> Result<(), AppError> {
+    let mut tm: target::ActiveModel = t.clone().into();
+    tm.assigned_ds_id = Set(t.installed_ds_id);
+    tm.update_status = Set(if t.installed_ds_id.is_some() {
+        "in_sync".into()
+    } else {
+        "registered".into()
+    });
+    tm.updated_at = Set(now_ms());
+    tm.update(conn).await?;
     Ok(())
 }
 

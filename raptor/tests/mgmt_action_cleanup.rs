@@ -389,3 +389,41 @@ async fn tenant_config_reports_the_cleanup_keys() {
         "FINISHED,ERROR,CANCELED"
     );
 }
+
+/// #181: once cleanup has taken a set's actions, nothing stops a manual delete,
+/// so the delete itself must release the targets still pointing at it.
+#[tokio::test]
+async fn deleting_a_set_after_cleanup_resets_its_targets() {
+    let (app, st) = common::setup_with_cleanup(enabled(30)).await;
+    let ds = fixture(&app, 1).await;
+    let aid = assign(&app, "dev-0", ds).await;
+    close_and_age(&st, aid, "finished", 365).await;
+    let t = raptor::entity::target::Entity::find()
+        .one(&st.db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut tm: raptor::entity::target::ActiveModel = t.into();
+    tm.installed_ds_id = Set(Some(ds));
+    tm.update_status = Set("in_sync".into());
+    tm.update(&st.db).await.unwrap();
+    assert_eq!(cleanup_actions(&st).await.unwrap(), 1);
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/distributionsets/{ds}"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let t = raptor::entity::target::Entity::find()
+        .one(&st.db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((t.assigned_ds_id, t.installed_ds_id), (None, None));
+    assert_eq!(t.update_status, "registered");
+}
