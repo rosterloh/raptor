@@ -101,6 +101,11 @@ tracing-opentelemetry = { version = "0.34", optional = true }
 opentelemetry-appender-tracing = { version = "0.33", optional = true }
 tonic = { version = "0.14", optional = true, default-features = false }
 croner = "4.0.0"
+# S3 artifact backend: rusty-s3 is sans-IO (presigned URLs + XML bodies only);
+# requests go out through reqwest.
+rusty-s3 = { version = "0.10", default-features = false, features = ["rustcrypto", "xml"] }
+reqwest = { version = "0.13", features = ["stream"] }
+url = "2"
 
 [dev-dependencies]
 http-body-util = "0.1"

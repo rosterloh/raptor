@@ -19,7 +19,7 @@ raptor/
 │       ├── domain/           # deployment state machine, rollouts, auto-assign
 │       ├── entity/           # SeaORM entities
 │       ├── fiql/             # FIQL/RSQL parser -> SeaORM Condition
-│       ├── storage.rs        # content-addressed artifact store
+│       ├── storage/          # content-addressed artifact store (fs | s3)
 │       └── auth/             # tower middleware for both auth zones
 ├── raptor-api-types/     # shared Management API DTOs (also compiles to wasm)
 ├── raptor-ui/            # Dioxus web console (wasm32)

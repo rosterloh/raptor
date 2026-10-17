@@ -138,3 +138,42 @@ jobs:
       - run: cargo nextest run -p raptor
         env:
           TEST_DATABASE_URL: postgres://raptor:raptor@localhost:5432/raptor
+
+  # The S3 artifact backend against a real self-hosted store. TEST_S3_ENDPOINT
+  # switches every test's ArtifactStore to the bucket (see tests/common), and
+  # tests/storage_s3.rs adds multipart, cross-part ranges and backfill.
+  # RustFS runs from a step, not a `services:` entry, because the image needs
+  # its data directory passed as an argument.
+  test-s3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: Start RustFS
+        run: |
+          docker run -d --name rustfs -p 9000:9000 \
+            -e RUSTFS_ACCESS_KEY=raptor-ci -e RUSTFS_SECRET_KEY=raptor-ci-secret \
+            -e RUSTFS_ADDRESS=":9000" \
+            rustfs/rustfs:latest /data
+          for _ in $(seq 60); do
+            curl -sf http://localhost:9000/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:9000/health >/dev/null || { docker logs rustfs; exit 1; }
+      - name: Create bucket
+        env:
+          AWS_ACCESS_KEY_ID: raptor-ci
+          AWS_SECRET_ACCESS_KEY: raptor-ci-secret
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          aws configure set default.s3.addressing_style path
+          aws --endpoint-url http://localhost:9000 s3 mb s3://raptor-test
+      - run: cargo nextest run -p raptor
+        env:
+          TEST_S3_ENDPOINT: http://localhost:9000
+          TEST_S3_ACCESS_KEY: raptor-ci
+          TEST_S3_SECRET_KEY: raptor-ci-secret

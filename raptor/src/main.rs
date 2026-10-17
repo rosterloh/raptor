@@ -20,6 +20,14 @@ enum Cmd {
     },
     /// Read a password from stdin and print its argon2id hash for raptor.toml
     HashPassword,
+    /// Copy the on-disk artifact store under `artifact_dir` into the
+    /// `[storage.s3]` bucket, skipping blobs already there. Run before
+    /// switching `[storage] backend` from "fs" to "s3"; safe to re-run, and
+    /// leaves the local files untouched.
+    StorageBackfill {
+        #[arg(long, default_value = "raptor.toml")]
+        config: PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -36,6 +44,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(hash) => println!("{hash}"),
                 Err(e) => return Err(format!("hash password error: {}", e).into()),
             }
+        }
+        Cmd::StorageBackfill { config } => {
+            let cfg = Config::load(Some(&config))?;
+            // Plain console logging only: a one-off command has no business
+            // exporting to the [otel] collector.
+            let _telemetry = raptor::telemetry::init(None)?;
+            let s3cfg = cfg
+                .storage
+                .s3
+                .as_ref()
+                .ok_or("storage-backfill needs a [storage.s3] section")?;
+            let s3 = raptor::storage::S3Store::new(s3cfg)?;
+            // Same reachability check `serve` does, before walking anything.
+            raptor::storage::ArtifactStore::with_s3(&cfg.artifact_dir, s3.clone())?
+                .check()
+                .await
+                .map_err(|e| format!("artifact storage (s3): {e}"))?;
+            let r = raptor::storage::backfill_fs_to_s3(&cfg.artifact_dir, &s3).await?;
+            println!(
+                "uploaded {} blob(s) ({} bytes); {} already in the bucket",
+                r.uploaded, r.bytes, r.skipped
+            );
         }
         Cmd::Serve { config } => {
             // Config first: telemetry init needs the [otel] section, and it
@@ -63,7 +93,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let db = sea_orm::Database::connect(&cfg.database_url).await?;
             migration::Migrator::up(&db, None).await?;
-            let store = raptor::storage::ArtifactStore::new(cfg.artifact_dir.clone())?;
+            let store = raptor::storage::ArtifactStore::from_config(&cfg)?;
+            store
+                .check()
+                .await
+                .map_err(|e| format!("artifact storage ({}): {e}", store.backend_name()))?;
+            tracing::info!(backend = store.backend_name(), "artifact storage ready");
             let bind = cfg.bind;
             let eval_interval = cfg.rollout_eval_interval_secs.max(1);
             let state = AppState::with_metrics(db, cfg, store, metrics);
