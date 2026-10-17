@@ -11,8 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown }
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@v1.24.0
 
