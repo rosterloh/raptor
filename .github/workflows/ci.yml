@@ -12,10 +12,9 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      # OTLP export lives behind the opt-in `otel` feature, so lint it explicitly.
-      - run: cargo clippy -p raptor --features otel --all-targets -- -D warnings
+      - uses: jdx/mise-action@v5
+      # fmt + clippy, including the opt-in `otel` feature (see mise.toml)
+      - run: mise run lint
 
   test-sqlite:
     runs-on: ubuntu-latest
@@ -25,10 +24,9 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@nextest
-      - run: cargo nextest run --workspace
-      # The OTLP telemetry test is gated behind the `otel` feature.
-      - run: cargo nextest run -p raptor --features otel --test telemetry
+      - uses: jdx/mise-action@v5
+      # workspace tests plus the `otel`-gated telemetry test (see mise.toml)
+      - run: mise run test
 
   # Informational only: never gates a merge (continue-on-error at the job
   # level), and only covers the SQLite path — the point is a rough per-file
@@ -45,8 +43,7 @@ jobs:
       # Pinned toolchain from rust-toolchain.toml, plus llvm-tools for coverage.
       - run: rustup toolchain install && rustup component add llvm-tools
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "nextest,cargo-llvm-cov" }
+      - uses: jdx/mise-action@v5
       - run: cargo llvm-cov nextest --workspace --no-report
       - name: coverage summary
         run: |
@@ -71,18 +68,7 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@v1.25.3
-      # pinned to match the crate's `dioxus = "=0.7.10"`; --force works around
-      # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
-      # which makes binstall skip a reinstall and leaves `dx` missing on PATH
-      - run: cargo binstall dioxus-cli@0.7.10 --no-confirm --force
-        env:
-          # binstall resolves the release through api.github.com, where
-          # unauthenticated calls share 60/hour per runner IP across all of
-          # Actions — the 403 that failed the docs job. dioxus-cli isn't in
-          # install-action's manifest, so this keeps binstall (and the --force
-          # workaround above) and just authenticates the lookup.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v5
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
       - run: cargo test -p raptor --features embed-ui --test ui_serving
@@ -132,7 +118,7 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@nextest
+      - uses: jdx/mise-action@v5
       # Only raptor's tests touch the DB; each gets its own schema (see
       # tests/common/mod.rs) so they run in parallel without clobbering.
       - run: cargo nextest run -p raptor
@@ -152,7 +138,7 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@nextest
+      - uses: jdx/mise-action@v5
       - name: Start RustFS
         run: |
           docker run -d --name rustfs -p 9000:9000 \

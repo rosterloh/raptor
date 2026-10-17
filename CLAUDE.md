@@ -31,6 +31,19 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
 
 ## Commands
 
+Dev tools (dx, cargo-deb, nextest, llvm-cov, mdbook) are pinned in `mise.toml`;
+`mise install` once. CI installs them the same way (`jdx/mise-action`) and runs
+the same tasks, so bump a tool there, not in workflow YAML.
+
+```sh
+mise run check      # lint + wasm clippy + tests: what CI gates on, minus Postgres/S3
+mise run lint       # fmt + clippy (server, otel)
+mise run test       # nextest workspace + otel-gated telemetry test
+mise run deb        # clean console build, then target/debian/*.deb
+```
+
+Individual commands, for when you need one:
+
 ```sh
 cargo nextest run --workspace          # tests (or: cargo test --workspace)
 cargo test -p raptor --features otel --test telemetry   # otel-gated test
@@ -48,12 +61,11 @@ are already the high-value kind (integration tests per feature against a real
 app+DB); a hard coverage gate tends to reward padding numbers with low-value
 tests over testing edge cases, which this project deliberately avoids.
 
-Web console (only needed for `embed-ui` work; pinned `dioxus-cli` version must
+Web console (only needed for `embed-ui` work; `dioxus-cli` in `mise.toml` must
 match the crate's `dioxus = "=0.7.10"` — bump both together):
 
 ```sh
-cargo binstall dioxus-cli@0.7.10
-dx build --release --package raptor-ui   # from the repo root, THEN:
+mise run ui          # rm -rf target/dx/raptor-ui/release + dx build --release, THEN:
 cargo build --release --features embed-ui
 ```
 
