@@ -96,6 +96,54 @@ The two hawkBit tenant config keys are reported on
 `/rest/v1/system/configs`: `action.cleanup.auto.expiry` (milliseconds, `-1`
 when disabled) and `action.cleanup.auto.status`.
 
+## `[retention]` — release retention
+
+Keeps the newest `keep_releases` releases of each distribution-set **name** and
+hard-deletes everything older, freeing the artifact storage it held. A raptor
+extension: hawkBit has no equivalent, so nothing here is reported on
+`/rest/v1/system/configs`.
+
+Off by default, because it deletes releases and their artifacts outright.
+Setting `keep_releases` is what turns it on. There is no `enabled` flag:
+leave `keep_releases` unset and every release is kept.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `keep_releases` | integer | *(unset)* | valid sets kept per name, newest by creation time; at least 1. Unset keeps everything |
+| `interval_secs` | integer | `3600` | how often the sweep runs |
+
+```toml
+[retention]
+keep_releases = 5   # keep the 5 newest releases of each name, delete older ones
+```
+
+Releases are ranked by **creation time**, not by version string, because
+version strings aren't reliably comparable. Sets that were never deployed still
+count towards `keep_releases`. Invalidated sets don't, so an invalidated release
+never takes up a rollback slot. Every set older than the oldest kept one is
+retired, invalid or not. An invalidated set newer than that stays until enough
+valid releases have followed it. A name with fewer than `keep_releases` valid
+sets loses nothing.
+
+Retiring a set:
+
+1. **Invalidates** it with `force` and cancels its rollouts, exactly as
+   `POST /distributionsets/{id}/invalidate` would.
+2. **Deletes** its rollouts, its actions and their status history, and its
+   metadata and tag assignments, then the set itself.
+3. **Clears target references.** A target that had it installed shows nothing
+   installed and goes back to `registered`. A pending assignment of it falls
+   back to whatever the target has installed.
+4. **Deletes every software module** that no remaining set uses, along with
+   its artifacts. The blob goes from storage only when no other artifact
+   shares its hash, so a module or file shared with a kept release survives.
+
+Nothing is held back for a device still running a retired release. A device
+that hasn't taken any of the last `keep_releases` releases needs attention
+anyway, and assigning it a current release fixes it. Up to 50 sets are retired
+per sweep, oldest first, so a first sweep over a long history drains over a few
+intervals.
+
 ## `[ddi]` — device-facing API
 
 | Key | Type | Default | Description |

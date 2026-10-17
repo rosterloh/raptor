@@ -17,6 +17,10 @@ decisions.
 
 ### Added
 
+- Release retention: `[retention] keep_releases = N` keeps the newest N
+  distribution sets of each name and hard-deletes older ones with their
+  rollouts, action history and any artifacts no kept release still uses,
+  freeing storage. Unset by default, which keeps everything (#177)
 - S3-compatible artifact storage: `[storage] backend = "s3"` with a
   `[storage.s3]` section keeps blobs in a bucket (AWS, or self-hosted RustFS,
   MinIO, Garage, ...) instead of local disk; local disk stays the default.
