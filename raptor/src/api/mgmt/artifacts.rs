@@ -91,6 +91,15 @@ pub async fn upload(
             continue;
         }
         let filename = field.file_name().unwrap_or("artifact").to_string();
+        // Echoed into a quoted Content-Disposition on download and into DDI URLs.
+        if filename
+            .chars()
+            .any(|c| matches!(c, '"' | '\\' | '/') || c.is_control())
+        {
+            return Err(AppError::BadRequest(format!(
+                "invalid artifact filename {filename:?}: must not contain '\"', '\\', '/' or control characters"
+            )));
+        }
         let existing = artifact::Entity::find()
             .filter(artifact::Column::ModuleId.eq(module_id))
             .count(&st.db)

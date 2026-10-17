@@ -22,6 +22,9 @@ decisions.
 - The packaged example config (`/etc/raptor/config.toml`) now lists every
   documented setting, commented out at its default. Existing installs keep
   their edited copy (#179)
+- Artifact uploads whose filename contains `"`, `\`, `/` or a control character
+  are now rejected with `400`; rename such files before uploading. Artifacts
+  already stored keep their names
 
 ### Fixed
 

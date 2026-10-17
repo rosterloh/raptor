@@ -105,6 +105,25 @@ async fn upload_hashes_and_lists_artifact() {
 }
 
 #[tokio::test]
+async fn upload_rejects_unsafe_filename() {
+    let (app, _) = common::setup().await;
+    let id = create_module(&app, "rootfs").await;
+
+    for name in ["../fw.bin", "fw\u{1}.bin"] {
+        let resp = app
+            .clone()
+            .oneshot(multipart_upload(
+                &format!("/rest/v1/softwaremodules/{id}/artifacts"),
+                name,
+                b"x",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{name:?}");
+    }
+}
+
+#[tokio::test]
 async fn blob_refcounting_on_delete() {
     let (app, state) = common::setup().await;
     let m1 = create_module(&app, "m1").await;
