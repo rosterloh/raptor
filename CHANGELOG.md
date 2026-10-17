@@ -13,7 +13,10 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
-## [1.2.1] - unreleased
+## [1.3.0] - 2026-10-17
+
+S3-compatible artifact storage, release retention, and dynamic rollouts, plus
+live console updates and `raptorctl` coverage for rollouts and invalidation.
 
 ### Added
 
@@ -45,12 +48,12 @@ decisions.
   domain events (registration, actions, device outcomes, rollout progress,
   auth failures); polls and reads stay at `debug` (#155)
 - Actions accept hawkBit's `createdAt` and `lastModifiedAt` as `sort=` and
-  `q=` fields (#TBD)
+  `q=` fields (#159)
 - `GET /rest/v1/events`, a server-sent event stream (raptor extension, no
   hawkBit equivalent), and console live updates with per-file download progress;
-  polling remains as the fallback (#TBD)
+  polling remains as the fallback (#159)
 - DDI feedback accepts `result.progress {cnt, of}`, shown live and not
-  persisted; malformed values are ignored (#TBD)
+  persisted; malformed values are ignored (#159)
 - `otel` build: incoming W3C `traceparent` headers are honoured, so raptor's
   spans join the caller's trace behind a traced proxy or gateway; optional
   `[otel] sample_ratio` samples new traces while following callers' decisions
@@ -65,22 +68,19 @@ decisions.
   distinguished from a deployable one (#141)
 - Console: sorting the targets, actions and rollouts lists orders the whole
   result server-side, not just the visible page; rollouts can no longer be
-  sorted by progress (#TBD)
+  sorted by progress (#159)
 - `raptorctl tui`: `Esc` no longer quits from the main view; it only backs out
   of prompts. Quit with `q` (#175)
 
 ### Fixed
 
 - Console: jumping from one target's page to another (command palette, Back)
-  no longer keeps showing the first target's data (#TBD)
-- Console: dialogs closed by navigating away now return keyboard focus (#TBD)
+  no longer keeps showing the first target's data (#159)
+- Console: dialogs closed by navigating away now return keyboard focus (#159)
 - `otel` build: OpenTelemetry SDK warnings and errors, such as a failing
   export to an unreachable collector, now reach stdout under the default log
   filter instead of being dropped silently; they are never exported over OTLP
   themselves (#173)
-
-### Fixed
-
 - One target that cannot take a distribution set (e.g. an incompatible target
   type) no longer stops the background sweep for every rollout or auto-assign
   filter behind it, stalls its own rollout in `running` with no group running,
@@ -250,6 +250,7 @@ Releases before 1.0.0 predate this file. See the
 [git history](https://github.com/rosterloh/raptor/commits/main) and the
 [0.9.0 tag](https://github.com/rosterloh/raptor/releases/tag/v0.9.0).
 
+[1.3.0]: https://github.com/rosterloh/raptor/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rosterloh/raptor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/rosterloh/raptor/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/rosterloh/raptor/compare/v0.9.0...v1.0.0
