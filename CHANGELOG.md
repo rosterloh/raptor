@@ -13,6 +13,13 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
+## [1.3.1] - unreleased
+
+### Changed
+
+- The Debian package is built with the `otel` feature, so an `[otel]` section in
+  `/etc/raptor/config.toml` now exports instead of being silently ignored
+
 ## [1.3.0] - 2026-10-17
 
 S3-compatible artifact storage, release retention, and dynamic rollouts, plus
