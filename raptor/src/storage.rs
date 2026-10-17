@@ -2,14 +2,27 @@
 //! uploaded artifacts. Streams to a temp file while hashing (sha1/md5/sha256
 //! for hawkBit-compatible metadata), then renames into place, deduping on an
 //! existing hash rather than overwriting.
+//!
+//! Callers only ever address a blob by its sha256 and get bytes back as a
+//! stream (`open`); nothing outside this module sees a filesystem path, so the
+//! backing store can change without touching the handlers.
 
 use crate::error::AppError;
 use futures::StreamExt;
 use md5::Md5;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
+use std::ops::Range;
 use std::path::PathBuf;
-use tokio::io::AsyncWriteExt;
+use std::pin::Pin;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
+/// A blob's bytes, as handed to an HTTP response body.
+pub type ByteStream = Pin<Box<dyn futures::Stream<Item = std::io::Result<bytes::Bytes>> + Send>>;
+
+/// Read buffer for streaming a blob out (matches the DDI handler's former
+/// `ReaderStream` capacity).
+const READ_CHUNK: usize = 64 * 1024;
 
 #[derive(Clone)]
 pub struct ArtifactStore {
@@ -30,7 +43,7 @@ impl ArtifactStore {
         Ok(Self { root })
     }
 
-    pub fn path_for(&self, sha256: &str) -> PathBuf {
+    fn path_for(&self, sha256: &str) -> PathBuf {
         self.root.join(&sha256[..2]).join(sha256)
     }
 
@@ -81,8 +94,35 @@ impl ArtifactStore {
         Ok(meta)
     }
 
-    pub fn remove(&self, sha256: &str) -> std::io::Result<()> {
-        match std::fs::remove_file(self.path_for(sha256)) {
+    /// Stream a blob's bytes, or only `range` of them (half-open, already
+    /// clamped to the blob's size by the caller).
+    pub async fn open(
+        &self,
+        sha256: &str,
+        range: Option<Range<u64>>,
+    ) -> std::io::Result<ByteStream> {
+        let mut file = tokio::fs::File::open(self.path_for(sha256)).await?;
+        Ok(match range {
+            Some(r) => {
+                file.seek(std::io::SeekFrom::Start(r.start)).await?;
+                let take = file.take(r.end.saturating_sub(r.start));
+                Box::pin(tokio_util::io::ReaderStream::with_capacity(
+                    take, READ_CHUNK,
+                ))
+            }
+            None => Box::pin(tokio_util::io::ReaderStream::with_capacity(
+                file, READ_CHUNK,
+            )),
+        })
+    }
+
+    pub async fn exists(&self, sha256: &str) -> std::io::Result<bool> {
+        tokio::fs::try_exists(self.path_for(sha256)).await
+    }
+
+    /// Delete a blob; a blob that is already gone is not an error.
+    pub async fn remove(&self, sha256: &str) -> std::io::Result<()> {
+        match tokio::fs::remove_file(self.path_for(sha256)).await {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             r => r,
         }
@@ -97,6 +137,14 @@ mod tests {
         chunks: Vec<&'static [u8]>,
     ) -> impl futures::Stream<Item = Result<bytes::Bytes, std::convert::Infallible>> + Unpin {
         futures::stream::iter(chunks.into_iter().map(|c| Ok(bytes::Bytes::from_static(c))))
+    }
+
+    async fn read_all(mut s: ByteStream) -> Vec<u8> {
+        let mut out = Vec::new();
+        while let Some(chunk) = s.next().await {
+            out.extend_from_slice(&chunk.unwrap());
+        }
+        out
     }
 
     #[tokio::test]
@@ -118,6 +166,14 @@ mod tests {
         let path = store.path_for(&meta.sha256);
         assert_eq!(std::fs::read(&path).unwrap(), b"hello world");
         assert!(path.starts_with(dir.path()));
+        assert_eq!(
+            read_all(store.open(&meta.sha256, None).await.unwrap()).await,
+            b"hello world"
+        );
+        assert_eq!(
+            read_all(store.open(&meta.sha256, Some(3..8)).await.unwrap()).await,
+            b"lo wo"
+        );
     }
 
     #[tokio::test]
@@ -133,9 +189,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(a.sha256, b.sha256);
-        assert!(store.path_for(&a.sha256).exists());
-        store.remove(&a.sha256).unwrap();
-        assert!(!store.path_for(&a.sha256).exists());
+        assert!(store.exists(&a.sha256).await.unwrap());
+        store.remove(&a.sha256).await.unwrap();
+        assert!(!store.exists(&a.sha256).await.unwrap());
+        // removing an absent blob is idempotent
+        store.remove(&a.sha256).await.unwrap();
     }
 
     #[tokio::test]
