@@ -72,6 +72,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
             validate_polling_schedule(&cfg)?;
+            if cfg.retention.enabled && cfg.retention.keep_releases == 0 {
+                return Err("[retention] keep_releases must be at least 1".into());
+            }
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
             if let Some(u) = &cfg.ddi.artifact_http_url
                 && !u.starts_with("http://")
@@ -140,6 +143,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Ok(0) => {}
                             Ok(n) => tracing::info!(deleted = n, "action cleanup sweep"),
                             Err(e) => tracing::error!(error = ?e, "action cleanup failed"),
+                        }
+                    }
+                });
+            }
+            // Its own task for the same reason as cleanup, and off unless asked
+            // for: it deletes releases and their artifacts outright.
+            if state.cfg.retention.enabled {
+                let retention_state = state.clone();
+                let retention_interval = retention_state.cfg.retention.interval_secs.max(1);
+                tokio::spawn(async move {
+                    let mut interval =
+                        tokio::time::interval(std::time::Duration::from_secs(retention_interval));
+                    loop {
+                        interval.tick().await;
+                        match raptor::domain::retention::run_sweep(&retention_state).await {
+                            Ok(r) if r.sets == 0 => {}
+                            Ok(r) => tracing::info!(
+                                sets = r.sets,
+                                modules = r.modules,
+                                blobs = r.blobs,
+                                "release retention sweep"
+                            ),
+                            Err(e) => tracing::error!(error = ?e, "release retention failed"),
                         }
                     }
                 });

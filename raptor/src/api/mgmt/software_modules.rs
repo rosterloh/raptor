@@ -4,7 +4,7 @@
 
 use super::mappers::{SmRest, sm_rest};
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
-use crate::entity::{artifact, ds_module, sm_metadata, software_module, software_module_type};
+use crate::entity::{ds_module, software_module, software_module_type};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{base_url, now_ms};
@@ -186,27 +186,10 @@ pub async fn delete(
     // Blob removal is irreversible and cannot take part in the transaction, so
     // collect the hashes now and GC them only after every DB delete committed.
     let txn = st.db.begin().await?;
-    let shas: Vec<String> = artifact::Entity::find()
-        .filter(artifact::Column::ModuleId.eq(m.id))
-        .all(&txn)
-        .await?
-        .into_iter()
-        .map(|a| a.sha256)
-        .collect();
-    artifact::Entity::delete_many()
-        .filter(artifact::Column::ModuleId.eq(m.id))
-        .exec(&txn)
-        .await?;
-    sm_metadata::Entity::delete_many()
-        .filter(sm_metadata::Column::ModuleId.eq(m.id))
-        .exec(&txn)
-        .await?;
-    software_module::Entity::delete_by_id(m.id)
-        .exec(&txn)
-        .await?;
+    let shas = crate::domain::artifact::delete_module_rows(&txn, m.id).await?;
     txn.commit().await?;
     for sha in &shas {
-        super::artifacts::gc_blob(&st, sha).await?;
+        crate::domain::artifact::gc_blob(&st, sha).await?;
     }
     Ok(StatusCode::OK)
 }
