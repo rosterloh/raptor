@@ -74,10 +74,7 @@ pub async fn put_config_data(
         "remove" => {
             target_attribute::Entity::delete_many()
                 .filter(target_attribute::Column::TargetId.eq(t.id))
-                .filter(
-                    target_attribute::Column::Key
-                        .is_in(body.data.keys().cloned().collect::<Vec<_>>()),
-                )
+                .filter(target_attribute::Column::Key.is_in(body.data.keys().cloned()))
                 .exec(&st.db)
                 .await?;
         }
