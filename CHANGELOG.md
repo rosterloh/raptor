@@ -59,7 +59,7 @@ decisions.
   result server-side, not just the visible page; rollouts can no longer be
   sorted by progress (#TBD)
 - `raptorctl tui`: `Esc` no longer quits from the main view; it only backs out
-  of prompts. Quit with `q` (#TBD)
+  of prompts. Quit with `q` (#175)
 
 ### Fixed
 
@@ -84,7 +84,7 @@ decisions.
 - `raptorctl tui`: the assign picker scrolls to keep the selected set in view;
   action history shows relative times instead of raw epoch milliseconds; a
   failed detail fetch for a row already left no longer flags the header as
-  stale; the footer shows the current prompt's keys (#TBD)
+  stale; the footer shows the current prompt's keys (#175)
 
 ## [1.2.0] - 2026-09-07
 
