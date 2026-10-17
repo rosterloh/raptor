@@ -14,6 +14,7 @@
 //! two, both live in this module, and a `match` keeps every call site
 //! readable without `async_trait` or boxing.
 
+mod backfill;
 mod fs;
 mod s3;
 
@@ -28,6 +29,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use tokio::io::AsyncWriteExt;
 
+pub use backfill::{BackfillReport, backfill_fs_to_s3};
 pub use s3::S3Store;
 
 /// A blob's bytes, as handed to an HTTP response body.

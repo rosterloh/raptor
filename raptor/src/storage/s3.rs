@@ -110,7 +110,7 @@ impl S3Store {
         }
     }
 
-    pub(super) async fn exists(&self, sha256: &str) -> std::io::Result<bool> {
+    pub async fn exists(&self, sha256: &str) -> std::io::Result<bool> {
         let key = self.key(sha256);
         let url = self
             .0

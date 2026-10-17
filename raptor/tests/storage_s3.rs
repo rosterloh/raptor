@@ -68,7 +68,10 @@ async fn single_put_roundtrip_range_and_remove() {
     let meta = put(&store, &data).await;
     assert_eq!(meta.size, 1000);
     assert!(store.exists(&meta.sha256).await.unwrap());
-    assert_eq!(read_all(store.open(&meta.sha256, None).await.unwrap()).await, data);
+    assert_eq!(
+        read_all(store.open(&meta.sha256, None).await.unwrap()).await,
+        data
+    );
     assert_eq!(
         read_all(store.open(&meta.sha256, Some(10..20)).await.unwrap()).await,
         &data[10..20]
@@ -94,7 +97,10 @@ async fn multipart_upload_roundtrip_and_cross_part_range() {
     let data = blob(2 * part + 12345);
     let meta = put(&store, &data).await;
     assert_eq!(meta.size as usize, data.len());
-    assert_eq!(read_all(store.open(&meta.sha256, None).await.unwrap()).await, data);
+    assert_eq!(
+        read_all(store.open(&meta.sha256, None).await.unwrap()).await,
+        data
+    );
 
     let (a, b) = (part - 100, part + 100);
     assert_eq!(
@@ -118,6 +124,48 @@ async fn spool_is_cleaned_up_after_upload() {
     let dir = tempfile::tempdir().unwrap();
     let store = ArtifactStore::with_s3(dir.path(), S3Store::new(&cfg).unwrap()).unwrap();
     let meta = put(&store, b"spool me").await;
-    assert_eq!(std::fs::read_dir(dir.path().join(".tmp")).unwrap().count(), 0);
+    assert_eq!(
+        std::fs::read_dir(dir.path().join(".tmp")).unwrap().count(),
+        0
+    );
     store.remove(&meta.sha256).await.unwrap();
+}
+
+#[tokio::test]
+async fn backfill_copies_an_fs_store_and_is_idempotent() {
+    let Some(cfg) = common::test_s3_config() else {
+        return;
+    };
+    let s3 = S3Store::new(&cfg).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let fs = ArtifactStore::new(dir.path().to_path_buf()).unwrap();
+    let small = put(&fs, b"small blob").await;
+    let large_data = blob(cfg.part_size as usize + 1);
+    let large = put(&fs, &large_data).await;
+    // Neither of these is a blob; both must be ignored.
+    std::fs::write(dir.path().join(".tmp").join("in-flight"), b"x").unwrap();
+    std::fs::write(dir.path().join("README"), b"x").unwrap();
+
+    let first = raptor::storage::backfill_fs_to_s3(dir.path(), &s3)
+        .await
+        .unwrap();
+    assert_eq!((first.uploaded, first.skipped), (2, 0));
+    assert_eq!(first.bytes, 10 + large_data.len() as u64);
+
+    let bucket = ArtifactStore::with_s3(dir.path(), s3.clone()).unwrap();
+    assert_eq!(
+        read_all(bucket.open(&small.sha256, None).await.unwrap()).await,
+        b"small blob"
+    );
+    assert_eq!(
+        read_all(bucket.open(&large.sha256, None).await.unwrap()).await,
+        large_data
+    );
+
+    let second = raptor::storage::backfill_fs_to_s3(dir.path(), &s3)
+        .await
+        .unwrap();
+    assert_eq!((second.uploaded, second.skipped), (0, 2));
+    // Local copies are left alone.
+    assert!(fs.exists(&small.sha256).await.unwrap());
 }
