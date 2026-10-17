@@ -15,7 +15,6 @@ use futures::StreamExt;
 use raptor_api_types::DownloadEvent;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::Value;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 pub async fn list(
     State(st): State<AppState>,
@@ -75,7 +74,6 @@ pub async fn download(
     }
 
     let a = find(&st, module_id, &filename).await?;
-    let path = st.store.path_for(&a.sha256);
     let owner = download_owner(&st, &cid, module_id)
         .await
         .unwrap_or_else(|e| {
@@ -119,12 +117,13 @@ pub async fn download(
                 .body(Body::empty())
                 .unwrap());
         };
-        let mut file = tokio::fs::File::open(&path).await?;
-        file.seek(std::io::SeekFrom::Start(start as u64)).await?;
         let len = end - start + 1;
-        st.metrics.bytes_downloaded(len.max(0) as u64);
-        let stream = tokio_util::io::ReaderStream::with_capacity(file.take(len as u64), 64 * 1024)
+        let stream = st
+            .store
+            .open(&a.sha256, Some(start as u64..end as u64 + 1))
+            .await?
             .map(progress(start as u64));
+        st.metrics.bytes_downloaded(len.max(0) as u64);
         return Ok(Response::builder()
             .status(StatusCode::PARTIAL_CONTENT)
             .header(header::ACCEPT_RANGES, "bytes")
@@ -142,7 +141,7 @@ pub async fn download(
             .unwrap());
     }
 
-    let file = tokio::fs::File::open(&path).await?;
+    let stream = st.store.open(&a.sha256, None).await?.map(progress(0));
     st.metrics.bytes_downloaded(a.size.max(0) as u64);
     Ok(Response::builder()
         .header(header::ACCEPT_RANGES, "bytes")
@@ -152,9 +151,7 @@ pub async fn download(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", a.filename),
         )
-        .body(Body::from_stream(
-            tokio_util::io::ReaderStream::with_capacity(file, 64 * 1024).map(progress(0)),
-        ))
+        .body(Body::from_stream(stream))
         .unwrap())
 }
 
