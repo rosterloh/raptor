@@ -21,8 +21,8 @@ use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 use std::collections::HashMap;
 
@@ -87,32 +87,7 @@ pub async fn cleanup_actions(st: &AppState) -> Result<u64, AppError> {
     }
 
     let ids: Vec<i64> = expired.iter().map(|a| a.id).collect();
-    let status_ids: Vec<i64> = action_status::Entity::find()
-        .filter(action_status::Column::ActionId.is_in(ids.clone()))
-        .all(&st.db)
-        .await?
-        .into_iter()
-        .map(|s| s.id)
-        .collect();
-
-    // Innermost first: raptor's foreign keys carry no `ON DELETE CASCADE`, and
-    // SQLite would not enforce one anyway, so deleting the parent first would
-    // orphan exactly the rows this sweep exists to reclaim.
-    if !status_ids.is_empty() {
-        action_status_message::Entity::delete_many()
-            .filter(action_status_message::Column::ActionStatusId.is_in(status_ids.clone()))
-            .exec(&st.db)
-            .await?;
-        action_status::Entity::delete_many()
-            .filter(action_status::Column::Id.is_in(status_ids))
-            .exec(&st.db)
-            .await?;
-    }
-    let deleted = action::Entity::delete_many()
-        .filter(action::Column::Id.is_in(ids))
-        .exec(&st.db)
-        .await?
-        .rows_affected;
+    let deleted = delete_actions(&st.db, ids).await?;
 
     for (gid, counts) in purged {
         let Some(g) = rollout_group::Entity::find_by_id(gid).one(&st.db).await? else {
@@ -127,4 +102,46 @@ pub async fn cleanup_actions(st: &AppState) -> Result<u64, AppError> {
     }
 
     Ok(deleted)
+}
+
+/// Hard-deletes the given actions together with their status history,
+/// returning how many action rows went. Does no eligibility checks and no
+/// rollout-group bookkeeping: callers decide which actions may go and whether
+/// their outcome must be recorded first (see [`cleanup_actions`]).
+///
+/// Generic over the connection so a caller can run it inside a transaction.
+/// Callers should keep `ids` bounded — it becomes an `IN (...)` list.
+pub(crate) async fn delete_actions<C: ConnectionTrait>(
+    conn: &C,
+    ids: Vec<i64>,
+) -> Result<u64, AppError> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let status_ids: Vec<i64> = action_status::Entity::find()
+        .filter(action_status::Column::ActionId.is_in(ids.clone()))
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(|s| s.id)
+        .collect();
+
+    // Innermost first: raptor's foreign keys carry no `ON DELETE CASCADE`, and
+    // SQLite would not enforce one anyway, so deleting the parent first would
+    // orphan exactly the rows a purge exists to reclaim.
+    if !status_ids.is_empty() {
+        action_status_message::Entity::delete_many()
+            .filter(action_status_message::Column::ActionStatusId.is_in(status_ids.clone()))
+            .exec(conn)
+            .await?;
+        action_status::Entity::delete_many()
+            .filter(action_status::Column::Id.is_in(status_ids))
+            .exec(conn)
+            .await?;
+    }
+    Ok(action::Entity::delete_many()
+        .filter(action::Column::Id.is_in(ids))
+        .exec(conn)
+        .await?
+        .rows_affected)
 }
