@@ -10,6 +10,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Cell, Clear, List, ListItem, Paragraph, Row, Table};
 use std::fmt::Display;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const MIN_WIDTH: u16 = 80;
 const MIN_HEIGHT: u16 = 24;
@@ -276,6 +277,9 @@ fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     let block = panel(theme, &t.controller_id, theme.accent);
     f.render_widget(Paragraph::new(lines).block(block), summary);
 
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64);
     let mut hist_lines: Vec<Line> = Vec::new();
     if let Some(a) = app.detail_actions.first() {
         hist_lines.push(Line::from(vec![Span::styled(
@@ -288,7 +292,7 @@ fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     for s in app.detail_history.iter().rev().take(20) {
         hist_lines.push(Line::from(vec![
             Span::styled(
-                format!("{:<14}", s.reported_at),
+                format!("{:>8}  ", ago(s.reported_at, now_ms)),
                 Style::default().fg(theme.fg_muted),
             ),
             Span::styled(
@@ -308,16 +312,44 @@ fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
     f.render_widget(Paragraph::new(hist_lines).block(hist_block), history_area);
 }
 
+/// Age of an epoch-millis timestamp, e.g. `42s ago`. A future time (clock
+/// skew between server and operator) reads as `now`.
+fn ago(ms: i64, now_ms: i64) -> String {
+    let secs = (now_ms - ms) / 1000;
+    match secs {
+        ..=0 => "now".into(),
+        1..60 => format!("{secs}s ago"),
+        60..3600 => format!("{}m ago", secs / 60),
+        3600..86_400 => format!("{}h ago", secs / 3600),
+        _ => format!("{}d ago", secs / 86_400),
+    }
+}
+
+/// The keys that work in the current mode, not just in Normal.
+fn hints(mode: &Mode) -> &'static str {
+    match mode {
+        Mode::Normal => "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [y]ank [r]efresh [?]help",
+        Mode::Search { .. } | Mode::TagInput { .. } => "[Enter] apply  [Esc] cancel",
+        Mode::Assign { .. } => "[↑↓] move  type to filter  [Enter] assign  [Esc] cancel",
+        Mode::ConfirmCancel { .. } | Mode::ConfirmForce { .. } => "[y] confirm  [n/Esc] back out",
+        Mode::Help => "any key closes",
+    }
+}
+
+/// The status message leads so a narrow terminal clips the hints, not it.
 fn draw_footer(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
-    let text = if let Some((msg, _)) = &app.status {
-        msg.clone()
-    } else {
-        "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [y]ank [r]efresh [?]help".to_string()
-    };
-    f.render_widget(
-        Paragraph::new(text).style(Style::default().fg(theme.fg_muted)),
-        area,
-    );
+    let mut spans = Vec::new();
+    if let Some((msg, _)) = &app.status {
+        spans.push(Span::styled(
+            format!("{msg}  "),
+            Style::default().fg(theme.fg),
+        ));
+    }
+    spans.push(Span::styled(
+        hints(&app.mode),
+        Style::default().fg(theme.fg_muted),
+    ));
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn centered(area: Rect, width: u16, height: u16) -> Rect {
@@ -328,13 +360,13 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
     Rect::new(x, y, width, height)
 }
 
-fn draw_assign_modal(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
+fn draw_assign_modal(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
     let Mode::Assign {
         cid,
         filter,
         items,
-        selected,
-    } = &app.mode
+        list,
+    } = &mut app.mode
     else {
         return;
     };
@@ -346,22 +378,20 @@ fn draw_assign_modal(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
         .collect();
     let rows: Vec<ListItem> = filtered
         .iter()
-        .enumerate()
-        .map(|(i, d)| {
-            let style = if i == *selected {
-                theme.selection
-            } else {
-                Style::default()
-            };
-            ListItem::new(format!("{} {}:{}", d.id, d.name, d.version)).style(style)
-        })
+        .map(|d| ListItem::new(format!("{} {}:{}", d.id, d.name, d.version)))
         .collect();
     let block = panel(
         theme,
         format!("assign to {cid} · filter: {filter}"),
         theme.accent,
     );
-    f.render_widget(List::new(rows).block(block), rect);
+    f.render_stateful_widget(
+        List::new(rows)
+            .block(block)
+            .highlight_style(theme.selection),
+        rect,
+        list,
+    );
 }
 
 fn draw_help_modal(f: &mut Frame, theme: &Theme, area: Rect) {
@@ -377,7 +407,7 @@ fn draw_help_modal(f: &mut Frame, theme: &Theme, area: Rect) {
         "c          cancel the active action",
         "f          force the active action",
         "r          refresh now",
-        "q / Esc    quit",
+        "q          quit",
         "",
         "press any key to close",
     ]
@@ -502,6 +532,54 @@ mod tests {
             let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
             terminal.draw(|f| draw(f, &mut app, &theme)).unwrap();
         }
+    }
+
+    fn screen(app: &mut App, w: u16, h: u16) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        let theme = Theme::detect();
+        terminal.draw(|f| draw(f, app, &theme)).unwrap();
+        let buf = terminal.backend().buffer();
+        (0..h).map(|y| row_text(buf, y) + "\n").collect()
+    }
+
+    /// The picker shows ~14 rows; moving past them used to select a row
+    /// that was never drawn.
+    #[tokio::test]
+    async fn assign_picker_scrolls_to_the_selection() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        let sets = (0..30).map(|i| ds(i, &format!("set{i:02}"))).collect();
+        app.handle_msg(Msg::DsList("a".into(), Ok(sets)));
+        for _ in 0..25 {
+            handle_key(&mut app, key(crossterm::event::KeyCode::Down));
+        }
+        assert!(screen(&mut app, 120, 40).contains("set25"));
+    }
+
+    #[test]
+    fn ages_read_as_relative_time() {
+        let now = 10_000_000;
+        assert_eq!(ago(now + 5_000, now), "now");
+        assert_eq!(ago(now - 42_000, now), "42s ago");
+        assert_eq!(ago(now - 3 * 3_600_000, now), "3h ago");
+    }
+
+    #[tokio::test]
+    async fn detail_failure_for_another_target_is_not_an_error() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        app.handle_msg(Msg::Detail("gone".into(), Err(anyhow::anyhow!("boom"))));
+        assert!(app.errors.is_empty());
+    }
+
+    #[tokio::test]
+    async fn esc_does_not_quit_and_footer_follows_the_mode() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        handle_key(&mut app, key(crossterm::event::KeyCode::Esc));
+        assert!(!app.should_quit);
+        handle_key(&mut app, key(crossterm::event::KeyCode::Char('/')));
+        assert!(screen(&mut app, 120, 40).contains("[Enter] apply"));
     }
 
     fn row_text(buf: &ratatui::buffer::Buffer, y: u16) -> String {

@@ -244,7 +244,7 @@ $ raptorctl tui [--refresh <seconds>]   # default 5, 0 disables auto-refresh
 | `c` / `f` | cancel / force the target's active action (`y` to confirm, `n`/`Esc` to back out) |
 | `r` | refresh now |
 | `?` | help |
-| `q` / `Esc` | quit |
+| `q` | quit |
 
 It respects `NO_COLOR`, works over SSH and inside tmux, and requires at least
 an 80x24 terminal.

@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use raptor_api_types::{
     ActionRest, ActionStatusRest, DsRest, RolloutRest, SystemStatistics, TargetRest,
 };
-use ratatui::widgets::TableState;
+use ratatui::widgets::{ListState, TableState};
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -43,7 +43,8 @@ pub enum Mode {
         cid: String,
         filter: String,
         items: Vec<DsRest>,
-        selected: usize,
+        /// Indexes the filtered list; kept across frames for its scroll offset.
+        list: ListState,
     },
     TagInput {
         cid: String,
@@ -255,10 +256,10 @@ impl App {
                     self.set_targets(rows);
                 }
             }
-            Msg::Detail(cid, r) => {
-                if let Some((actions, history)) = self.record("detail", r)
-                    && self.selected_target().map(|t| &t.controller_id) == Some(&cid)
-                {
+            // A reply for a row already moved off must not set or clear the error.
+            Msg::Detail(cid, _) if self.selected_cid().as_ref() != Some(&cid) => {}
+            Msg::Detail(_, r) => {
+                if let Some((actions, history)) = self.record("detail", r) {
                     self.detail_actions = actions;
                     self.detail_history = history;
                 }
@@ -280,7 +281,7 @@ impl App {
                         cid,
                         filter: String::new(),
                         items,
-                        selected: 0,
+                        list: ListState::default().with_selected(Some(0)),
                     };
                 }
             }
