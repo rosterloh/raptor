@@ -591,6 +591,43 @@ password_hash = "$argon2id$fake"
     }
 
     #[test]
+    fn storage_defaults_to_fs() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file("raptor.toml", MINIMAL)?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            assert_eq!(cfg.storage.backend, StorageBackend::Fs);
+            assert!(cfg.storage.s3.is_none());
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn parses_s3_storage_with_self_hosted_defaults_and_env_secret() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!(
+                    "{MINIMAL}\n[storage]\nbackend = \"s3\"\n[storage.s3]\n\
+                     endpoint = \"https://rustfs.lan:9000\"\nbucket = \"raptor\"\n\
+                     access_key = \"raptor\"\n"
+                ),
+            )?;
+            jail.set_env("RAPTOR_STORAGE__S3__SECRET_KEY", "hunter2");
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            assert_eq!(cfg.storage.backend, StorageBackend::S3);
+            let s3 = cfg.storage.s3.unwrap();
+            assert_eq!(s3.secret_key, "hunter2");
+            assert_eq!(s3.region, "us-east-1");
+            assert!(s3.path_style);
+            assert_eq!(s3.prefix, "");
+            assert_eq!(s3.part_size, 16 * 1024 * 1024);
+            let dbg = format!("{s3:?}");
+            assert!(!dbg.contains("hunter2"), "secret leaked into Debug: {dbg}");
+            Ok(())
+        });
+    }
+
+    #[test]
     fn parses_otel_section_with_defaults() {
         figment::Jail::expect_with(|jail| {
             jail.create_file(

@@ -16,7 +16,9 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
   - `src/entity/` — SeaORM entities (one definition for SQLite and Postgres)
   - `src/fiql/` — FIQL/RSQL `q=` filter parser → SeaORM `Condition`
   - `src/auth/` — tower middleware for the two auth zones (ddi, mgmt)
-  - `src/storage.rs` — content-addressed artifact store on disk
+  - `src/storage/` — content-addressed artifact store: `fs.rs` (local disk)
+    and `s3.rs` (S3-compatible, rusty-s3 presigning + reqwest) behind one
+    `ArtifactStore`; callers address blobs by sha256 only
   - `tests/` — integration tests, one file per feature (`mgmt_*`, `ddi_*`),
     shared harness in `tests/common/`
 - `raptor-api-types/` — shared Management API DTOs, one module per resource.
@@ -32,6 +34,7 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
 ```sh
 cargo nextest run --workspace          # tests (or: cargo test --workspace)
 cargo test -p raptor --features otel --test telemetry   # otel-gated test
+TEST_S3_ENDPOINT=http://localhost:9000 cargo nextest run -p raptor  # suite on S3 (see CI test-s3)
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy -p raptor --features otel --all-targets -- -D warnings
@@ -87,7 +90,7 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
   widened later via a full table rebuild (see
   `docs/superpowers/specs/2026-08-26-multi-tenancy-design.md`).
 - **Layering**: handlers validate and translate; rules live in `src/domain/`;
-  artifact bytes stream through `storage.rs`, never through the DB.
+  artifact bytes stream through `storage/`, never through the DB.
 - **User-visible changes get a `CHANGELOG.md` bullet** under the unreleased
   version heading, in the matching Added/Changed/Fixed group, one line with its
   issue number. The changelog is the scannable index; the GitHub release body
