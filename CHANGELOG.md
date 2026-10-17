@@ -29,6 +29,8 @@ decisions.
   that still reference it, and every cancel path reverts a target's
   assigned set to the installed one. Already-affected targets need reassigning
   by hand (#181)
+- A rollout, cleanup or retention sweep that overruns its interval no longer
+  triggers back-to-back catch-up sweeps; the next one waits a full interval
 
 ## [1.3.0] - 2026-10-17
 

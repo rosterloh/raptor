@@ -109,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::spawn(async move {
                 let mut interval =
                     tokio::time::interval(std::time::Duration::from_secs(eval_interval));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                 loop {
                     interval.tick().await;
                     if let Err(e) = raptor::domain::rollout::evaluate_rollouts(&eval_state).await {
@@ -137,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::spawn(async move {
                     let mut interval =
                         tokio::time::interval(std::time::Duration::from_secs(cleanup_interval));
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                     loop {
                         interval.tick().await;
                         match raptor::domain::cleanup::run_sweep(&cleanup_state).await {
@@ -155,6 +157,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::spawn(async move {
                     let mut interval =
                         tokio::time::interval(std::time::Duration::from_secs(retention_interval));
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                     loop {
                         interval.tick().await;
                         match raptor::domain::retention::run_sweep(&retention_state).await {
