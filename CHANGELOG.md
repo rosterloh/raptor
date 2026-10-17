@@ -13,6 +13,14 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
+## [1.3.1] - unreleased
+
+### Changed
+
+- The packaged example config (`/etc/raptor/config.toml`) now lists every
+  documented setting, commented out at its default. Existing installs keep
+  their edited copy (#179)
+
 ## [1.3.0] - 2026-10-17
 
 S3-compatible artifact storage, release retention, and dynamic rollouts, plus
