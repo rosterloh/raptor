@@ -71,7 +71,7 @@ jobs:
       # pinned toolchain plus its components and targets.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - uses: cargo-bins/cargo-binstall@v1.25.2
+      - uses: cargo-bins/cargo-binstall@v1.25.3
       # pinned to match the crate's `dioxus = "=0.7.10"`; --force works around
       # Swatinem/rust-cache restoring ~/.cargo bin metadata without the binary,
       # which makes binstall skip a reinstall and leaves `dx` missing on PATH
