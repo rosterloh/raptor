@@ -162,6 +162,7 @@ any OTLP collector (Grafana Tempo/Mimir/Loki, Jaeger, Datadog, …):
     endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export
     service_name = "raptor"              # default; reported as service.name
     # protocol = "grpc"                  # "grpc" (default, port 4317) or "http" (port 4318)
+    # sample_ratio = 0.1                 # sample 10% of new traces (default: all)
     # [otel.headers]                     # optional, e.g. for authenticated collectors
     # authorization = "Bearer <token>"
 
@@ -180,7 +181,11 @@ What you get with export enabled:
 - **Traces** — each HTTP request is a span (route/method/status via
   `tower-http`), and the deployment domain (`assign_ds`, feedback state machine)
   is instrumented, so a DDI poll → `deploymentBase` → feedback cycle shows up as
-  correlated spans.
+  correlated spans. An incoming W3C `traceparent` header is honoured, so
+  behind a traced reverse proxy or gateway raptor's spans join the caller's
+  trace. `sample_ratio` samples traces raptor starts itself; a request that
+  arrives with a sampling decision keeps it. Without `sample_ratio` everything
+  is sampled, or whatever `OTEL_TRACES_SAMPLER` says.
 - **Metrics** — `raptor.http.requests` / `raptor.http.request.duration`
   (labelled `api`=ddi|mgmt, route, method, status — DDI poll volume is the
   capacity signal); action lifecycle counters
@@ -190,7 +195,10 @@ What you get with export enabled:
 - **Logs** — `tracing` events are bridged to OTLP logs, so records carry the
   active trace/span IDs for correlation.
 
-Exporters are flushed on graceful shutdown (SIGINT/SIGTERM).
+Exporters are flushed on graceful shutdown (SIGINT/SIGTERM). If export is
+failing (wrong endpoint, collector down), the OpenTelemetry SDK's warnings and
+errors appear on stdout under the default filter; they are never exported
+themselves. Set `RUST_LOG` with an `opentelemetry` directive to change that.
 
 ### Trying it against a local collector
 

@@ -57,5 +57,6 @@ password_hash = "REPLACE_WITH_ARGON2_HASH"
 # endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export
 # service_name = "raptor"
 # protocol = "grpc"                     # "grpc" (4317) or "http" (4318)
+# sample_ratio = 0.1                    # sample 10% of new traces; default: all
 # [otel.headers]                        # optional, for authenticated collectors
 # authorization = "Bearer change-me"
