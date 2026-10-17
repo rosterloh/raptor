@@ -17,7 +17,11 @@ $ raptor serve [--config <path>]
 
 Migrations are applied automatically before the listener starts. The server logs
 to stdout/stderr; control verbosity with the `RUST_LOG` environment variable,
-e.g. `RUST_LOG=raptor=debug,tower_http=info`.
+e.g. `RUST_LOG=raptor=debug,tower_http=info`. In an `otel` build with
+[`[otel]`](./configuration.md#otel--opentelemetry-export) configured, the same
+filter decides what is exported, and the OpenTelemetry SDK's own warnings and
+errors are added to stdout unless `RUST_LOG` already names an `opentelemetry`
+target.
 
 ```console
 $ RUST_LOG=raptor=debug raptor serve --config /etc/raptor/config.toml
