@@ -8,8 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with: { components: "rustfmt, clippy" }
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -20,7 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - run: cargo nextest run --workspace
@@ -39,8 +42,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with: { components: llvm-tools }
+      # Pinned toolchain from rust-toolchain.toml, plus llvm-tools for coverage.
+      - run: rustup toolchain install && rustup component add llvm-tools
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with: { tool: "nextest,cargo-llvm-cov" }
@@ -64,8 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown, components: clippy }
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@v1.25.2
       # pinned to match the crate's `dioxus = "=0.7.10"`; --force works around
@@ -124,7 +128,9 @@ jobs:
           --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      # rust-toolchain.toml is the single source of truth: this installs the
+      # pinned toolchain plus its components and targets.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       # Only raptor's tests touch the DB; each gets its own schema (see
