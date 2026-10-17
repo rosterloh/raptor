@@ -11,7 +11,7 @@ environment variable; nested tables use a `__` separator (e.g.
 |---|---|---|---|
 | `bind` | socket addr | `0.0.0.0:8088` | address the HTTP server listens on |
 | `database_url` | string | *(required)* | `sqlite://…` or `postgres://…`; selects the backend |
-| `artifact_dir` | path | *(required)* | root of the content-addressed artifact store |
+| `artifact_dir` | path | *(required)* | root of the content-addressed artifact store; with `[storage] backend = "s3"` it only holds uploads in flight |
 | `max_artifact_size` | integer (bytes) | `1073741824` (1 GiB) | maximum artifact upload size |
 | `url` | string | *(unset)* | external base URL for `_links`; derived from the `Host` header when unset |
 | `rollout_eval_interval_secs` | integer | `5` | how often the background evaluator / auto-assign sweep runs |
@@ -148,6 +148,45 @@ polling_interval = "00:05:00, group==eu -> 00:00:30~10%, updateStatus!=in_sync -
   for a target currently matched by an override rule. hawkBit's own release
   notes call this out as an accepted inaccuracy rather than a bug to fix.
 
+## `[storage]` — artifact backend
+
+Where artifact blobs live. Omit the section to keep them on local disk under
+`artifact_dir` (the default and the behaviour of every earlier release).
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `backend` | `"fs"` \| `"s3"` | `"fs"` | local disk, or an S3-compatible bucket configured in `[storage.s3]` |
+
+### `[storage.s3]`
+
+Any S3-compatible store: AWS S3, or a self-hosted one such as RustFS, MinIO,
+Garage, Ceph RGW or TrueNAS. The defaults are chosen for self-hosted stores.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `endpoint` | URL | *(required)* | S3 API base URL, e.g. `https://s3.lan:9000` |
+| `bucket` | string | *(required)* | bucket name; must already exist |
+| `access_key` | string | *(required)* | access key ID |
+| `secret_key` | string | *(required)* | secret key — prefer `RAPTOR_STORAGE__S3__SECRET_KEY` |
+| `region` | string | `"us-east-1"` | region used for request signing; self-hosted stores accept any value |
+| `prefix` | string | `""` | key prefix inside the bucket, e.g. `"raptor/"` |
+| `path_style` | bool | `true` | `endpoint/bucket/key` addressing; set `false` for AWS virtual-hosted buckets |
+| `ca_cert` | path | *(none)* | PEM file of extra CA certificate(s) to trust, for a private CA or self-signed endpoint; added to the system roots |
+| `part_size` | integer (bytes) | `16777216` (16 MiB) | multipart part size (minimum 5 MiB); smaller blobs are a single PUT |
+
+Blobs are keyed `<prefix><sha256[0..2]>/<sha256>`, the same layout as on disk.
+raptor still serves every download itself (devices never talk to the bucket),
+so DDI authentication, `Range` requests and download progress behave exactly as
+with local storage. The bucket is checked with a `HEAD` request at startup, so
+bad credentials or a missing bucket stop `raptor serve` immediately.
+
+Uploads are spooled to `<artifact_dir>/.tmp` while they are hashed, then sent to
+the bucket, so `artifact_dir` needs room for the largest upload in flight.
+
+To move an existing deployment from `fs` to `s3`, run
+[`raptor storage-backfill`](./cli.md#raptor-storage-backfill) and then switch
+`backend`.
+
 ## `[mgmt]` — Management API / web console
 
 | Key | Type | Default | Description |
@@ -170,6 +209,16 @@ rollout_approval_enabled = false
 max_artifacts_per_software_module = 20
 max_status_entries_per_action = 0          # unlimited
 
+[storage]
+backend = "s3"
+
+[storage.s3]
+endpoint = "https://rustfs.lan:9000"
+bucket = "raptor"
+access_key = "raptor"
+# secret_key from RAPTOR_STORAGE__S3__SECRET_KEY
+ca_cert = "/etc/raptor/lan-ca.pem"
+
 [ddi]
 anonymous = false
 gateway_token = "shared-registration-secret"
@@ -189,6 +238,8 @@ RAPTOR_DATABASE_URL=sqlite://raptor.db?mode=rwc
 RAPTOR_DDI__ANONYMOUS=true
 RAPTOR_DDI__GATEWAY_TOKEN=super-secret
 RAPTOR_MGMT__PASSWORD_HASH='$argon2id$...'
+RAPTOR_STORAGE__S3__ACCESS_KEY=raptor
+RAPTOR_STORAGE__S3__SECRET_KEY=s3-secret
 ```
 
 Environment values take precedence over the TOML file — the recommended way to

@@ -17,6 +17,11 @@ decisions.
 
 ### Added
 
+- S3-compatible artifact storage: `[storage] backend = "s3"` with a
+  `[storage.s3]` section keeps blobs in a bucket (AWS, or self-hosted RustFS,
+  MinIO, Garage, ...) instead of local disk; local disk stays the default.
+  `raptor storage-backfill` copies an existing on-disk store into the bucket
+  (#20)
 - Dynamic rollouts: `dynamic` on rollout creation appends a trailing group that
   keeps absorbing targets which start matching the filter after creation,
   deploying to them as they arrive. Optional `dynamicGroupTemplate`

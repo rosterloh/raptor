@@ -72,7 +72,7 @@ async fn find_owned(
         .ok_or(AppError::NotFound("artifact"))
 }
 
-/// Remove a blob from disk if no artifact rows reference its sha256 anymore.
+/// Remove a blob from the store if no artifact rows reference its sha256 anymore.
 /// Irreversible: only call once the DB deletes that dropped the rows are
 /// committed.
 pub(super) async fn gc_blob(st: &AppState, sha256: &str) -> Result<(), AppError> {
@@ -81,7 +81,7 @@ pub(super) async fn gc_blob(st: &AppState, sha256: &str) -> Result<(), AppError>
         .count(&st.db)
         .await?;
     if refs == 0 {
-        st.store.remove(sha256)?;
+        st.store.remove(sha256).await?;
     }
     Ok(())
 }
@@ -190,9 +190,8 @@ pub async fn download(
     Path((module_id, artifact_id)): Path<(i64, i64)>,
 ) -> Result<Response, AppError> {
     let a = find_owned(&st, module_id, artifact_id).await?;
-    let file = tokio::fs::File::open(st.store.path_for(&a.sha256)).await?;
+    let stream = st.store.open(&a.sha256, None).await?;
     st.metrics.bytes_downloaded(a.size.max(0) as u64);
-    let stream = tokio_util::io::ReaderStream::new(file);
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/octet-stream")
         .header(header::CONTENT_LENGTH, a.size)

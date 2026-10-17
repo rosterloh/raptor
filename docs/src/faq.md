@@ -34,14 +34,18 @@ auto-registration), or anonymous mode for development. See
 
 ## Where does raptor store artifacts?
 
-In a content-addressed store on local disk under `artifact_dir`, laid out as
-`<sha256[0..2]>/<sha256>`. Identical content is stored once. The Debian package
-defaults this to `/var/lib/raptor/artifacts`.
+By default in a content-addressed store on local disk under `artifact_dir`,
+laid out as `<sha256[0..2]>/<sha256>`. Identical content is stored once. The
+Debian package defaults this to `/var/lib/raptor/artifacts`.
 
 ## Can I offload artifact storage to S3?
 
-Not yet — storage is local disk only. S3/object-storage backends are a tracked
-enhancement.
+Yes: set `[storage] backend = "s3"` and configure `[storage.s3]` — any
+S3-compatible store works, including self-hosted RustFS, MinIO or Garage. raptor
+still proxies downloads to devices, so bucket bandwidth flows through raptor;
+the gain is capacity and durability, not offloaded traffic. See the
+[`[storage]` reference](./reference/configuration.md#storage--artifact-backend);
+existing blobs move over with `raptor storage-backfill`.
 
 ## How do I change the admin password?
 

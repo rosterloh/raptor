@@ -43,8 +43,12 @@ Blobs are stored **once per SHA-256**, laid out git-object-style:
 <artifact_dir>/<sha256[0..2]>/<sha256>
 ```
 
+With `[storage] backend = "s3"` the same `<sha256[0..2]>/<sha256>` key is used
+in the bucket (under an optional prefix); see the
+[`[storage]` reference](../reference/configuration.md#storage--artifact-backend).
+
 Uploading identical content twice stores the bytes once and adds a second
-reference; the blob is removed from disk only when the last artifact row
+reference; the blob is removed from storage only when the last artifact row
 referencing it is deleted. This dedup is transparent — each module still sees its
 own artifact row with its own filename.
 

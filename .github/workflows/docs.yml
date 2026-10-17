@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
       # mdbook is in install-action's own manifest, so it downloads a known
       # release asset (checksum-verified) instead of querying api.github.com to
       # resolve one. Plain `cargo binstall` did resolve through the API

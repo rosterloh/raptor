@@ -133,7 +133,7 @@ async fn blob_refcounting_on_delete() {
             .unwrap(),
     )
     .await;
-    assert!(state.store.path_for(sha256).exists());
+    assert!(state.store.exists(sha256).await.unwrap());
 
     // delete first reference: blob stays
     let aid1 = a1["id"].as_i64().unwrap();
@@ -145,7 +145,7 @@ async fn blob_refcounting_on_delete() {
         ))
         .await
         .unwrap();
-    assert!(state.store.path_for(sha256).exists());
+    assert!(state.store.exists(sha256).await.unwrap());
 
     // delete the module holding the second reference: blob goes
     app.clone()
@@ -156,7 +156,7 @@ async fn blob_refcounting_on_delete() {
         ))
         .await
         .unwrap();
-    assert!(!state.store.path_for(sha256).exists());
+    assert!(!state.store.exists(sha256).await.unwrap());
 }
 
 #[tokio::test]
@@ -203,7 +203,7 @@ async fn referenced_module_delete_conflicts_and_keeps_artifacts() {
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 
     // Nothing deleted: module, artifact row, and blob all survive.
-    assert!(state.store.path_for(&sha256).exists());
+    assert!(state.store.exists(&sha256).await.unwrap());
     let resp = app
         .clone()
         .oneshot(common::req(
