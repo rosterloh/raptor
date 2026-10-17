@@ -104,7 +104,7 @@ password_hash = "REPLACE_WITH_ARGON2_HASH"
 # interval_secs = 3600
 
 # OpenTelemetry (OTLP) export of traces, metrics and logs. Requires a build with
-# the `otel` feature (the stock package omits it); when the section is absent,
+# the `otel` feature (the Debian package includes it); when the section is absent,
 # raptor logs to stdout only, exactly as before. See README "Observability".
 # [otel]
 # endpoint = "http://localhost:4317"   # OTLP endpoint; its presence enables export

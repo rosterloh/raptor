@@ -82,9 +82,9 @@ Keep plaintext secrets (e.g. a DDI gateway token) out of the world-readable
 config — put them in a root-only `/etc/raptor/raptor.env` as `RAPTOR_*`
 environment overrides, which the unit loads before dropping privileges.
 
-To build a package yourself: `cargo install cargo-deb && rm -rf
-target/dx/raptor-ui/release && dx build --release --package raptor-ui && cargo
-deb -p raptor`. The `rm -rf` matters — see [Web UI](#web-ui).
+To build a package yourself: `mise run deb` (tools pinned in `mise.toml`;
+install [mise](https://mise.jdx.dev) first). It clears stale console assets
+before `dx build` — see [Web UI](#web-ui) for why that matters.
 
 ## Web UI
 
@@ -93,11 +93,9 @@ raptor ships an optional web console (Dioxus/WASM) embedded in the binary.
 One-time setup, then the build:
 
     rustup target add wasm32-unknown-unknown
-    cargo binstall dioxus-cli@0.7.10  # or: cargo install dioxus-cli@0.7.10
-    # pinned to match the crate's `dioxus = "=0.7.10"` — bump both together
+    mise install                    # dx pinned in mise.toml to match `dioxus = "=0.7.10"`
 
-    rm -rf target/dx/raptor-ui/release        # see the note below
-    dx build --release --package raptor-ui    # from the repo root
+    mise run ui                     # rm -rf target/dx/raptor-ui/release + dx build --release
     cargo build --release --features embed-ui
 
 `dx` writes content-hashed asset filenames and never prunes superseded ones, so

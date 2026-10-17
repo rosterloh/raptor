@@ -1,0 +1,54 @@
+# Dev tools and tasks, shared by local work and CI (jdx/mise-action).
+# The Rust toolchain itself stays in rust-toolchain.toml (rustup).
+
+[tools]
+cargo-binstall = "1.25.3"
+# Must equal raptor-ui's `dioxus = "=0.7.10"`; bump both together.
+"cargo:dioxus-cli" = "0.7.10"
+"cargo:cargo-deb" = "3.8.0"
+"cargo:cargo-nextest" = "0.9.148"
+"cargo:cargo-llvm-cov" = "0.9.1"
+mdbook = "0.5.4"
+
+# cargo-deb publishes no binaries of its own; this lets binstall use the
+# quickinstall cache (as plain `cargo binstall` does) instead of compiling it.
+[settings.cargo]
+binstall_quickinstall = true
+
+[tasks.lint]
+description = "rustfmt + clippy for the server, including the otel feature"
+run = [
+  "cargo fmt --all --check",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "cargo clippy -p raptor --features otel --all-targets -- -D warnings",
+]
+
+[tasks.test]
+description = "Workspace tests on SQLite, plus the otel-gated telemetry test"
+run = [
+  "cargo nextest run --workspace",
+  "cargo nextest run -p raptor --features otel --test telemetry",
+]
+
+[tasks.check]
+description = "Everything CI gates on except the Postgres/S3 suites; run before pushing"
+run = [
+  { task = "lint" },
+  "cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings",
+  { task = "test" },
+]
+
+[tasks.ui]
+description = "Release build of the web console bundle that embed-ui embeds"
+# dx never prunes superseded hashed assets and embed-ui embeds the whole
+# directory, so start clean (README "Web UI").
+run = ["rm -rf target/dx/raptor-ui/release", "dx build --release --package raptor-ui"]
+
+[tasks.deb]
+description = "Debian package (console bundle built first)"
+depends = ["ui"]
+run = "cargo deb -p raptor"
+
+[tasks.docs]
+description = "Build the mdbook into docs/book"
+run = "mdbook build docs"

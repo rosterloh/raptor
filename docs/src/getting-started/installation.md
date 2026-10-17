@@ -52,8 +52,8 @@ The embedded web console is behind the `embed-ui` Cargo feature. It requires the
 [Dioxus CLI](https://dioxuslabs.com/) (`dx`) to build the WASM bundle first:
 
 ```console
-$ cargo binstall dioxus-cli@0.7.10
-$ dx build --release --package raptor-ui
+$ mise install          # pinned dx (and the other dev tools) from mise.toml
+$ mise run ui           # clean release build of the console bundle
 $ cargo build --release --features embed-ui
 ```
 
@@ -62,10 +62,10 @@ Without `embed-ui`, the server runs identically but does not serve `/ui`.
 ### Building the Debian package yourself
 
 ```console
-$ cargo install cargo-deb
-$ dx build --release --package raptor-ui      # populate the embedded UI
-$ cargo deb -p raptor                         # -> target/debian/raptor_*.deb
+$ mise run deb      # builds the console, then -> target/debian/raptor_*.deb
 ```
+
+The package is built with the `embed-ui` and `otel` features.
 
 ## Database
 
