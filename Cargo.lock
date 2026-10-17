@@ -4887,7 +4887,7 @@ dependencies = [
  "instant-xml",
  "jiff",
  "percent-encoding",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "url",
  "zeroize",
 ]
