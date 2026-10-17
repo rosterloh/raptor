@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
             validate_polling_schedule(&cfg)?;
-            if cfg.retention.enabled && cfg.retention.keep_releases == 0 {
+            if cfg.retention.keep_releases == Some(0) {
                 return Err("[retention] keep_releases must be at least 1".into());
             }
             let (telemetry, metrics) = raptor::telemetry::init(cfg.otel.as_ref())?;
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             // Its own task for the same reason as cleanup, and off unless asked
             // for: it deletes releases and their artifacts outright.
-            if state.cfg.retention.enabled {
+            if state.cfg.retention.keep_releases.is_some() {
                 let retention_state = state.clone();
                 let retention_interval = retention_state.cfg.retention.interval_secs.max(1);
                 tokio::spawn(async move {

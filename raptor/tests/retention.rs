@@ -17,8 +17,7 @@ use tower::ServiceExt;
 
 fn keep(n: u32) -> RetentionConfig {
     RetentionConfig {
-        enabled: true,
-        keep_releases: n,
+        keep_releases: Some(n),
         ..Default::default()
     }
 }
@@ -166,7 +165,7 @@ async fn target_row(st: &AppState, cid: &str) -> target::Model {
 }
 
 #[tokio::test]
-async fn disabled_by_default_retires_nothing() {
+async fn unset_by_default_retires_nothing() {
     let (app, st) = common::setup().await;
     let (v1, ..) = release(&app, "fw", "1").await;
     release(&app, "fw", "2").await;

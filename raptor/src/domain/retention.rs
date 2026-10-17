@@ -53,14 +53,15 @@ pub struct Retired {
 }
 
 /// Retires every set older than the newest `keep_releases` valid ones of its
-/// name, up to [`MAX_SETS_PER_SWEEP`]. Does nothing unless enabled.
+/// name, up to [`MAX_SETS_PER_SWEEP`]. Does nothing unless `keep_releases`
+/// is set.
 pub async fn run_sweep(st: &AppState) -> Result<Retired, AppError> {
-    let cfg = &st.cfg.retention;
-    if !cfg.enabled || cfg.keep_releases == 0 {
-        return Ok(Retired::default());
-    }
+    let keep = match st.cfg.retention.keep_releases {
+        Some(n) if n > 0 => n as usize,
+        _ => return Ok(Retired::default()),
+    };
     let mut total = Retired::default();
-    for id in expired_sets(st, cfg.keep_releases as usize)
+    for id in expired_sets(st, keep)
         .await?
         .into_iter()
         .take(MAX_SETS_PER_SWEEP)

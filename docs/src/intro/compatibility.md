@@ -58,7 +58,7 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Maintenance windows on direct assignments | ✅ (hawkBit's own Management API has no `maintenanceWindow` field on rollout creation or target-filter auto-assignment to be at parity with — see [#116](https://github.com/rosterloh/raptor/issues/116)) |
 | Per-entity quotas (`[quota]`, hawkBit's defaults, `429` on breach) | ✅ |
 | Automatic action cleanup (`[cleanup]`, `action.cleanup.auto.*`) | ✅ (raptor additionally keeps rollout progress stable across a sweep, which upstream does not) |
-| Release retention (`[retention]`: keep the newest N sets per name, hard-delete older ones and their artifacts) | raptor extension; hawkBit has no equivalent |
+| Release retention (`[retention] keep_releases`: keep the newest N sets per name, hard-delete older ones and their artifacts) | raptor extension; hawkBit has no equivalent |
 | Multi-assignment / action weights | removed upstream in hawkBit 0.10; not planned ([#10](https://github.com/rosterloh/raptor/issues/10)) |
 
 **Wire-format alignment with hawkBit 0.10:** successful deletes return `204 No

@@ -103,18 +103,18 @@ hard-deletes everything older, freeing the artifact storage it held. A raptor
 extension: hawkBit has no equivalent, so nothing here is reported on
 `/rest/v1/system/configs`.
 
-Off by default — it deletes releases and their artifacts outright.
+Off by default, because it deletes releases and their artifacts outright.
+Setting `keep_releases` is what turns it on. There is no `enabled` flag:
+leave `keep_releases` unset and every release is kept.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` | run the sweep at all |
-| `keep_releases` | integer | `3` | valid sets kept per name, newest by creation time; must be at least 1 |
+| `keep_releases` | integer | *(unset)* | valid sets kept per name, newest by creation time; at least 1. Unset keeps everything |
 | `interval_secs` | integer | `3600` | how often the sweep runs |
 
 ```toml
 [retention]
-enabled = true
-keep_releases = 5
+keep_releases = 5   # keep the 5 newest releases of each name, delete older ones
 ```
 
 Releases are ranked by **creation time**, not by version string, because

@@ -50,7 +50,7 @@ content-addressing scheme independent of DS identity, so the same artifact bytes
 can back many distribution sets without duplication.
 
 A set can't be deleted while any action references it, even a finished one.
-To get rid of old releases automatically, set
+To get rid of old releases automatically, set `keep_releases` under
 [`[retention]`](../reference/configuration.md#retention--release-retention).
 It keeps the newest N sets of each name and retires the rest, together with
 their rollouts, history, and any artifacts no kept release still uses.

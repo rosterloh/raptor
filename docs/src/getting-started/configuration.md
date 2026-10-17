@@ -61,7 +61,7 @@ Copy the output into `mgmt.password_hash`.
 | `[ddi]` | device-facing auth and polling: `anonymous`, `gateway_token`, `polling_interval`, `confirmation_flow` |
 | `[quota]` | per-entity growth caps mirroring hawkBit's; `0` disables one |
 | `[cleanup]` | automatic deletion of old closed actions; off by default |
-| `[retention]` | keep the newest N releases per distribution-set name and delete older ones with their artifacts; off by default |
+| `[retention]` | `keep_releases`: keep the newest N releases per distribution-set name and delete older ones with their artifacts; unset by default |
 | `[mgmt]` | Management API / web console admin: `username`, `password_hash` |
 
 ## The `url` key

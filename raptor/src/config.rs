@@ -285,19 +285,21 @@ fn default_cleanup_interval_secs() -> u64 {
 /// actions and history, and any software module (with its artifact blobs) that
 /// no remaining set uses.
 ///
+/// Setting `keep_releases` is what turns it on: there is deliberately no
+/// `enabled` flag, because `[retention] enabled = true` reads as "keep
+/// things" when what it switches on is deletion. Unset, nothing is deleted.
+///
 /// A raptor extension with no hawkBit equivalent, so nothing of it is reported
 /// on `/rest/v1/system/configs`. Nothing is held back for targets that still
 /// run a deleted release: their installed set is cleared and they show as
 /// `registered` until assigned something newer.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RetentionConfig {
-    /// Off by default: this deletes releases and their artifacts outright.
-    #[serde(default)]
-    pub enabled: bool,
     /// How many valid sets to keep per name, newest by creation time. Sets
-    /// that were never deployed count. Must be at least 1.
-    #[serde(default = "default_keep_releases")]
-    pub keep_releases: u32,
+    /// that were never deployed count. Unset (the default) keeps every
+    /// release; when set it must be at least 1.
+    #[serde(default)]
+    pub keep_releases: Option<u32>,
     /// How often the sweep runs, in seconds.
     #[serde(default = "default_retention_interval_secs")]
     pub interval_secs: u64,
@@ -306,16 +308,12 @@ pub struct RetentionConfig {
 impl Default for RetentionConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            keep_releases: default_keep_releases(),
+            keep_releases: None,
             interval_secs: default_retention_interval_secs(),
         }
     }
 }
 
-fn default_keep_releases() -> u32 {
-    3
-}
 fn default_retention_interval_secs() -> u64 {
     3600
 }
@@ -629,8 +627,7 @@ password_hash = "$argon2id$fake"
             assert!(!cfg.rollout_approval_enabled);
             assert!(!cfg.cleanup.enabled);
             assert_eq!(cfg.cleanup.action_expiry_days, 30);
-            assert!(!cfg.retention.enabled);
-            assert_eq!(cfg.retention.keep_releases, 3);
+            assert_eq!(cfg.retention.keep_releases, None);
             assert!(cfg.otel.is_none());
             Ok(())
         });
