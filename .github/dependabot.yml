@@ -7,6 +7,11 @@ updates:
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
     groups:
+      # The OpenTelemetry crates share one `opentelemetry` API version; bumped
+      # one at a time they leave two copies in the graph and the `otel`
+      # feature fails to compile. Keep them in a single PR, majors included.
+      opentelemetry:
+        patterns: ["opentelemetry*", "tracing-opentelemetry"]
       cargo-minor-patch:
         update-types: [minor, patch]
     ignore:
