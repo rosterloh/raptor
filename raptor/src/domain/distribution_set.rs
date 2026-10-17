@@ -1,14 +1,21 @@
-//! Distribution-set lifecycle rules that outlive a single request: today,
-//! invalidation (hawkBit `MgmtInvalidateDistributionSetRequestBody`).
+//! Distribution-set lifecycle rules that outlive a single request:
+//! invalidation (hawkBit `MgmtInvalidateDistributionSetRequestBody`) and
+//! deletion.
 //!
 //! Lives here rather than in the mgmt handler so background tasks can drive
 //! the same transition the REST endpoint does.
 
-use crate::entity::{action, distribution_set, rollout, target, target_filter};
+use crate::entity::{
+    action, distribution_set, ds_metadata, ds_module, ds_tag_assignment, rollout, target,
+    target_filter,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_ms;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, DatabaseTransaction, EntityTrait,
+    QueryFilter,
+};
 
 /// How invalidation treats the set's in-flight actions. hawkBit spells these
 /// `none`, `soft` and `force` in `actionCancelationType`.
@@ -113,13 +120,8 @@ pub async fn invalidate(
             crate::domain::deployment::add_action_status(st, &a, "canceled", &reason).await?;
             // Reset the target so it isn't left "pending" forever.
             if let Some(t) = target::Entity::find_by_id(target_id).one(&st.db).await? {
-                let installed = t.installed_ds_id.is_some();
-                let cid = t.controller_id.clone();
-                let mut tm: target::ActiveModel = t.into();
-                tm.update_status = Set(if installed { "in_sync" } else { "registered" }.into());
-                tm.updated_at = Set(now_ms());
-                tm.update(&st.db).await?;
-                crate::domain::deployment::publish_target(st, &cid);
+                crate::domain::deployment::revert_to_installed(&st.db, &t).await?;
+                crate::domain::deployment::publish_target(st, &t.controller_id);
             }
             st.events.clear_action(a.id);
         } else {
@@ -130,6 +132,86 @@ pub async fn invalidate(
         }
     }
     Ok(())
+}
+
+/// Deletes a set's own rows and releases everything pointing at it: targets,
+/// auto-assign filters, tags, metadata, module links. Leaves its actions,
+/// rollouts and modules to the caller. Returns the controller ids touched and
+/// the set's module ids, for the caller's events and orphan check.
+pub async fn delete_rows(
+    txn: &DatabaseTransaction,
+    id: i64,
+) -> Result<(Vec<String>, Vec<i64>), AppError> {
+    // Targets pointing at the set: an installed reference is cleared, and an
+    // assignment falls back to whatever is still installed. A target left
+    // with a different set assigned than installed is still mid-update on
+    // another set and keeps its status.
+    let mut touched = Vec::new();
+    for t in target::Entity::find()
+        .filter(
+            Condition::any()
+                .add(target::Column::AssignedDsId.eq(id))
+                .add(target::Column::InstalledDsId.eq(id)),
+        )
+        .all(txn)
+        .await?
+    {
+        let installed = t.installed_ds_id.filter(|&i| i != id);
+        let assigned = t.assigned_ds_id.filter(|&a| a != id).or(installed);
+        let status = if assigned.is_some() && assigned != installed {
+            t.update_status.clone()
+        } else if installed.is_some() {
+            "in_sync".to_string()
+        } else {
+            "registered".to_string()
+        };
+        touched.push(t.controller_id.clone());
+        let mut tm: target::ActiveModel = t.into();
+        tm.installed_ds_id = Set(installed);
+        tm.assigned_ds_id = Set(assigned);
+        tm.update_status = Set(status);
+        tm.updated_at = Set(now_ms());
+        tm.update(txn).await?;
+    }
+
+    // Retirement invalidated first, which detached these; a manual delete
+    // did not.
+    target_filter::Entity::update_many()
+        .col_expr(
+            target_filter::Column::AutoAssignDsId,
+            sea_orm::sea_query::Expr::value(Option::<i64>::None),
+        )
+        .col_expr(
+            target_filter::Column::AutoAssignActionType,
+            sea_orm::sea_query::Expr::value(Option::<String>::None),
+        )
+        .filter(target_filter::Column::AutoAssignDsId.eq(id))
+        .exec(txn)
+        .await?;
+
+    // The set's own rows, remembering its modules for the orphan check.
+    let module_ids: Vec<i64> = ds_module::Entity::find()
+        .filter(ds_module::Column::DsId.eq(id))
+        .all(txn)
+        .await?
+        .into_iter()
+        .map(|m| m.module_id)
+        .collect();
+    ds_module::Entity::delete_many()
+        .filter(ds_module::Column::DsId.eq(id))
+        .exec(txn)
+        .await?;
+    ds_metadata::Entity::delete_many()
+        .filter(ds_metadata::Column::DsId.eq(id))
+        .exec(txn)
+        .await?;
+    ds_tag_assignment::Entity::delete_many()
+        .filter(ds_tag_assignment::Column::DsId.eq(id))
+        .exec(txn)
+        .await?;
+    distribution_set::Entity::delete_by_id(id).exec(txn).await?;
+
+    Ok((touched, module_ids))
 }
 
 #[cfg(test)]

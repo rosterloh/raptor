@@ -334,14 +334,7 @@ pub async fn cancel_action(
             &["force canceled by operator".into()],
         )
         .await?;
-        let mut tm: target::ActiveModel = t.clone().into();
-        tm.update_status = Set(if t.installed_ds_id.is_some() {
-            "in_sync".into()
-        } else {
-            "registered".into()
-        });
-        tm.updated_at = Set(now_ms());
-        tm.update(&st.db).await?;
+        crate::domain::deployment::revert_to_installed(&st.db, &t).await?;
         st.events.clear_action(a.id);
         crate::domain::deployment::publish_target(&st, &t.controller_id);
     } else {

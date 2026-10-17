@@ -361,3 +361,67 @@ async fn invalid_sets_do_not_count_towards_n() {
         assert!(ds_exists(&st, id).await);
     }
 }
+
+/// #181: a force-cancelled assignment falls back to what is installed, so
+/// retiring that installed release later leaves a plain `registered` target
+/// rather than `in_sync` with nothing installed.
+#[tokio::test]
+async fn force_cancel_reverts_the_assignment() {
+    let (app, st) = common::setup_with_retention(keep(1)).await;
+    let (old, ..) = release(&app, "fw", "1").await;
+    let (new, ..) = release(&app, "fw", "2").await;
+    target(&app, "dev").await;
+    let a = assign(&app, "dev", old).await;
+    install(&st, a).await;
+    let a = assign(&app, "dev", new).await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/targets/dev/actions/{a}?force=true"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    let t = target_row(&st, "dev").await;
+    assert_eq!(
+        (t.assigned_ds_id, t.installed_ds_id),
+        (Some(old), Some(old))
+    );
+    assert_eq!(t.update_status, "in_sync");
+
+    assert_eq!(run_sweep(&st).await.unwrap().sets, 1);
+    let t = target_row(&st, "dev").await;
+    assert_eq!((t.assigned_ds_id, t.installed_ds_id), (None, None));
+    assert_eq!(t.update_status, "registered");
+}
+
+/// #181: the same fallback when the cancel comes from force-invalidating the
+/// assigned set.
+#[tokio::test]
+async fn force_invalidation_reverts_the_assignment() {
+    let (app, st) = common::setup().await;
+    let (old, ..) = release(&app, "fw", "1").await;
+    let (new, ..) = release(&app, "fw", "2").await;
+    target(&app, "dev").await;
+    let a = assign(&app, "dev", old).await;
+    install(&st, a).await;
+    assign(&app, "dev", new).await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/distributionsets/{new}/invalidate"),
+            Some(json!({"actionCancelationType": "force"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let t = target_row(&st, "dev").await;
+    assert_eq!(
+        (t.assigned_ds_id, t.installed_ds_id),
+        (Some(old), Some(old))
+    );
+    assert_eq!(t.update_status, "in_sync");
+}

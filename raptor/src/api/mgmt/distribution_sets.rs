@@ -19,6 +19,7 @@ use axum::routing::{get, post};
 use raptor_api_types::{DsCreate, DsInvalidate, DsUpdate, ModuleRef};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    TransactionTrait,
 };
 use std::collections::HashSet;
 
@@ -350,17 +351,14 @@ pub async fn delete(
             "distribution set is referenced by actions".into(),
         ));
     }
-    ds_module::Entity::delete_many()
-        .filter(ds_module::Column::DsId.eq(ds.id))
-        .exec(&st.db)
-        .await?;
-    crate::entity::ds_metadata::Entity::delete_many()
-        .filter(crate::entity::ds_metadata::Column::DsId.eq(ds.id))
-        .exec(&st.db)
-        .await?;
-    distribution_set::Entity::delete_by_id(ds.id)
-        .exec(&st.db)
-        .await?;
+    // Cleanup may have removed the actions that guarded this, so targets can
+    // still point here (#181).
+    let txn = st.db.begin().await?;
+    let (touched, _) = crate::domain::distribution_set::delete_rows(&txn, ds.id).await?;
+    txn.commit().await?;
+    for cid in &touched {
+        crate::domain::deployment::publish_target(&st, cid);
+    }
     Ok(StatusCode::OK)
 }
 

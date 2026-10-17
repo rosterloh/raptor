@@ -22,17 +22,12 @@
 //! device that has not taken a newer image in N releases is the anomaly; it
 //! shows as `registered` until assigned something current.
 
-use crate::domain::distribution_set::{CancelMode, invalidate};
-use crate::entity::{
-    action, distribution_set, ds_metadata, ds_module, ds_tag_assignment, rollout, target,
-    target_filter,
-};
+use crate::domain::distribution_set::{CancelMode, delete_rows, invalidate};
+use crate::entity::{action, distribution_set, ds_module, rollout};
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::now_ms;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, PaginatorTrait,
-    QueryFilter, QuerySelect, TransactionTrait,
+    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, TransactionTrait,
 };
 use std::collections::HashMap;
 
@@ -140,76 +135,7 @@ pub async fn retire(st: &AppState, id: i64) -> Result<Retired, AppError> {
         crate::domain::cleanup::delete_actions(&txn, chunk.to_vec()).await?;
     }
 
-    // Targets pointing at the set: an installed reference is cleared, and an
-    // assignment falls back to whatever is still installed. A target left
-    // with a different set assigned than installed is still mid-update on a
-    // kept release and keeps its status.
-    let mut touched = Vec::new();
-    for t in target::Entity::find()
-        .filter(
-            Condition::any()
-                .add(target::Column::AssignedDsId.eq(id))
-                .add(target::Column::InstalledDsId.eq(id)),
-        )
-        .all(&txn)
-        .await?
-    {
-        let installed = t.installed_ds_id.filter(|&i| i != id);
-        let assigned = t.assigned_ds_id.filter(|&a| a != id).or(installed);
-        let status = if assigned.is_some() && assigned != installed {
-            t.update_status.clone()
-        } else if installed.is_some() {
-            "in_sync".to_string()
-        } else {
-            "registered".to_string()
-        };
-        touched.push(t.controller_id.clone());
-        let mut tm: target::ActiveModel = t.into();
-        tm.installed_ds_id = Set(installed);
-        tm.assigned_ds_id = Set(assigned);
-        tm.update_status = Set(status);
-        tm.updated_at = Set(now_ms());
-        tm.update(&txn).await?;
-    }
-
-    // Invalidation already detached these; repeated in case an earlier,
-    // interrupted retirement left one behind.
-    target_filter::Entity::update_many()
-        .col_expr(
-            target_filter::Column::AutoAssignDsId,
-            sea_orm::sea_query::Expr::value(Option::<i64>::None),
-        )
-        .col_expr(
-            target_filter::Column::AutoAssignActionType,
-            sea_orm::sea_query::Expr::value(Option::<String>::None),
-        )
-        .filter(target_filter::Column::AutoAssignDsId.eq(id))
-        .exec(&txn)
-        .await?;
-
-    // The set's own rows, remembering its modules for the orphan check.
-    let module_ids: Vec<i64> = ds_module::Entity::find()
-        .filter(ds_module::Column::DsId.eq(id))
-        .all(&txn)
-        .await?
-        .into_iter()
-        .map(|m| m.module_id)
-        .collect();
-    ds_module::Entity::delete_many()
-        .filter(ds_module::Column::DsId.eq(id))
-        .exec(&txn)
-        .await?;
-    ds_metadata::Entity::delete_many()
-        .filter(ds_metadata::Column::DsId.eq(id))
-        .exec(&txn)
-        .await?;
-    ds_tag_assignment::Entity::delete_many()
-        .filter(ds_tag_assignment::Column::DsId.eq(id))
-        .exec(&txn)
-        .await?;
-    distribution_set::Entity::delete_by_id(id)
-        .exec(&txn)
-        .await?;
+    let (touched, module_ids) = delete_rows(&txn, id).await?;
 
     // Modules no remaining set uses. One shared with a kept release stays.
     let mut modules = 0;
