@@ -177,7 +177,7 @@ fn ds_tag_fiql(f: &str) -> Option<ds_tag::Column> {
 /// the tag *name*). `tag!=beta` means "not tagged beta", so the negation lives
 /// on the membership test, not inside the subquery — otherwise a target
 /// carrying both `beta` and `stable` would match.
-pub(crate) fn tag_op(op: &Op) -> Result<(bool, Op), AppError> {
+pub(crate) fn tag_op(op: Op) -> Result<(bool, Op), AppError> {
     match op {
         Op::Eq => Ok((true, Op::Eq)),
         Op::Ne => Ok((false, Op::Eq)),
@@ -210,7 +210,7 @@ pub fn target_tag_field(
     if field != "tag" {
         return None;
     }
-    Some(tag_op(op).map(|(positive, name_op)| {
+    Some(tag_op(*op).map(|(positive, name_op)| {
         let tag_ids = SqlQuery::select()
             .column(target_tag::Column::Id)
             .from(target_tag::Entity)
@@ -242,7 +242,7 @@ pub fn ds_tag_field(
     if field != "tag" {
         return None;
     }
-    Some(tag_op(op).map(|(positive, name_op)| {
+    Some(tag_op(*op).map(|(positive, name_op)| {
         let tag_ids = SqlQuery::select()
             .column(ds_tag::Column::Id)
             .from(ds_tag::Entity)

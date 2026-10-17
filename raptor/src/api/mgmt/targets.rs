@@ -82,7 +82,7 @@ pub fn fiql_map(f: &str) -> Option<target::Column> {
 /// vary by device class.
 fn target_attribute_field(
     field: &str,
-    op: &crate::fiql::Op,
+    op: crate::fiql::Op,
     values: &[String],
 ) -> Option<Result<sea_orm::sea_query::SimpleExpr, AppError>> {
     let key = field.strip_prefix("attribute.")?;
@@ -112,7 +112,7 @@ pub fn condition(q: &str) -> Result<sea_orm::Condition, AppError> {
     let expr = crate::fiql::parse(q).map_err(AppError::BadRequest)?;
     let virtual_field = |field: &str, op: &crate::fiql::Op, values: &[String]| {
         super::tags::target_tag_field(field, op, values)
-            .or_else(|| target_attribute_field(field, op, values))
+            .or_else(|| target_attribute_field(field, *op, values))
     };
     crate::fiql::to_condition_ext(&expr, &fiql_map, &virtual_field)
 }
