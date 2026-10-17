@@ -85,6 +85,11 @@ pub async fn download(
         let (st, cid, filename) = (st.clone(), cid.clone(), a.filename.clone());
         let mut sent = start;
         move |chunk: std::io::Result<bytes::Bytes>| {
+            // The response is already committed, so the device only sees a
+            // short body; this is the one place the cause gets recorded.
+            if let Err(e) = &chunk {
+                tracing::warn!(controller_id = %cid, %filename, sent, total, error = %e, "artifact download aborted");
+            }
             if let (Some(action_id), Ok(b)) = (owner, &chunk) {
                 sent += b.len() as u64;
                 st.events.record_download(DownloadEvent {

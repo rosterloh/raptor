@@ -36,6 +36,8 @@ decisions.
   by hand (#181)
 - A rollout, cleanup or retention sweep that overruns its interval no longer
   triggers back-to-back catch-up sweeps; the next one waits a full interval (#183)
+- With S3 storage, a device that pauses reading for over 60 s no longer has its
+  artifact download cut short; a download that fails mid-stream is now logged (#184)
 
 ## [1.3.0] - 2026-10-17
 

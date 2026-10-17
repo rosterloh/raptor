@@ -30,6 +30,10 @@ use tokio::io::AsyncReadExt;
 /// download streams.
 const PRESIGN_TTL: Duration = Duration::from_secs(300);
 
+/// How long the store may go quiet: no response headers, or no next chunk once
+/// raptor asks for one.
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// S3's floor for every multipart part except the last.
 const MIN_PART_SIZE: u64 = 5 * 1024 * 1024;
 
@@ -45,6 +49,8 @@ struct Inner {
     prefix: String,
     part_size: u64,
     http: reqwest::Client,
+    /// For GET object only: no client read timeout, see `open`.
+    stream_http: reqwest::Client,
 }
 
 impl S3Store {
@@ -65,28 +71,38 @@ impl S3Store {
                 "[storage.s3] part_size must be at least {MIN_PART_SIZE} bytes (S3's minimum)"
             )));
         }
-        let mut http = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            // Per read, not per request: a stalled transfer fails, a long
-            // healthy one doesn't.
-            .read_timeout(Duration::from_secs(60));
-        if let Some(path) = &cfg.ca_cert {
-            let pem = std::fs::read(path).map_err(|e| {
-                std::io::Error::new(e.kind(), format!("[storage.s3] ca_cert {path:?}: {e}"))
-            })?;
-            let certs = reqwest::Certificate::from_pem_bundle(&pem)
-                .map_err(|e| invalid(format!("[storage.s3] ca_cert {path:?}: {e}")))?;
-            http = http.tls_certs_merge(certs);
-        }
-        let http = http
-            .build()
-            .map_err(|e| invalid(format!("[storage.s3] http client: {e}")))?;
+        let certs = match &cfg.ca_cert {
+            Some(path) => {
+                let pem = std::fs::read(path).map_err(|e| {
+                    std::io::Error::new(e.kind(), format!("[storage.s3] ca_cert {path:?}: {e}"))
+                })?;
+                Some(
+                    reqwest::Certificate::from_pem_bundle(&pem)
+                        .map_err(|e| invalid(format!("[storage.s3] ca_cert {path:?}: {e}")))?,
+                )
+            }
+            None => None,
+        };
+        let client = |read_timeout: Option<Duration>| {
+            let mut b = reqwest::Client::builder().connect_timeout(Duration::from_secs(10));
+            if let Some(t) = read_timeout {
+                b = b.read_timeout(t);
+            }
+            if let Some(c) = &certs {
+                b = b.tls_certs_merge(c.clone());
+            }
+            b.build()
+                .map_err(|e| invalid(format!("[storage.s3] http client: {e}")))
+        };
         Ok(Self(Arc::new(Inner {
             bucket,
             creds: Credentials::new(cfg.access_key.clone(), cfg.secret_key.clone()),
             prefix: cfg.prefix.clone(),
             part_size: cfg.part_size,
-            http,
+            // Per read, not per request: a stalled transfer fails, a long
+            // healthy one doesn't.
+            http: client(Some(READ_TIMEOUT))?,
+            stream_http: client(None)?,
         })))
     }
 
@@ -136,12 +152,14 @@ impl S3Store {
             .bucket
             .get_object(Some(&self.0.creds), &key)
             .sign(PRESIGN_TTL);
-        let mut req = self.0.http.get(url);
+        let mut req = self.0.stream_http.get(url);
         if let Some(r) = &range {
             // HTTP ranges are inclusive at both ends.
             req = req.header(header::RANGE, format!("bytes={}-{}", r.start, r.end - 1));
         }
-        let resp = self.send(req, "GET object").await?;
+        let resp = tokio::time::timeout(READ_TIMEOUT, self.send(req, "GET object"))
+            .await
+            .map_err(|_| timed_out("GET object", &key))??;
         let expected = if range.is_some() {
             StatusCode::PARTIAL_CONTENT
         } else {
@@ -159,10 +177,10 @@ impl S3Store {
             // have us send the wrong bytes under a 206; refuse instead.
             _ => return Err(fail("GET object", &key, resp).await),
         }
-        Ok(Box::pin(
-            resp.bytes_stream()
-                .map(|r| r.map_err(std::io::Error::other)),
-        ))
+        // reqwest's read timeout keeps counting while nobody polls the body,
+        // so a device that pauses for a minute would fail on its next read.
+        // Time only the waits for the store.
+        Ok(idle_timeout(resp.bytes_stream(), READ_TIMEOUT, key))
     }
 
     pub(super) async fn remove(&self, sha256: &str) -> std::io::Result<()> {
@@ -325,6 +343,34 @@ impl S3Store {
     }
 }
 
+/// `inner` as a `ByteStream` that fails when `inner` takes longer than
+/// `timeout` to yield a chunk, timed from each poll. Ends after the first error.
+fn idle_timeout<S, E>(inner: S, timeout: Duration, key: String) -> ByteStream
+where
+    S: futures::Stream<Item = Result<bytes::Bytes, E>> + Send + Unpin + 'static,
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    Box::pin(futures::stream::unfold(Some(inner), move |state| {
+        let key = key.clone();
+        async move {
+            let mut inner = state?;
+            match tokio::time::timeout(timeout, inner.next()).await {
+                Ok(Some(Ok(b))) => Some((Ok(b), Some(inner))),
+                Ok(Some(Err(e))) => Some((Err(std::io::Error::other(e)), None)),
+                Ok(None) => None,
+                Err(_) => Some((Err(timed_out("GET object", &key)), None)),
+            }
+        }
+    }))
+}
+
+fn timed_out(op: &str, what: &str) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        format!("s3 {op} {what}: no data from the store for {READ_TIMEOUT:?}"),
+    )
+}
+
 /// An S3 error response as an `io::Error`, with the start of its XML body
 /// (which carries S3's error code and message).
 async fn fail(op: &str, what: &str, resp: reqwest::Response) -> std::io::Error {
@@ -345,4 +391,37 @@ fn truncate(s: &str) -> &str {
 
 fn invalid(msg: String) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, msg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    const T: Duration = Duration::from_millis(100);
+
+    fn chunk() -> Result<bytes::Bytes, std::io::Error> {
+        Ok(bytes::Bytes::from_static(b"x"))
+    }
+
+    #[tokio::test]
+    async fn slow_consumer_is_not_a_timeout() {
+        let mut s = idle_timeout(futures::stream::iter([chunk(), chunk()]), T, "k".into());
+        assert!(s.next().await.unwrap().is_ok());
+        tokio::time::sleep(T * 3).await; // device stops reading
+        assert!(s.next().await.unwrap().is_ok());
+        assert!(s.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn silent_store_times_out_and_ends() {
+        let inner = futures::stream::iter([chunk()]).chain(futures::stream::pending());
+        let mut s = idle_timeout(inner, T, "k".into());
+        assert!(s.next().await.unwrap().is_ok());
+        let start = Instant::now();
+        let err = s.next().await.unwrap().unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
+        assert!(start.elapsed() >= T);
+        assert!(s.next().await.is_none());
+    }
 }
