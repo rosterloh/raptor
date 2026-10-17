@@ -26,10 +26,10 @@ fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
 pub async fn login(url: Option<String>, user: Option<String>) -> Result<()> {
     let mut cfg = Config::load().unwrap_or_default();
     let url = url
-        .or(cfg.url.clone())
+        .or_else(|| cfg.url.clone())
         .ok_or_else(|| anyhow::anyhow!("--url required on first login"))?;
     let user = user
-        .or(cfg.user.clone())
+        .or_else(|| cfg.user.clone())
         .ok_or_else(|| anyhow::anyhow!("--user required on first login"))?;
     let pass = rpassword::prompt_password(format!("password for {user}: "))?;
 
