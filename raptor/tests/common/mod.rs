@@ -66,6 +66,38 @@ password_hash = "{}"
         .unwrap()
 }
 
+/// The S3 settings for `TEST_S3_ENDPOINT`, when set, with a fresh key prefix
+/// so parallel tests never see each other's blobs.
+pub fn test_s3_config() -> Option<raptor::config::S3Config> {
+    let endpoint = std::env::var("TEST_S3_ENDPOINT").ok()?;
+    let var = |k: &str, d: &str| std::env::var(k).unwrap_or_else(|_| d.into());
+    Some(raptor::config::S3Config {
+        endpoint,
+        bucket: var("TEST_S3_BUCKET", "raptor-test"),
+        region: var("TEST_S3_REGION", "us-east-1"),
+        access_key: var("TEST_S3_ACCESS_KEY", "testkey"),
+        secret_key: var("TEST_S3_SECRET_KEY", "testsecret"),
+        prefix: format!("test-{}/", raptor::util::random_token()),
+        path_style: true,
+        ca_cert: None,
+        part_size: 5 * 1024 * 1024,
+    })
+}
+
+/// Local-disk store by default; the S3 backend when `TEST_S3_ENDPOINT` is set
+/// (mirrors `TEST_DATABASE_URL` for Postgres), so the whole suite can run
+/// against a real bucket.
+fn test_store(dir: std::path::PathBuf) -> raptor::storage::ArtifactStore {
+    match test_s3_config() {
+        Some(s3) => raptor::storage::ArtifactStore::with_s3(
+            &dir,
+            raptor::storage::S3Store::new(&s3).unwrap(),
+        )
+        .unwrap(),
+        None => raptor::storage::ArtifactStore::new(dir).unwrap(),
+    }
+}
+
 pub async fn setup() -> (Router, AppState) {
     let url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
     let db = if url.starts_with("postgres") {
@@ -96,7 +128,7 @@ pub async fn setup() -> (Router, AppState) {
     let dir_path = dir.path().to_path_buf();
     let cfg = test_config(&dir_path);
     std::mem::forget(dir); // keep tempdir alive for the test process
-    let store = raptor::storage::ArtifactStore::new(dir_path).unwrap();
+    let store = test_store(dir_path);
     let state = AppState::new(db, cfg, store);
     (raptor::app::build_app(state.clone()), state)
 }

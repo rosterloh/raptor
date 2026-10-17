@@ -14,7 +14,14 @@ pub struct Config {
     #[serde(default = "default_bind")]
     pub bind: SocketAddr,
     pub database_url: String,
+    /// Root of the local artifact store. With `[storage] backend = "s3"` the
+    /// blobs live in the bucket instead, and this directory only holds uploads
+    /// in flight (spooled here while they are hashed).
     pub artifact_dir: PathBuf,
+    /// Where artifact blobs are kept. Local disk under `artifact_dir` unless
+    /// configured otherwise.
+    #[serde(default)]
+    pub storage: StorageConfig,
     /// Max artifact upload size in bytes.
     #[serde(default = "default_max_artifact_size")]
     pub max_artifact_size: u64,
@@ -54,6 +61,91 @@ pub struct Config {
     /// `otel` build feature — without it, this section is parsed but ignored.
     #[serde(default)]
     pub otel: Option<OtelConfig>,
+}
+
+/// `[storage]`: which backend holds artifact blobs.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct StorageConfig {
+    #[serde(default)]
+    pub backend: StorageBackend,
+    /// Required when `backend = "s3"`, ignored otherwise.
+    #[serde(default)]
+    pub s3: Option<S3Config>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageBackend {
+    /// Content-addressed files under `artifact_dir` (the default).
+    #[default]
+    Fs,
+    /// An S3-compatible bucket (AWS, RustFS, MinIO, Garage, Ceph RGW, ...).
+    S3,
+}
+
+/// `[storage.s3]`: an S3-compatible bucket. Defaults suit a self-hosted store
+/// (path-style addressing, `us-east-1` signing region); set `path_style =
+/// false` for AWS virtual-hosted buckets. Credentials can come from the
+/// environment instead of the file: `RAPTOR_STORAGE__S3__ACCESS_KEY` /
+/// `RAPTOR_STORAGE__S3__SECRET_KEY`.
+#[derive(Clone, Deserialize)]
+pub struct S3Config {
+    /// Base URL of the S3 API, e.g. `https://s3.lan:9000`.
+    pub endpoint: String,
+    pub bucket: String,
+    /// Region used for request signing. Self-hosted stores accept any value;
+    /// `us-east-1` is what most of them expect by default.
+    #[serde(default = "default_s3_region")]
+    pub region: String,
+    pub access_key: String,
+    pub secret_key: String,
+    /// Key prefix inside the bucket, e.g. `raptor/`. Blobs are stored at
+    /// `<prefix><sha256[0..2]>/<sha256>`, mirroring the on-disk layout.
+    #[serde(default)]
+    pub prefix: String,
+    /// `https://endpoint/bucket/key` (true) rather than
+    /// `https://bucket.endpoint/key` (false). Self-hosted stores generally
+    /// need path style, so it is the default.
+    #[serde(default = "default_true")]
+    pub path_style: bool,
+    /// PEM file with extra CA certificate(s) to trust for the endpoint, for a
+    /// store behind a private CA or a self-signed certificate. Added to the
+    /// system roots, not a replacement for them.
+    #[serde(default)]
+    pub ca_cert: Option<PathBuf>,
+    /// Multipart upload part size in bytes (S3's minimum is 5 MiB). Objects
+    /// no larger than this go up in a single PUT.
+    #[serde(default = "default_s3_part_size")]
+    pub part_size: u64,
+}
+
+// Hand-written so the secret key never lands in a log line via `{:?}`.
+impl std::fmt::Debug for S3Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("S3Config")
+            .field("endpoint", &self.endpoint)
+            .field("bucket", &self.bucket)
+            .field("region", &self.region)
+            .field("access_key", &self.access_key)
+            .field("secret_key", &"<redacted>")
+            .field("prefix", &self.prefix)
+            .field("path_style", &self.path_style)
+            .field("ca_cert", &self.ca_cert)
+            .field("part_size", &self.part_size)
+            .finish()
+    }
+}
+
+fn default_s3_region() -> String {
+    "us-east-1".into()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_s3_part_size() -> u64 {
+    16 * 1024 * 1024
 }
 
 /// hawkBit's per-entity quotas (`hawkbit.server.security.dos.*`), with its

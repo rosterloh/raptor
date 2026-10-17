@@ -63,7 +63,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let db = sea_orm::Database::connect(&cfg.database_url).await?;
             migration::Migrator::up(&db, None).await?;
-            let store = raptor::storage::ArtifactStore::new(cfg.artifact_dir.clone())?;
+            let store = raptor::storage::ArtifactStore::from_config(&cfg)?;
+            store
+                .check()
+                .await
+                .map_err(|e| format!("artifact storage ({}): {e}", store.backend_name()))?;
+            tracing::info!(backend = store.backend_name(), "artifact storage ready");
             let bind = cfg.bind;
             let eval_interval = cfg.rollout_eval_interval_secs.max(1);
             let state = AppState::with_metrics(db, cfg, store, metrics);
