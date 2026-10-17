@@ -21,7 +21,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 
 fn handle_normal(app: &mut App, key: KeyEvent) {
     match key.code {
-        KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
+        KeyCode::Char('q') => app.should_quit = true,
         KeyCode::Down | KeyCode::Char('j') => app.select_next(),
         KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
         KeyCode::Char('g') => app.select_first(),
@@ -144,7 +144,7 @@ fn handle_assign(app: &mut App, key: KeyEvent) {
         cid,
         filter,
         items,
-        selected,
+        list,
     } = &mut app.mode
     else {
         return;
@@ -159,18 +159,21 @@ fn handle_assign(app: &mut App, key: KeyEvent) {
         .collect();
     match key.code {
         KeyCode::Esc => app.mode = Mode::Normal,
-        KeyCode::Down => *selected = (*selected + 1).min(filtered.len().saturating_sub(1)),
-        KeyCode::Up => *selected = selected.saturating_sub(1),
+        KeyCode::Down => {
+            let next = list.selected().map_or(0, |i| i + 1);
+            list.select(Some(next.min(filtered.len().saturating_sub(1))));
+        }
+        KeyCode::Up => list.select(Some(list.selected().unwrap_or(0).saturating_sub(1))),
         KeyCode::Backspace => {
             filter.pop();
-            *selected = 0;
+            list.select_first();
         }
         KeyCode::Char(c) => {
             filter.push(c);
-            *selected = 0;
+            list.select_first();
         }
         KeyCode::Enter => {
-            if let Some(&idx) = filtered.get(*selected) {
+            if let Some(&idx) = list.selected().and_then(|i| filtered.get(i)) {
                 let ds = &items[idx];
                 let (cid, ds_id) = (cid.clone(), ds.id);
                 let label = format!("{}:{}", ds.name, ds.version);
