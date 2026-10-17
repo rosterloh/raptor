@@ -25,6 +25,8 @@ decisions.
 - Artifact uploads whose filename contains `"`, `\`, `/` or a control character
   are now rejected with `400`; rename such files before uploading. Artifacts
   already stored keep their names
+- Release builds use fat LTO with one codegen unit (stripped binary ~27% smaller,
+  release build ~2x slower), and the .deb no longer embeds build-host paths
 
 ### Fixed
 
