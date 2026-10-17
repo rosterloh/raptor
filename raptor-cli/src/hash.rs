@@ -9,7 +9,8 @@ use tokio::io::AsyncReadExt;
 pub async fn sha256_file(path: &std::path::Path) -> Result<(String, u64)> {
     let mut file = tokio::fs::File::open(path).await?;
     let mut hasher = Sha256::new();
-    let mut buf = [0u8; 64 * 1024];
+    // Heap, not stack: a 64 KiB array would bloat every future awaiting this.
+    let mut buf = vec![0u8; 64 * 1024];
     let mut size = 0u64;
     loop {
         let n = file.read(&mut buf).await?;

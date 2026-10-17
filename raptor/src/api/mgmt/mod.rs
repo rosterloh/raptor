@@ -24,7 +24,8 @@ use axum::Router;
 use axum::middleware;
 
 pub fn router(state: AppState) -> Router<AppState> {
-    let max_artifact_size = state.cfg.max_artifact_size as usize;
+    // A limit beyond the address space means "no limit", not a truncated one.
+    let max_artifact_size = usize::try_from(state.cfg.max_artifact_size).unwrap_or(usize::MAX);
     Router::new()
         .merge(software_modules::routes())
         .merge(artifacts::routes(max_artifact_size))

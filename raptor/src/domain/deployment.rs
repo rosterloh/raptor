@@ -172,10 +172,7 @@ async fn incompatible_type_message(
         .all(&st.db)
         .await?;
     let allowed_keys = distribution_set_type::Entity::find()
-        .filter(
-            distribution_set_type::Column::Id
-                .is_in(allowed.iter().map(|l| l.ds_type_id).collect::<Vec<_>>()),
-        )
+        .filter(distribution_set_type::Column::Id.is_in(allowed.iter().map(|l| l.ds_type_id)))
         .all(&st.db)
         .await?
         .into_iter()
