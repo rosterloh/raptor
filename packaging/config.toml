@@ -27,6 +27,16 @@ artifact_dir = "/var/lib/raptor/artifacts"
 # External base URL used in _links; derived from the Host header when unset.
 # url = "https://raptor.example.com"
 
+# Maximum artifact upload size in bytes (default 1 GiB).
+# max_artifact_size = 1073741824
+# Tenant name devices use in the DDI /{tenant}/controller/v1/... path (matched
+# case-insensitively); any other tenant gets 404.
+# tenant = "DEFAULT"
+# How often the rollout evaluator and target-filter auto-assign sweep run.
+# rollout_eval_interval_secs = 5
+# Gate new rollouts behind an operator approval before they can start.
+# rollout_approval_enabled = false
+
 [ddi]
 # Device-facing DDI API auth. Leave anonymous = false in production; devices
 # authenticate with a per-target security token or the shared gateway token.
@@ -49,6 +59,49 @@ polling_interval = "00:05:00"
 username = "admin"
 # Replace with the output of `raptor hash-password`:
 password_hash = "REPLACE_WITH_ARGON2_HASH"
+
+# Artifact blob storage. Omit to keep blobs on local disk under artifact_dir.
+# For an S3-compatible bucket (AWS, RustFS, MinIO, Garage, ...), put the secret
+# in raptor.env as RAPTOR_STORAGE__S3__SECRET_KEY rather than here. To move an
+# existing store, run `raptor storage-backfill` before switching backend.
+# [storage]
+# backend = "s3"                        # "fs" (default) or "s3"
+# [storage.s3]
+# endpoint = "https://s3.example.com:9000"
+# bucket = "raptor"                     # must already exist
+# access_key = "raptor"
+# region = "us-east-1"
+# prefix = ""                           # e.g. "raptor/"
+# path_style = true                     # false for AWS virtual-hosted buckets
+# ca_cert = "/etc/raptor/s3-ca.pem"     # extra CA(s) for a private/self-signed endpoint
+# part_size = 16777216                  # multipart part size, minimum 5 MiB
+
+# Per-entity growth caps, mirroring hawkBit's quotas and defaults. A breach is
+# rejected with 429. Set a key to 0 to disable that quota.
+# [quota]
+# max_status_entries_per_action = 1000
+# max_messages_per_action_status = 50
+# max_attribute_entries_per_target = 100
+# max_metadata_entries_per_target = 100
+# max_metadata_entries_per_software_module = 100
+# max_metadata_entries_per_distribution_set = 100
+# max_artifacts_per_software_module = 50
+# max_software_modules_per_distribution_set = 100
+# max_rollout_groups_per_rollout = 500
+# max_targets_per_rollout_group = 20000
+
+# Automatic deletion of closed actions and their status history. Off by default.
+# [cleanup]
+# enabled = true
+# action_expiry_days = 30
+# action_statuses = ["finished", "error", "canceled"]
+# interval_secs = 3600
+
+# Release retention: keep the newest keep_releases distribution sets of each
+# name and hard-delete older ones with their artifacts. Unset keeps everything.
+# [retention]
+# keep_releases = 5
+# interval_secs = 3600
 
 # OpenTelemetry (OTLP) export of traces, metrics and logs. Requires a build with
 # the `otel` feature (the Debian package includes it); when the section is absent,

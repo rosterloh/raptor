@@ -18,7 +18,10 @@ decisions.
 ### Changed
 
 - The Debian package is built with the `otel` feature, so an `[otel]` section in
-  `/etc/raptor/config.toml` now exports instead of being silently ignored
+  `/etc/raptor/config.toml` now exports instead of being silently ignored (#180)
+- The packaged example config (`/etc/raptor/config.toml`) now lists every
+  documented setting, commented out at its default. Existing installs keep
+  their edited copy (#179)
 
 ## [1.3.0] - 2026-10-17
 
