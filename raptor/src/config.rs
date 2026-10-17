@@ -291,6 +291,12 @@ pub struct OtelConfig {
     /// Cloud). gRPC sends them as request metadata; HTTP as request headers.
     #[serde(default)]
     pub headers: HashMap<String, String>,
+    /// Fraction (0.0–1.0) of *new* traces to sample. Requests arriving with a
+    /// W3C `traceparent` follow the caller's sampling decision regardless.
+    /// Unset keeps the SDK default: sample everything, overridable with
+    /// `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG`.
+    #[serde(default)]
+    pub sample_ratio: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -640,6 +646,7 @@ password_hash = "$argon2id$fake"
             assert_eq!(otel.service_name, "raptor");
             assert_eq!(otel.protocol, OtelProtocol::Grpc);
             assert!(otel.headers.is_empty());
+            assert_eq!(otel.sample_ratio, None);
             Ok(())
         });
     }
@@ -652,6 +659,7 @@ password_hash = "$argon2id$fake"
                 &format!(
                     "{MINIMAL}\n[otel]\nendpoint = \"https://collector:4318\"\n\
                      service_name = \"raptor-edge\"\nprotocol = \"http\"\n\
+                     sample_ratio = 0.25\n\
                      [otel.headers]\nauthorization = \"Bearer tok\"\n"
                 ),
             )?;
@@ -659,6 +667,7 @@ password_hash = "$argon2id$fake"
             let otel = cfg.otel.expect("otel section present");
             assert_eq!(otel.service_name, "raptor-edge");
             assert_eq!(otel.protocol, OtelProtocol::Http);
+            assert_eq!(otel.sample_ratio, Some(0.25));
             assert_eq!(
                 otel.headers.get("authorization").map(String::as_str),
                 Some("Bearer tok")

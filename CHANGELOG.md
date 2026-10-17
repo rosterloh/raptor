@@ -47,6 +47,10 @@ decisions.
   polling remains as the fallback (#TBD)
 - DDI feedback accepts `result.progress {cnt, of}`, shown live and not
   persisted; malformed values are ignored (#TBD)
+- `otel` build: incoming W3C `traceparent` headers are honoured, so raptor's
+  spans join the caller's trace behind a traced proxy or gateway; optional
+  `[otel] sample_ratio` samples new traces while following callers' decisions
+  (#174)
 
 ### Changed
 
@@ -66,6 +70,10 @@ decisions.
 - Console: jumping from one target's page to another (command palette, Back)
   no longer keeps showing the first target's data (#TBD)
 - Console: dialogs closed by navigating away now return keyboard focus (#TBD)
+- `otel` build: OpenTelemetry SDK warnings and errors, such as a failing
+  export to an unreachable collector, now reach stdout under the default log
+  filter instead of being dropped silently; they are never exported over OTLP
+  themselves (#173)
 
 ### Fixed
 

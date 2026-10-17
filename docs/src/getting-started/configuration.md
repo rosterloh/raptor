@@ -62,6 +62,8 @@ Copy the output into `mgmt.password_hash`.
 | `[quota]` | per-entity growth caps mirroring hawkBit's; `0` disables one |
 | `[cleanup]` | automatic deletion of old closed actions; off by default |
 | `[mgmt]` | Management API / web console admin: `username`, `password_hash` |
+| `[storage]` | where artifact blobs live: local disk (default) or an S3-compatible bucket |
+| `[otel]` | OTLP export of traces, metrics and logs (`otel` builds only): `endpoint`, `protocol`, `sample_ratio` |
 
 ## The `url` key
 

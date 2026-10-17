@@ -22,6 +22,7 @@ async fn otel_pipeline_initializes_and_records() {
         service_name: "raptor-test".into(),
         protocol: OtelProtocol::Grpc,
         headers: std::collections::HashMap::new(),
+        sample_ratio: Some(0.5),
     };
 
     let (guard, metrics) =

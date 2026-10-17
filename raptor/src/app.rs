@@ -31,6 +31,16 @@ pub fn build_app(state: AppState) -> Router {
     } else {
         app
     };
+    // Outermost, so `TraceLayer`'s request span already sees the caller's
+    // trace context. Same gate: export is live exactly when metrics are.
+    #[cfg(feature = "otel")]
+    let app = if state.metrics.enabled() {
+        app.layer(middleware::from_fn(
+            crate::telemetry::propagate_trace_context,
+        ))
+    } else {
+        app
+    };
     app.with_state(state)
 }
 

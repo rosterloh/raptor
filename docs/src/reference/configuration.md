@@ -194,6 +194,28 @@ To move an existing deployment from `fs` to `s3`, run
 | `username` | string | *(required)* | admin username |
 | `password_hash` | string | *(required)* | argon2id hash from `raptor hash-password` |
 
+## `[otel]` — OpenTelemetry export
+
+Only read by a build with the `otel` feature; other builds parse and ignore it.
+The section's presence turns on OTLP export of traces, metrics and logs; stdout
+logging carries on unchanged.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `endpoint` | URL | *(required)* | OTLP collector, e.g. `http://localhost:4317` (gRPC) or `http://localhost:4318` (HTTP) |
+| `service_name` | string | `"raptor"` | `service.name` on every span, metric and log |
+| `protocol` | `"grpc"` \| `"http"` | `"grpc"` | OTLP wire protocol |
+| `sample_ratio` | float 0.0–1.0 | *(unset)* | fraction of traces raptor starts itself to sample; unset samples everything, or whatever `OTEL_TRACES_SAMPLER` says. Out-of-range values stop startup |
+| `[otel.headers]` | table | empty | extra headers for the collector, e.g. `authorization`; sent as gRPC metadata or HTTP headers |
+
+With export on, a request carrying a W3C `traceparent` header joins the
+caller's trace, and its sampling decision wins over `sample_ratio`. `RUST_LOG`
+decides which spans and logs are exported as well as printed: under the default
+filter, per-request `tower_http` spans are at `debug` and so are not exported;
+set `RUST_LOG=raptor=info,tower_http=debug` to export them. The OpenTelemetry
+SDK's own warnings and errors, such as a failing export, are printed to stdout
+but never exported.
+
 ## Example
 
 ```toml
@@ -228,6 +250,10 @@ confirmation_flow = true
 [mgmt]
 username = "admin"
 password_hash = "$argon2id$v=19$m=19456,t=2,p=1$..."
+
+[otel]                                     # needs a build with --features otel
+endpoint = "http://otel-collector:4317"
+sample_ratio = 0.1                         # 10% of new traces
 ```
 
 ## Environment overrides
