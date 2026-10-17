@@ -2,6 +2,8 @@
 //! Each function is a thin wrapper: build the path/query, call `Client`,
 //! return the already-typed `raptor-api-types` DTO.
 
+use std::fmt::Write;
+
 pub mod actions;
 pub mod distribution_sets;
 pub mod modules;
@@ -53,7 +55,8 @@ fn urlencode(s: &str) -> String {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
                 out.push(b as char)
             }
-            _ => out.push_str(&format!("%{b:02X}")),
+            // Writing to a String cannot fail.
+            _ => _ = write!(out, "%{b:02X}"),
         }
     }
     out
