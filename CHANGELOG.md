@@ -24,9 +24,9 @@ decisions.
   their edited copy (#179)
 - Artifact uploads whose filename contains `"`, `\`, `/` or a control character
   are now rejected with `400`; rename such files before uploading. Artifacts
-  already stored keep their names
+  already stored keep their names (#183)
 - Release builds use fat LTO with one codegen unit (stripped binary ~27% smaller,
-  release build ~2x slower), and the .deb no longer embeds build-host paths
+  release build ~2x slower), and the .deb no longer embeds build-host paths (#183)
 
 ### Fixed
 
@@ -35,7 +35,7 @@ decisions.
   assigned set to the installed one. Already-affected targets need reassigning
   by hand (#181)
 - A rollout, cleanup or retention sweep that overruns its interval no longer
-  triggers back-to-back catch-up sweeps; the next one waits a full interval
+  triggers back-to-back catch-up sweeps; the next one waits a full interval (#183)
 
 ## [1.3.0] - 2026-10-17
 
