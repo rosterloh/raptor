@@ -18,13 +18,13 @@ decisions.
 ### Added
 
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server
-  still refuses one a distribution set references (#PR)
+  still refuses one a distribution set references (#187)
 
 ### Fixed
 
 - `raptorctl publish` checks the file before creating anything, and deletes the
   module it created if the upload or distribution set creation then fails,
-  instead of leaving an empty module behind (#PR)
+  instead of leaving an empty module behind (#187)
 
 ## [1.3.1] - 2026-10-17
 
