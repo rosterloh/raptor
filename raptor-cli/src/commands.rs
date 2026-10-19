@@ -474,6 +474,9 @@ pub enum ModuleCmd {
         #[arg(long)]
         vendor: Option<String>,
     },
+    /// Delete a module and its artifacts. Refused while a distribution set
+    /// references it
+    Delete { module_id: i64 },
 }
 
 pub async fn module(c: &Client, cmd: ModuleCmd, json: bool) -> Result<()> {
@@ -519,6 +522,10 @@ pub async fn module(c: &Client, cmd: ModuleCmd, json: bool) -> Result<()> {
                 return print_json(&m);
             }
             println!("created module {} ({})", m.id, m.name);
+        }
+        ModuleCmd::Delete { module_id } => {
+            api::modules::delete(c, module_id).await?;
+            println!("deleted module {module_id}");
         }
     }
     Ok(())
@@ -926,7 +933,35 @@ fn default_publish_name(file: &std::path::Path, version: &str) -> String {
         })
 }
 
+/// Refuses a path that is not a readable regular file, before `publish` writes
+/// anything to the server.
+fn check_publish_file(path: &std::path::Path) -> Result<()> {
+    let meta = std::fs::metadata(path)
+        .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", path.display()))?;
+    if !meta.is_file() {
+        anyhow::bail!("not a file: {}", path.display());
+    }
+    std::fs::File::open(path)
+        .map_err(|e| anyhow::anyhow!("cannot open {}: {e}", path.display()))?;
+    Ok(())
+}
+
+/// Deletes the module a failed `publish` created, so it does not strand an
+/// empty or unreleased module, and returns the error that stopped it.
+async fn discard_module(c: &Client, module_id: i64, err: anyhow::Error) -> anyhow::Error {
+    match api::modules::delete(c, module_id).await {
+        Ok(()) => {
+            eprintln!("deleted module {module_id}, which this publish created");
+            err
+        }
+        Err(del) => err.context(format!(
+            "module {module_id} was left behind ({del:#}); remove it with `raptorctl module delete {module_id}`"
+        )),
+    }
+}
+
 pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
+    check_publish_file(&args.file)?;
     let name = args
         .name
         .unwrap_or_else(|| default_publish_name(&args.file, &args.version));
@@ -967,13 +1002,16 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
     eprintln!("created module {} ({name})", module.id);
 
     eprintln!("uploading {}...", args.file.display());
-    let artifact = api::modules::artifact_upload(c, module.id, &args.file).await?;
+    let artifact = match api::modules::artifact_upload(c, module.id, &args.file).await {
+        Ok(a) => a,
+        Err(e) => return Err(discard_module(c, module.id, e).await),
+    };
     eprintln!(
         "uploaded artifact {} ({} bytes, sha256 {} verified)",
         artifact.id, artifact.size, artifact.hashes.sha256
     );
 
-    let ds = api::distribution_sets::create(
+    let ds = match api::distribution_sets::create(
         c,
         &DsCreate {
             name: name.clone(),
@@ -984,7 +1022,11 @@ pub async fn publish(c: &Client, args: PublishArgs, json: bool) -> Result<()> {
             modules: vec![ModuleRef { id: module.id }],
         },
     )
-    .await?;
+    .await
+    {
+        Ok(ds) => ds,
+        Err(e) => return Err(discard_module(c, module.id, e).await),
+    };
 
     if json {
         return print_json(
@@ -1354,6 +1396,25 @@ mod tests {
     use super::*;
     use clap::Parser;
     use std::path::Path;
+
+    #[test]
+    fn check_publish_file_refuses_a_missing_path_and_a_directory() {
+        let dir = std::env::temp_dir();
+        let missing = dir.join("raptor-cli-no-such-file.swu");
+        let err = check_publish_file(&missing).unwrap_err().to_string();
+        assert!(err.contains("cannot read"), "{err}");
+        let err = check_publish_file(&dir).unwrap_err().to_string();
+        assert!(err.contains("not a file"), "{err}");
+    }
+
+    #[test]
+    fn check_publish_file_accepts_a_regular_file() {
+        let path = std::env::temp_dir().join(format!("raptor-cli-{}.swu", std::process::id()));
+        std::fs::write(&path, b"x").unwrap();
+        let ok = check_publish_file(&path);
+        std::fs::remove_file(&path).unwrap();
+        ok.unwrap();
+    }
 
     #[test]
     fn default_publish_name_strips_version_suffix() {
