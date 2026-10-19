@@ -13,6 +13,19 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
+## [1.3.2] - unreleased
+
+### Added
+
+- `raptorctl module delete <id>` deletes a module and its artifacts; the server
+  still refuses one a distribution set references (#PR)
+
+### Fixed
+
+- `raptorctl publish` checks the file before creating anything, and deletes the
+  module it created if the upload or distribution set creation then fails,
+  instead of leaving an empty module behind (#PR)
+
 ## [1.3.1] - 2026-10-17
 
 ### Changed

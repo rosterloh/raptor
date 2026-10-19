@@ -16,6 +16,13 @@ pub async fn create(c: &Client, body: &SmCreate) -> Result<SmRest> {
         .map(|mut v: Vec<SmRest>| v.remove(0))
 }
 
+/// Deletes the module with its artifacts. The server refuses (409) while any
+/// distribution set references it.
+pub async fn delete(c: &Client, module_id: i64) -> Result<()> {
+    c.delete(&format!("/rest/v1/softwaremodules/{module_id}"))
+        .await
+}
+
 pub async fn artifact_list(c: &Client, module_id: i64) -> Result<Vec<ArtifactRest>> {
     c.get(&format!("/rest/v1/softwaremodules/{module_id}/artifacts"))
         .await

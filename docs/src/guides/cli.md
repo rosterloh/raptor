@@ -49,7 +49,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `tag list/create/delete [--ds]` | tag CRUD (target tags, or `--ds` for set tags) |
 | `target assign <cid> --ds <id> [--force ...]` | assign a distribution set |
 | `target actions <cid>` | a target's action history |
-| `module list/create` | software module CRUD |
+| `module list/create/delete` | software module CRUD (delete is refused while a set references it) |
 | `artifact upload/list/delete <moduleId>` | artifact management |
 | `ds list/get/create` | distribution set CRUD |
 | `ds invalidate <id>` | withdraw a set so it can no longer be deployed |
@@ -82,11 +82,12 @@ which no seeded set type requires) it errors and asks for `--ds-type` rather
 than guessing, because a wrong guess builds an *incomplete* distribution set
 that only fails later, at assign time.
 
-Both types are validated against the server before anything is written. That
+Both types, and the file itself, are checked before anything is written. That
 ordering matters: the sequence is create-module → upload → create-set, so a
-type rejected at the last step would leave an orphaned module and a
-multi-megabyte artifact behind, with no `module`/`ds` delete subcommand to
-clean them up.
+failure at a later step would otherwise leave an orphaned module behind. If the
+upload or the set creation still fails (the network, the server), `publish`
+deletes the module it created; if even that fails, the error names the module
+to remove with `raptorctl module delete <id>`.
 
 ### Withdrawing a release
 
