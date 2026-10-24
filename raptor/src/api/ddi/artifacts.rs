@@ -1,7 +1,9 @@
-//! DDI artifact listing and download, including HTTP byte-range support and
+//! DDI artifact listing and download, including HTTP byte-range support
+//! (single and `multipart/byteranges`, see [`super::range`]) and
 //! the `.MD5SUM` companion file. Actual blob storage lives in `storage`; this
 //! module only resolves metadata and streams bytes.
 
+use super::range::Resolved;
 use crate::entity::{artifact, ds_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
@@ -11,6 +13,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
 use axum::{Extension, Json};
+use bytes::Bytes;
 use futures::StreamExt;
 use raptor_api_types::DownloadEvent;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -43,19 +46,6 @@ pub async fn list(
             })
             .collect(),
     ))
-}
-
-/// Parse "bytes=a-b" / "bytes=a-" into (start, inclusive_end).
-fn parse_range(h: &str, total: i64) -> Option<(i64, i64)> {
-    let spec = h.strip_prefix("bytes=")?;
-    let (start, end) = spec.split_once('-')?;
-    let start: i64 = start.parse().ok()?;
-    let end: i64 = if end.is_empty() {
-        total - 1
-    } else {
-        end.parse().ok()?
-    };
-    (start <= end && start < total).then_some((start, end.min(total - 1)))
 }
 
 pub async fn download(
@@ -114,36 +104,89 @@ pub async fn download(
         });
     }
 
-    if let Some(range) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
-        let Some((start, end)) = parse_range(range, a.size) else {
+    let parts = match headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
+        Some(h) => super::range::resolve(h, total),
+        None => Resolved::Full,
+    };
+    match parts {
+        Resolved::Full => {}
+        Resolved::Unsatisfiable => {
             return Ok(Response::builder()
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
-                .header(header::CONTENT_RANGE, format!("bytes */{}", a.size))
+                .header(header::CONTENT_RANGE, format!("bytes */{total}"))
                 .body(Body::empty())
                 .unwrap());
-        };
-        let len = end - start + 1;
-        let stream = st
-            .store
-            .open(&a.sha256, Some(start as u64..end as u64 + 1))
-            .await?
-            .map(progress(start as u64));
-        st.metrics.bytes_downloaded(len.max(0) as u64);
-        return Ok(Response::builder()
-            .status(StatusCode::PARTIAL_CONTENT)
-            .header(header::ACCEPT_RANGES, "bytes")
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::CONTENT_LENGTH, len)
-            .header(
-                header::CONTENT_RANGE,
-                format!("bytes {start}-{end}/{}", a.size),
-            )
-            .header(
-                header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}\"", a.filename),
-            )
-            .body(Body::from_stream(stream))
-            .unwrap());
+        }
+        Resolved::Parts(parts) if parts.len() == 1 => {
+            let r = parts[0].clone();
+            let len = r.end - r.start;
+            let content_range = format!("bytes {}-{}/{total}", r.start, r.end - 1);
+            let stream = st
+                .store
+                .open(&a.sha256, Some(r.clone()))
+                .await?
+                .map(progress(r.start));
+            st.metrics.bytes_downloaded(len);
+            return Ok(Response::builder()
+                .status(StatusCode::PARTIAL_CONTENT)
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(header::CONTENT_TYPE, "application/octet-stream")
+                .header(header::CONTENT_LENGTH, len)
+                .header(header::CONTENT_RANGE, content_range)
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    format!("attachment; filename=\"{}\"", a.filename),
+                )
+                .body(Body::from_stream(stream))
+                .unwrap());
+        }
+        Resolved::Parts(parts) => {
+            let boundary = crate::util::random_token();
+            let len = multipart_len(&parts, total, &boundary);
+            st.metrics
+                .bytes_downloaded(parts.iter().map(|r| r.end - r.start).sum());
+            let store = st.store.clone();
+            let sha256 = a.sha256.clone();
+            let tail = Bytes::from(format!("\r\n--{boundary}--\r\n"));
+            let parts: Vec<_> = parts
+                .into_iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let head = Bytes::from(part_header(&r, total, &boundary, i == 0));
+                    let progress = progress(r.start);
+                    (r, head, progress)
+                })
+                .collect();
+            let body = futures::stream::iter(parts)
+                .then(move |(r, head, progress)| {
+                    let (store, sha256) = (store.clone(), sha256.clone());
+                    async move {
+                        // Routed through `progress` so a failed open is logged too.
+                        let data = match store.open(&sha256, Some(r)).await {
+                            Ok(s) => s,
+                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                        }
+                        .map(progress);
+                        futures::stream::once(async { Ok(head) }).chain(data)
+                    }
+                })
+                .flatten()
+                .chain(futures::stream::once(async { Ok(tail) }));
+            return Ok(Response::builder()
+                .status(StatusCode::PARTIAL_CONTENT)
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(
+                    header::CONTENT_TYPE,
+                    format!("multipart/byteranges; boundary={boundary}"),
+                )
+                .header(header::CONTENT_LENGTH, len)
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    format!("attachment; filename=\"{}\"", a.filename),
+                )
+                .body(Body::from_stream(body))
+                .unwrap());
+        }
     }
 
     let stream = st.store.open(&a.sha256, None).await?.map(progress(0));
@@ -158,6 +201,29 @@ pub async fn download(
         )
         .body(Body::from_stream(stream))
         .unwrap())
+}
+
+/// Delimiter and headers that precede one part of a `multipart/byteranges`
+/// body. The body starts at the first delimiter (no preamble), which is what
+/// SWUpdate's multipart parser expects; later delimiters carry the CRLF that
+/// ends the previous part's data.
+fn part_header(r: &std::ops::Range<u64>, total: u64, boundary: &str, first: bool) -> String {
+    let crlf = if first { "" } else { "\r\n" };
+    format!(
+        "{crlf}--{boundary}\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes {}-{}/{total}\r\n\r\n",
+        r.start,
+        r.end - 1
+    )
+}
+
+fn multipart_len(parts: &[std::ops::Range<u64>], total: u64, boundary: &str) -> u64 {
+    let closing = format!("\r\n--{boundary}--\r\n").len() as u64;
+    parts
+        .iter()
+        .enumerate()
+        .map(|(i, r)| part_header(r, total, boundary, i == 0).len() as u64 + (r.end - r.start))
+        .sum::<u64>()
+        + closing
 }
 
 async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact::Model, AppError> {

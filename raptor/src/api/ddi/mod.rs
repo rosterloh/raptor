@@ -8,6 +8,7 @@ pub mod config_data;
 pub mod confirmation;
 pub mod deployment;
 pub mod feedback;
+pub mod range;
 pub mod root;
 
 use crate::state::AppState;
