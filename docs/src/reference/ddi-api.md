@@ -169,8 +169,25 @@ Confirmation feedback uses a different body:
 
 ## Artifact download & Range
 
-The artifact download endpoint honors HTTP `Range` (RFC 7233) so an interrupted
-download resumes with a `206 Partial Content` response rather than restarting.
+The artifact download endpoint honors HTTP `Range` (RFC 9110 §14) so an
+interrupted download resumes with a `206 Partial Content` response rather than
+restarting.
+
+- `bytes=a-b`, `bytes=a-` and suffix `bytes=-n` (the last `n` bytes) are served
+  as a single part with `Content-Range`.
+- Several comma-separated ranges are answered with one `206` of type
+  `multipart/byteranges`, one part per range, each with its own
+  `Content-Range`. This is what SWUpdate's delta handler sends (up to
+  `max-ranges` per request, default 10) when it fetches zchunk chunks from a
+  `.zck` artifact.
+- Parts come back in the order they were requested. A range that overlaps or
+  directly follows the one before it is merged into it; if that leaves a single
+  range, the response is a plain single-part `206`.
+- If no range overlaps the artifact, the response is `416` with
+  `Content-Range: bytes */<size>`.
+- A malformed header, a unit other than `bytes`, a request needing more than
+  256 parts after merging, or ranges that add up to more than the artifact's
+  size (overlaps) are ignored, and the whole artifact is sent with `200`.
 
 ### `download-http` vs `download`
 
