@@ -182,6 +182,107 @@ async fn range_download_resumes() {
     assert_eq!(resp.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 }
 
+async fn get_range(app: &axum::Router, uri: &str, range: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::get(uri)
+                .header(header::RANGE, range)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn suffix_range_serves_tail() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = fixture(&app).await;
+    let uri = format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+
+    let resp = get_range(&app, &uri, "bytes=-5").await;
+    assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(
+        resp.headers().get("content-range").unwrap(),
+        "bytes 6-10/11"
+    );
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    assert_eq!(&bytes[..], b"world");
+}
+
+/// Golden `multipart/byteranges` body (RFC 9110 §14.6): this is what
+/// SWUpdate's delta handler parses when fetching zchunk chunks.
+#[tokio::test]
+async fn multi_range_serves_multipart_byteranges() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = fixture(&app).await;
+    let uri = format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+
+    // the overlapping last two coalesce into "wor"
+    let resp = get_range(&app, &uri, "bytes=0-1, 6-7, 7-8").await;
+    assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+    assert!(resp.headers().get("content-range").is_none());
+    let ctype = resp.headers()["content-type"].to_str().unwrap().to_owned();
+    let boundary = ctype
+        .strip_prefix("multipart/byteranges; boundary=")
+        .expect("multipart content type")
+        .to_owned();
+    let declared: usize = resp.headers()["content-length"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    assert_eq!(bytes.len(), declared);
+    let expected = format!(
+        "--{boundary}\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes 0-1/11\r\n\r\nhe\
+         \r\n--{boundary}\r\nContent-Type: application/octet-stream\r\nContent-Range: bytes 6-8/11\r\n\r\nwor\
+         \r\n--{boundary}--\r\n"
+    );
+    assert_eq!(std::str::from_utf8(&bytes).unwrap(), expected);
+}
+
+#[tokio::test]
+async fn multi_range_that_coalesces_to_one_is_single_part() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = fixture(&app).await;
+    let uri = format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+
+    let resp = get_range(&app, &uri, "bytes=0-4,5-10").await;
+    assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(
+        resp.headers().get("content-range").unwrap(),
+        "bytes 0-10/11"
+    );
+    assert_eq!(
+        resp.headers().get("content-type").unwrap(),
+        "application/octet-stream"
+    );
+}
+
+#[tokio::test]
+async fn malformed_range_is_ignored() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = fixture(&app).await;
+    let uri = format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw.bin");
+
+    for range in ["bytes=5-2", "items=0-1"] {
+        let resp = get_range(&app, &uri, range).await;
+        assert_eq!(resp.status(), StatusCode::OK, "{range}");
+        let bytes = http_body_util::BodyExt::collect(resp.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
+        assert_eq!(&bytes[..], b"hello world");
+    }
+}
+
 #[tokio::test]
 async fn installed_base_serves_finished_deployment() {
     let (app, _) = common::setup().await;

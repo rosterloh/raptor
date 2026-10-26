@@ -23,7 +23,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | `cancelAction` + cancel feedback | ✅ |
 | `configData` (attributes: merge / replace / remove) | ✅ |
 | `installedBase` | ✅ |
-| Artifact download with **HTTP Range** (resume) | ✅ |
+| Artifact download with **HTTP Range** (resume, multi-range `multipart/byteranges`) | ✅ |
 | `.MD5SUM` companion endpoint | ✅ |
 | Auto-registration (gateway token / anonymous¹) | ✅ |
 | `confirmationBase` confirmation flow | ✅ |

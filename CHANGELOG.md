@@ -17,11 +17,15 @@ decisions.
 
 ### Added
 
+- DDI artifact downloads serve multi-range (`multipart/byteranges`) and suffix
+  `Range` requests, which SWUpdate's zchunk delta handler sends (#151)
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server
   still refuses one a distribution set references (#187)
 
 ### Fixed
 
+- A malformed or non-`bytes` `Range` header on an artifact download now gets
+  the whole artifact with `200`, as RFC 9110 allows, instead of `416` (#151)
 - `raptorctl publish` checks the file before creating anything, and deletes the
   module it created if the upload or distribution set creation then fails,
   instead of leaving an empty module behind (#187)
