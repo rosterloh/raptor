@@ -6,8 +6,9 @@
 use std::ops::Range;
 
 /// Upper bound on parts in one multipart response, after coalescing. SWUpdate's
-/// delta handler sends at most `max-ranges` (default 10); Apache allows 200.
-pub const MAX_PARTS: usize = 256;
+/// delta handler sends at most `max-ranges` (default 10). Each part is a
+/// separate store read (an S3 GET), so keep this well below Apache's 200.
+pub const MAX_PARTS: usize = 64;
 
 /// What to serve for a `Range` header against a blob of a given size.
 #[derive(Debug, PartialEq, Eq)]
@@ -35,6 +36,11 @@ pub fn resolve(header: &str, size: u64) -> Resolved {
     let Some(specs) = parse(header) else {
         return Resolved::Full;
     };
+    // A nonzero suffix is satisfiable on an empty blob (RFC 9110 §14.1.1),
+    // but a 206 can't express zero bytes, so send the (empty) whole.
+    if size == 0 && specs.iter().any(|s| matches!(s, Spec::Suffix(n) if *n > 0)) {
+        return Resolved::Full;
+    }
     let mut parts: Vec<Range<u64>> = Vec::with_capacity(specs.len());
     for r in specs.into_iter().filter_map(|s| s.clamp(size)) {
         match parts.last_mut() {
@@ -91,7 +97,8 @@ fn parse(header: &str) -> Option<Vec<Spec>> {
             },
             (f, l) => {
                 let (first, last) = (digits(f)?, digits(l)?);
-                if last < first {
+                // Compare the decimals, not the values, which may both have saturated.
+                if decimal_key(l) < decimal_key(f) {
                     return None;
                 }
                 Spec::From {
@@ -103,6 +110,12 @@ fn parse(header: &str) -> Option<Vec<Spec>> {
         specs.push(spec);
     }
     (!specs.is_empty()).then_some(specs)
+}
+
+/// Orders digit strings by numeric value without parsing them.
+fn decimal_key(s: &str) -> (usize, &str) {
+    let s = s.trim_start_matches('0');
+    (s.len(), s)
 }
 
 /// Strict 1*DIGIT; `u64::from_str` would also take a leading `+`.
@@ -137,7 +150,8 @@ mod tests {
         assert_eq!(parts("bytes=-5", 11), vec![6..11]);
         assert_eq!(parts("bytes=-999", 11), vec![0..11]);
         assert_eq!(resolve("bytes=-0", 11), Resolved::Unsatisfiable);
-        assert_eq!(resolve("bytes=-5", 0), Resolved::Unsatisfiable);
+        assert_eq!(resolve("bytes=-5", 0), Resolved::Full);
+        assert_eq!(resolve("bytes=-0", 0), Resolved::Unsatisfiable);
     }
 
     #[test]
@@ -188,6 +202,8 @@ mod tests {
             "bytes=",
             "bytes=abc",
             "bytes=5-2",
+            "bytes=18446744073709551617-18446744073709551616",
+            "bytes=0-1,99999999999999999999-99999999999999999998",
             "bytes=+1-2",
             "bytes=1",
             "bytes=0-1,x",

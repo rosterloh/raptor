@@ -71,7 +71,8 @@ pub async fn download(
             None
         });
     let total = a.size.max(0) as u64;
-    let progress = |start: u64| {
+    // `total` is what this response delivers in full; for multipart, the requested bytes.
+    let progress = |start: u64, total: u64| {
         let (st, cid, filename) = (st.clone(), cid.clone(), a.filename.clone());
         let mut sent = start;
         move |chunk: std::io::Result<bytes::Bytes>| {
@@ -108,8 +109,23 @@ pub async fn download(
         Some(h) => super::range::resolve(h, total),
         None => Resolved::Full,
     };
-    match parts {
-        Resolved::Full => {}
+    let parts = match parts {
+        Resolved::Full => {
+            let stream = st
+                .store
+                .open(&a.sha256, None)
+                .await?
+                .map(progress(0, total));
+            st.metrics.bytes_downloaded(total);
+            return Ok(respond(
+                StatusCode::OK,
+                "application/octet-stream".into(),
+                total,
+                None,
+                &a.filename,
+                Body::from_stream(stream),
+            ));
+        }
         Resolved::Unsatisfiable => {
             return Ok(Response::builder()
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
@@ -117,90 +133,101 @@ pub async fn download(
                 .body(Body::empty())
                 .unwrap());
         }
-        Resolved::Parts(parts) if parts.len() == 1 => {
-            let r = parts[0].clone();
-            let len = r.end - r.start;
-            let content_range = format!("bytes {}-{}/{total}", r.start, r.end - 1);
-            let stream = st
-                .store
-                .open(&a.sha256, Some(r.clone()))
-                .await?
-                .map(progress(r.start));
-            st.metrics.bytes_downloaded(len);
-            return Ok(Response::builder()
-                .status(StatusCode::PARTIAL_CONTENT)
-                .header(header::ACCEPT_RANGES, "bytes")
-                .header(header::CONTENT_TYPE, "application/octet-stream")
-                .header(header::CONTENT_LENGTH, len)
-                .header(header::CONTENT_RANGE, content_range)
-                .header(
-                    header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{}\"", a.filename),
-                )
-                .body(Body::from_stream(stream))
-                .unwrap());
-        }
-        Resolved::Parts(parts) => {
-            let boundary = crate::util::random_token();
-            let len = multipart_len(&parts, total, &boundary);
-            st.metrics
-                .bytes_downloaded(parts.iter().map(|r| r.end - r.start).sum());
-            let store = st.store.clone();
-            let sha256 = a.sha256.clone();
-            let tail = Bytes::from(format!("\r\n--{boundary}--\r\n"));
-            let parts: Vec<_> = parts
-                .into_iter()
-                .enumerate()
-                .map(|(i, r)| {
-                    let head = Bytes::from(part_header(&r, total, &boundary, i == 0));
-                    let progress = progress(r.start);
-                    (r, head, progress)
-                })
-                .collect();
-            let body = futures::stream::iter(parts)
-                .then(move |(r, head, progress)| {
-                    let (store, sha256) = (store.clone(), sha256.clone());
-                    async move {
-                        // Routed through `progress` so a failed open is logged too.
-                        let data = match store.open(&sha256, Some(r)).await {
-                            Ok(s) => s,
-                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
-                        }
-                        .map(progress);
-                        futures::stream::once(async { Ok(head) }).chain(data)
-                    }
-                })
-                .flatten()
-                .chain(futures::stream::once(async { Ok(tail) }));
-            return Ok(Response::builder()
-                .status(StatusCode::PARTIAL_CONTENT)
-                .header(header::ACCEPT_RANGES, "bytes")
-                .header(
-                    header::CONTENT_TYPE,
-                    format!("multipart/byteranges; boundary={boundary}"),
-                )
-                .header(header::CONTENT_LENGTH, len)
-                .header(
-                    header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{}\"", a.filename),
-                )
-                .body(Body::from_stream(body))
-                .unwrap());
-        }
+        Resolved::Parts(parts) => parts,
+    };
+    if let [r] = parts.as_slice() {
+        let len = r.end - r.start;
+        let stream = st
+            .store
+            .open(&a.sha256, Some(r.clone()))
+            .await?
+            .map(progress(r.start, total));
+        st.metrics.bytes_downloaded(len);
+        return Ok(respond(
+            StatusCode::PARTIAL_CONTENT,
+            "application/octet-stream".into(),
+            len,
+            Some(format!("bytes {}-{}/{total}", r.start, r.end - 1)),
+            &a.filename,
+            Body::from_stream(stream),
+        ));
     }
 
-    let stream = st.store.open(&a.sha256, None).await?.map(progress(0));
-    st.metrics.bytes_downloaded(a.size.max(0) as u64);
-    Ok(Response::builder()
+    let boundary = crate::util::random_token();
+    let requested: u64 = parts.iter().map(|r| r.end - r.start).sum();
+    let tail = Bytes::from(format!("\r\n--{boundary}--\r\n"));
+    // Progress runs across the whole response, so it completes only after the last part.
+    let mut offset = 0;
+    let mut parts: Vec<_> = parts
+        .into_iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let head = Bytes::from(part_header(&r, total, &boundary, i == 0));
+            let progress = progress(offset, requested);
+            offset += r.end - r.start;
+            (r, head, progress)
+        })
+        .collect();
+    let len = tail.len() as u64
+        + parts
+            .iter()
+            .map(|(r, head, _)| head.len() as u64 + (r.end - r.start))
+            .sum::<u64>();
+    // Open the first part before committing to a 206, so a missing blob still
+    // gets a proper error status instead of a truncated body.
+    let (r0, head0, progress0) = parts.remove(0);
+    let first = st.store.open(&a.sha256, Some(r0)).await?.map(progress0);
+    st.metrics.bytes_downloaded(requested);
+    let (store, sha256) = (st.store.clone(), a.sha256.clone());
+    let rest = futures::stream::iter(parts)
+        .then(move |(r, head, progress)| {
+            let (store, sha256) = (store.clone(), sha256.clone());
+            async move {
+                // Routed through `progress` so a failed open is logged too.
+                let data = match store.open(&sha256, Some(r)).await {
+                    Ok(s) => s,
+                    Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                }
+                .map(progress);
+                futures::stream::once(async { Ok(head) }).chain(data)
+            }
+        })
+        .flatten();
+    let body = futures::stream::once(async { Ok(head0) })
+        .chain(first)
+        .chain(rest)
+        .chain(futures::stream::once(async { Ok(tail) }));
+    Ok(respond(
+        StatusCode::PARTIAL_CONTENT,
+        format!("multipart/byteranges; boundary={boundary}"),
+        len,
+        None,
+        &a.filename,
+        Body::from_stream(body),
+    ))
+}
+
+fn respond(
+    status: StatusCode,
+    content_type: String,
+    len: u64,
+    content_range: Option<String>,
+    filename: &str,
+    body: Body,
+) -> Response {
+    let mut b = Response::builder()
+        .status(status)
         .header(header::ACCEPT_RANGES, "bytes")
-        .header(header::CONTENT_TYPE, "application/octet-stream")
-        .header(header::CONTENT_LENGTH, a.size)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CONTENT_LENGTH, len)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", a.filename),
-        )
-        .body(Body::from_stream(stream))
-        .unwrap())
+            format!("attachment; filename=\"{filename}\""),
+        );
+    if let Some(cr) = content_range {
+        b = b.header(header::CONTENT_RANGE, cr);
+    }
+    b.body(body).unwrap()
 }
 
 /// Delimiter and headers that precede one part of a `multipart/byteranges`
@@ -214,16 +241,6 @@ fn part_header(r: &std::ops::Range<u64>, total: u64, boundary: &str, first: bool
         r.start,
         r.end - 1
     )
-}
-
-fn multipart_len(parts: &[std::ops::Range<u64>], total: u64, boundary: &str) -> u64 {
-    let closing = format!("\r\n--{boundary}--\r\n").len() as u64;
-    parts
-        .iter()
-        .enumerate()
-        .map(|(i, r)| part_header(r, total, boundary, i == 0).len() as u64 + (r.end - r.start))
-        .sum::<u64>()
-        + closing
 }
 
 async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact::Model, AppError> {

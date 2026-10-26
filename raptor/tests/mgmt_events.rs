@@ -535,6 +535,48 @@ async fn range_download_reports_from_offset() {
     }
 }
 
+/// Parts run on one counter against the requested bytes, so a part that ends
+/// at EOF doesn't report the download complete before the rest are sent.
+#[tokio::test]
+async fn multi_range_download_progress_is_cumulative() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = active_action_with(&app, Some(&vec![7u8; 1000])).await;
+    let mut body = open(&app, "?target=dev-1").await.into_body();
+    let resp = app
+        .clone()
+        .oneshot(ddi_get(sm, Some("bytes=900-999,0-99")))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::PARTIAL_CONTENT);
+    drain(resp).await;
+    let mut last = 0;
+    loop {
+        let (name, d) = common::sse_next(&mut body).await;
+        if name == "download" {
+            assert_eq!(d["total"], 200, "{d}");
+            let sent = d["sent"].as_u64().unwrap();
+            assert!(sent >= last, "{d}");
+            last = sent;
+            if sent == 200 {
+                break;
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn suffix_range_on_empty_artifact_sends_it_whole() {
+    let (app, _) = common::setup().await;
+    let (sm, _) = active_action_with(&app, Some(b"")).await;
+    let resp = app
+        .clone()
+        .oneshot(ddi_get(sm, Some("bytes=-5")))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(drain(resp).await, 0);
+}
+
 #[tokio::test]
 async fn download_without_active_action_publishes_nothing() {
     let (app, _) = common::setup().await;

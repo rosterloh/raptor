@@ -186,7 +186,7 @@ restarting.
 - If no range overlaps the artifact, the response is `416` with
   `Content-Range: bytes */<size>`.
 - A malformed header, a unit other than `bytes`, a request needing more than
-  256 parts after merging, or ranges that add up to more than the artifact's
+  64 parts after merging, or ranges that add up to more than the artifact's
   size (overlaps) are ignored, and the whole artifact is sent with `200`.
 
 ### `download-http` vs `download`
