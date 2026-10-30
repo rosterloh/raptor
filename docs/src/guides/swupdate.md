@@ -5,7 +5,7 @@ unchanged. Unlike the [Zephyr guide](./zephyr.md), there is no wiring to
 describe here beyond the server URL and a token — suricatta's hawkBit server
 configuration is ordinary.
 
-What this page covers is one symptom, because it is the one that brings
+Most of this page covers one symptom, because it is the one that brings
 operators to the server looking for a bug that isn't there:
 
 > **raptor keeps offering the same bundle. The device downloads it on every
@@ -198,3 +198,46 @@ Work down it in order; each item can mask the ones below.
 - [ ] a health check sets `ustate=2` on pass and `3` on failure
 - [ ] the very first action on a previously stateless device was cancelled by
       hand
+
+## Delta updates (zchunk)
+
+SWUpdate's delta handler can update a rootfs by downloading only the chunks
+the running slot doesn't already have. raptor needs no configuration for
+this. The `.zck` is an ordinary artifact, and the artifact download serves the
+multi-range requests the handler sends (see
+[Artifact download & Range](../reference/ddi-api.md#artifact-download--range)).
+
+> Not yet verified end to end on a device (#151). The server side is covered
+> by tests, and SWUpdate's own multipart parser has been run against raptor.
+
+The build produces two files from the image (meta-swupdate's
+`image_types_zchunk` class): `rootfs.ext4.zck`, the chunked image, and
+`rootfs.ext4.zck.zckheader`, its header. The signed `.swu` carries only the
+header, in an image entry with `type = "delta"`, `url = "dynamic"`,
+`zckfile = "rootfs.ext4.zck"`, `source` set to the running slot and
+`chain = "raw"`.
+
+Upload both files to **the same software module**:
+
+```console
+$ raptorctl module create --name rootfs --version 2.1.0 --type os
+$ raptorctl artifact upload 1 ./update.swu
+$ raptorctl artifact upload 1 ./rootfs.ext4.zck
+$ raptorctl ds create --name rootfs --version 2.1.0 --type os --module 1
+```
+
+suricatta installs the `.swu`. For the `.zck` artifact it skips the install
+and registers its download URL, which the delta handler resolves `zckfile`
+against. That needs SWUpdate 2026.05.1 or later. The `.zck` URL isn't signed,
+but every chunk hash is, in the header inside `sw-description`, so a
+mismatched or tampered `.zck` fails the update on the device.
+
+Keep these in mind:
+
+- The `.zck` filename must match `zckfile` exactly. raptor doesn't check
+  this at upload, so a mismatch only shows up mid-install.
+- Upload one `.zck` per module, and always from the same build as the `.swu`.
+- Leave `max-ranges` at its default (10) or raise it. raptor answers up to
+  64 ranges per request after merging and sends the whole artifact beyond
+  that, which defeats the delta. `max-ranges = 1` also works, but only
+  performs well with SWUpdate patches that aren't upstream.
