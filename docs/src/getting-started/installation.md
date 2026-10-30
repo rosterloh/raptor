@@ -35,7 +35,7 @@ hardening details and how to supply secrets safely.
 
 ## From source
 
-You need a recent stable Rust toolchain.
+You need Rust 1.98.1 or newer.
 
 ```console
 $ git clone https://github.com/rosterloh/raptor

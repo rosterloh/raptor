@@ -22,6 +22,11 @@ decisions.
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server
   still refuses one a distribution set references (#187)
 
+### Changed
+
+- Minimum supported Rust version is now 1.98.1 (Yocto blacksail), declared
+  as `rust-version` so older toolchains fail fast
+
 ### Fixed
 
 - A malformed or non-`bytes` `Range` header on an artifact download now gets
