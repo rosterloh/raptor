@@ -222,7 +222,7 @@ fn respond(
         .header(header::CONTENT_LENGTH, len)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{filename}\""),
+            crate::api::attachment(filename),
         );
     if let Some(cr) = content_range {
         b = b.header(header::CONTENT_RANGE, cr);
