@@ -44,19 +44,17 @@ pub fn parse(input: &str) -> Result<Expr, String> {
 
 fn or_expr(i: &mut &str) -> WResult<Expr> {
     let items: Vec<Expr> = separated(1.., and_expr, ',').parse_next(i)?;
-    Ok(if items.len() == 1 {
-        items.into_iter().next().unwrap()
-    } else {
-        Expr::Or(items)
+    Ok(match <[Expr; 1]>::try_from(items) {
+        Ok([e]) => e,
+        Err(items) => Expr::Or(items),
     })
 }
 
 fn and_expr(i: &mut &str) -> WResult<Expr> {
     let items: Vec<Expr> = separated(1.., primary, ';').parse_next(i)?;
-    Ok(if items.len() == 1 {
-        items.into_iter().next().unwrap()
-    } else {
-        Expr::And(items)
+    Ok(match <[Expr; 1]>::try_from(items) {
+        Ok([e]) => e,
+        Err(items) => Expr::And(items),
     })
 }
 

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Polling time overrides (#91): `[ddi] polling_interval` extended into
 //! hawkBit's `pollingTime` grammar — a default interval plus ordered
 //! `<RSQL> -> <interval>` override rules, each accepting an optional `~NN%`

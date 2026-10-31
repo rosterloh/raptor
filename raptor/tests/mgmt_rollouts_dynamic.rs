@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Dynamic rollouts (#18): a trailing group that keeps absorbing targets which
 //! start matching the filter after the rollout was created.
 //!

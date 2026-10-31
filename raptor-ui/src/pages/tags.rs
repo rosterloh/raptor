@@ -172,7 +172,6 @@ pub fn Tags(kind: String, query: String, offset: u64) -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     delete_for.set(Some(t.clone()));
                                                     confirm_delete.set(true);
@@ -446,7 +445,7 @@ pub fn EntityTags(
             Some(Ok(list)) => rsx! {
                 div { class: "flex flex-wrap gap-1.5",
                     for t in list.clone() {
-                        TagChip { key: "{t.id}", name: t.name.clone(), colour: t.colour.clone() }
+                        TagChip { key: "{t.id}", name: t.name.clone(), colour: t.colour }
                     }
                 }
             },

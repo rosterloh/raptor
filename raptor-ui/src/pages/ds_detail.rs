@@ -87,7 +87,7 @@ pub fn DsDetail(id: i64) -> Element {
         }
         AssignModulesDialog { open: show_modules, ds_id: id, on_done: move |_| ds.restart() }
         DeployDialog { open: show_deploy, ds_id: id }
-        if let Some(d) = current.clone() {
+        if let Some(d) = current {
             EditDsDialog { open: show_edit, ds: d, on_saved: move |_| ds.restart() }
         }
         InvalidateDsDialog { open: show_invalidate, ds_id: id, on_done: move |_| ds.restart() }
@@ -205,7 +205,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                                         name: "deploy-target",
                                         checked: selected() == Some(t.controller_id.clone()),
                                         onchange: {
-                                            let cid = t.controller_id.clone();
+                                            let cid = t.controller_id;
                                             move |_| selected.set(Some(cid.clone()))
                                         },
                                     }
@@ -236,7 +236,8 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                 Button {
                     disabled: selected().is_none(),
                     onclick: move |_| {
-                        let (cid, is_forced) = (selected().unwrap(), forced());
+                        let Some(cid) = selected() else { return };
+                        let is_forced = forced();
                         spawn(async move {
                             match api::assign_ds(&cid, ds_id, is_forced).await {
                                 Ok(r) if r.assigned > 0 => toast_ok(format!("deploying to {cid}")),

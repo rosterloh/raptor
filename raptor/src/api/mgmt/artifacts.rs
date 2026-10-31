@@ -192,10 +192,10 @@ pub async fn download(
         .header(header::CONTENT_LENGTH, a.size)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", a.filename),
+            crate::api::attachment(&a.filename),
         )
         .body(Body::from_stream(stream))
-        .unwrap())
+        .expect("numeric/constant headers; attachment() strips unsafe filename bytes"))
 }
 
 pub async fn delete(

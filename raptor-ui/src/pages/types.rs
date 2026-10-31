@@ -117,7 +117,6 @@ fn SmTypesPanel() -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     delete_for.set(Some(t.clone()));
                                                     confirm_delete.set(true);
@@ -331,7 +330,6 @@ fn DsTypesPanel() -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     delete_for.set(Some(t.clone()));
                                                     confirm_delete.set(true);
@@ -354,7 +352,7 @@ fn DsTypesPanel() -> Element {
             DsTypeFormDialog { open: show_form, existing: form_for(), on_saved: move |_| types.restart() }
         }
         if let Some(t) = modules_for() {
-            DsTypeModulesDialog { open: show_modules, ds_type_id: t.id, ds_type_name: t.name.clone() }
+            DsTypeModulesDialog { open: show_modules, ds_type_id: t.id, ds_type_name: t.name }
         }
         ConfirmDialog {
             title: "Delete distribution set type".to_string(),
@@ -656,7 +654,6 @@ fn TargetTypesPanel() -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     delete_for.set(Some(t.clone()));
                                                     confirm_delete.set(true);
@@ -679,7 +676,7 @@ fn TargetTypesPanel() -> Element {
             TargetTypeFormDialog { open: show_form, existing: form_for(), on_saved: move |_| types.restart() }
         }
         if let Some(t) = compat_for() {
-            TargetTypeCompatDialog { open: show_compat, target_type_id: t.id, target_type_name: t.name.clone() }
+            TargetTypeCompatDialog { open: show_compat, target_type_id: t.id, target_type_name: t.name }
         }
         ConfirmDialog {
             title: "Delete target type".to_string(),

@@ -424,7 +424,8 @@ fn draw_prompt(f: &mut Frame, theme: &Theme, area: Rect, title: &str, input: &st
 }
 
 fn draw_confirm(f: &mut Frame, theme: &Theme, area: Rect, text: &str) {
-    let rect = centered(area, (text.len() as u16 + 4).max(30), 3);
+    let width = u16::try_from(Line::from(text).width()).unwrap_or(u16::MAX);
+    let rect = centered(area, width.saturating_add(4).max(30), 3);
     f.render_widget(Clear, rect);
     // Untitled — the question is the content, so it gets no panel() title.
     let block = Block::bordered()
@@ -616,5 +617,18 @@ mod tests {
             !long_row.contains("far-wider-than-its-column"),
             "over-long ID should be truncated to its column: {long_row}"
         );
+    }
+
+    #[test]
+    fn confirm_sizes_to_display_width() {
+        // 40 wide chars: 80 columns, 120 bytes.
+        let text = "设".repeat(40);
+        let mut terminal = Terminal::new(TestBackend::new(200, 5)).unwrap();
+        let theme = Theme::detect();
+        terminal
+            .draw(|f| draw_confirm(f, &theme, f.area(), &text))
+            .unwrap();
+        let top = row_text(terminal.backend().buffer(), 1);
+        assert_eq!(top.trim().chars().count(), 84, "{top}");
     }
 }

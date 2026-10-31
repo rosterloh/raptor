@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Release retention: which sets a sweep retires, what goes with them, and
 //! what must survive (newer releases, shared modules, other names).
 

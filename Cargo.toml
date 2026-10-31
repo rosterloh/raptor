@@ -14,6 +14,13 @@ rust-version = "1.98.1"
 # built by cargo-deb (see raptor/Cargo.toml `[package.metadata.deb]`).
 publish = false
 
+# Opted in one by one (not whole groups). unwrap_used makes each infallible
+# call say why via expect(); tests are exempt in clippy.toml.
+[workspace.lints.clippy]
+unwrap_used = "warn"
+redundant_clone = "warn"
+or_fun_call = "warn"
+
 [profile.dev]
 debug = "line-tables-only"
 

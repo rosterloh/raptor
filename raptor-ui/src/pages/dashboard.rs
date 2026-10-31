@@ -123,7 +123,7 @@ pub fn Dashboard() -> Element {
                             if !active_rollouts.is_empty() {
                                 SectionRule { label: "Active rollouts" }
                                 div { class: "border border-border-soft bg-card",
-                                    for r in active_rollouts.clone() {
+                                    for r in active_rollouts {
                                         div { key: "{r.id}", class: "border-b border-border-subtle p-4 last:border-b-0",
                                             div { class: "mb-2 flex flex-wrap items-baseline justify-between gap-2",
                                                 Link {

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 mod common;
 
 use axum::body::Body;
@@ -370,4 +371,47 @@ async fn artifact_list_matches_deployment_base_shape() {
         list_artifact, deployment_artifact,
         "artifact JSON shape must be identical on http"
     );
+}
+
+#[tokio::test]
+async fn legacy_unsafe_filename_still_downloads() {
+    use raptor::entity::artifact;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Expr};
+
+    let (app, state) = common::setup().await;
+    let (sm, _) = fixture(&app).await;
+    // Stored before upload validation, which now rejects such names.
+    artifact::Entity::update_many()
+        .col_expr(artifact::Column::Filename, Expr::value("fw\u{1}\".bin"))
+        .filter(artifact::Column::Filename.eq("fw.bin"))
+        .exec(&state.db)
+        .await
+        .unwrap();
+    let aid = artifact::Entity::find()
+        .one(&state.db)
+        .await
+        .unwrap()
+        .unwrap()
+        .id;
+
+    for uri in [
+        format!("/DEFAULT/controller/v1/d1/softwaremodules/{sm}/artifacts/fw%01%22.bin"),
+        format!("/rest/v1/softwaremodules/{sm}/artifacts/{aid}/download"),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::get(&uri)
+                    .header(header::AUTHORIZATION, common::mgmt_auth_header())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{uri}");
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "attachment; filename=\"fw__.bin\""
+        );
+    }
 }

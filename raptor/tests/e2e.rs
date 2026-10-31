@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Full update cycle driven by Collabora's `hawkbit` DDI client crate —
 //! the drop-in compatibility proof. Runs a real server on a loopback port.
 mod common;

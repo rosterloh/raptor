@@ -111,3 +111,6 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
   **Changed** with the remedy stated. At tag time, swap `unreleased` for the
   release date and add the compare link at the bottom of the file.
 - Keep `cargo fmt` and `clippy -D warnings` clean — CI enforces both.
+- Extra clippy lints live in the root `[workspace.lints.clippy]`; a new crate
+  needs `[lints] workspace = true`. `unwrap_used` is on: outside tests, say why
+  a call can't fail with `expect("...")` or return the error.

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Quota enforcement (#14): each configured `[quota]` cap, plus the hawkBit
 //! wire shape a violation produces.
 

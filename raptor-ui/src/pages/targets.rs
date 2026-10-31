@@ -139,7 +139,7 @@ pub fn Targets(
             SearchBox {
                 key: "q{search_key}",
                 placeholder: "name or controller id…",
-                initial: query.clone(),
+                initial: query,
                 on_search: {
                     let f = f.clone();
                     move |s| goto(Filters { query: s, offset: 0, ..f.clone() })
@@ -151,7 +151,7 @@ pub fn Targets(
             SearchBox {
                 key: "g{search_key}",
                 placeholder: "group, e.g. plant-a/*…",
-                initial: group.clone(),
+                initial: group,
                 on_search: {
                     let f = f.clone();
                     move |s| goto(Filters { group: s, offset: 0, ..f.clone() })
@@ -206,7 +206,7 @@ pub fn Targets(
                             dot: logic::tag_colour(t.colour.as_deref()),
                             pressed: tag == t.name,
                             onclick: {
-                                let (f, name) = (f.clone(), t.name.clone());
+                                let (f, name) = (f.clone(), t.name);
                                 move |_| goto(Filters { tag: name.clone(), offset: 0, ..f.clone() })
                             },
                         }
@@ -259,7 +259,6 @@ pub fn Targets(
                                 }
                                 th { class: "{TH} text-right",
                                     button { onclick: {
-                                        let f = f.clone();
                                         move |_| goto(Filters { sort: logic::next_sort(&f.sort, "last_poll"), offset: 0, ..f.clone() })
                                     }, "Last poll{last_poll_mark}" }
                                 }
@@ -285,7 +284,7 @@ pub fn Targets(
                                                 button {
                                                     class: "text-primary hover:underline",
                                                     onclick: {
-                                                        let (f, g) = (f.clone(), g.clone());
+                                                        let (f, g) = (f.clone(), g);
                                                         move |_| goto(Filters { group: g.clone(), offset: 0, ..f.clone() })
                                                     },
                                                     "{g}"
@@ -303,7 +302,7 @@ pub fn Targets(
                                                     TagChip {
                                                         key: "{tg.id}",
                                                         name: tg.name.clone(),
-                                                        colour: tg.colour.clone(),
+                                                        colour: tg.colour,
                                                     }
                                                 }
                                             }

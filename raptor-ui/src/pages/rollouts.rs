@@ -89,7 +89,7 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                             th { class: TH, "Progress" }
                             th { class: TH,
                                 button { onclick: {
-                                    let (query, sort) = (query.clone(), sort.clone());
+                                    let (query, sort) = (query, sort.clone());
                                     move |_| goto(query.clone(), logic::next_sort(&sort, "created"), 0)
                                 }, "Created{created_mark}" }
                             }

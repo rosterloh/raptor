@@ -34,7 +34,7 @@ pub fn Chip(
             onclick: move |e| onclick.call(e),
             if let Some(t) = tone {
                 span { class: "size-[7px] shrink-0 rounded-full {crate::components::tone_fill(t)}" }
-            } else if let Some(c) = dot.clone() {
+            } else if let Some(c) = dot {
                 span {
                     class: "size-[7px] shrink-0 rounded-full",
                     style: "background: {c}",

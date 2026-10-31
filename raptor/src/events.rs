@@ -112,7 +112,10 @@ impl Events {
         let now = Instant::now();
         let key = (ev.action_id, ev.filename.clone());
         let publish = {
-            let mut t = self.table.lock().unwrap();
+            let mut t = self
+                .table
+                .lock()
+                .expect("lock poisoned by an earlier panic");
             let due = ev.sent == ev.total
                 || t.downloads
                     .get(&key)
@@ -129,20 +132,26 @@ impl Events {
     pub fn record_progress(&self, ev: ProgressEvent) {
         self.table
             .lock()
-            .unwrap()
+            .expect("lock poisoned by an earlier panic")
             .progress
             .insert(ev.action_id, ev.clone());
         self.publish(Event::Progress(ev));
     }
 
     pub fn clear_action(&self, action_id: i64) {
-        let mut t = self.table.lock().unwrap();
+        let mut t = self
+            .table
+            .lock()
+            .expect("lock poisoned by an earlier panic");
         t.downloads.retain(|(id, _), _| *id != action_id);
         t.progress.remove(&action_id);
     }
 
     pub fn snapshot(&self, controller_id: &str) -> Vec<Event> {
-        let t = self.table.lock().unwrap();
+        let t = self
+            .table
+            .lock()
+            .expect("lock poisoned by an earlier panic");
         let downloads = t
             .downloads
             .values()

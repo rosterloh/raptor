@@ -575,7 +575,7 @@ pub struct MgmtConfig {
 /// 8088 rather than 8080: still unprivileged, but far less likely to collide
 /// with whatever else is already listening on a developer's machine.
 fn default_bind() -> SocketAddr {
-    "0.0.0.0:8088".parse().unwrap()
+    "0.0.0.0:8088".parse().expect("valid literal")
 }
 fn default_max_artifact_size() -> u64 {
     1024 * 1024 * 1024

@@ -79,7 +79,7 @@ pub fn MetadataPanel(
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let key = m.key.clone();
+                                                let key = m.key;
                                                 let prefix = prefix();
                                                 move |_| {
                                                     let key = key.clone();

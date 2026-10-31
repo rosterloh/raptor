@@ -63,6 +63,9 @@ enable = true
 # and run `systemctl start raptor` first.
 start = false
 
+[lints]
+workspace = true
+
 [dependencies]
 raptor-api-types = { path = "../raptor-api-types" }
 axum = { version = "0.8", features = ["multipart", "macros"] }

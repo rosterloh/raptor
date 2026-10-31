@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! OTLP telemetry wiring. Gated on the `otel` feature — run with
 //! `cargo test -p raptor --features otel --test telemetry`.
 //!
