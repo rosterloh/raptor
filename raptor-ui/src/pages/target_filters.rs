@@ -132,7 +132,6 @@ pub fn TargetFilters(query: String, offset: u64) -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
                                             onclick: {
-                                                let f = f.clone();
                                                 move |_| {
                                                     delete_for.set(Some(f.clone()));
                                                     confirm_delete.set(true);

@@ -66,7 +66,6 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                 class: "rounded border border-border bg-card px-3 py-1.5 text-sm",
                 value: "{select_value}",
                 onchange: {
-                    let sort = sort.clone();
                     move |e| goto(e.value(), sort.clone(), 0)
                 },
                 option { value: "all", "All" }
@@ -103,7 +102,6 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                             th { class: TH, "Detail" }
                             th { class: TH,
                                 button { onclick: {
-                                    let filter = filter.clone();
                                     let sort = sort.clone();
                                     move |_| goto(filter.clone(), logic::next_sort(&sort, "updated"), 0)
                                 }, "Updated{updated_mark}" }

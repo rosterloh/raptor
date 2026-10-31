@@ -87,7 +87,7 @@ pub fn DsDetail(id: i64) -> Element {
         }
         AssignModulesDialog { open: show_modules, ds_id: id, on_done: move |_| ds.restart() }
         DeployDialog { open: show_deploy, ds_id: id }
-        if let Some(d) = current.clone() {
+        if let Some(d) = current {
             EditDsDialog { open: show_edit, ds: d, on_saved: move |_| ds.restart() }
         }
         InvalidateDsDialog { open: show_invalidate, ds_id: id, on_done: move |_| ds.restart() }
@@ -205,7 +205,7 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                                         name: "deploy-target",
                                         checked: selected() == Some(t.controller_id.clone()),
                                         onchange: {
-                                            let cid = t.controller_id.clone();
+                                            let cid = t.controller_id;
                                             move |_| selected.set(Some(cid.clone()))
                                         },
                                     }

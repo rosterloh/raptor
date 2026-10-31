@@ -209,7 +209,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
                                         }
                                         Row {
                                             k: "Address",
-                                            v: t.ip_address.clone().or(t.address.clone()).unwrap_or_else(|| "—".into()),
+                                            v: t.ip_address.clone().or_else(|| t.address.clone()).unwrap_or_else(|| "—".into()),
                                             mono: true,
                                         }
                                         // ---- group (issue #117) ----
