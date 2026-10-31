@@ -236,6 +236,9 @@ Keep these in mind:
 
 - The `.zck` filename must match `zckfile` exactly. raptor doesn't check
   this at upload, so a mismatch only shows up mid-install.
+- Don't let Zephyr devices receive these sets: the Zephyr client refuses a
+  module with more than one artifact. See
+  [Sharing a server with Linux devices](./zephyr.md#sharing-a-server-with-linux-devices).
 - Upload one `.zck` per module, and always from the same build as the `.swu`.
 - Leave `max-ranges` at its default (10) or raise it. raptor answers up to
   64 ranges per request after merging and sends the whole artifact beyond

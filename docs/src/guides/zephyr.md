@@ -122,6 +122,74 @@ strict JSON descriptors require.
 | `Authorization: TargetToken` / `GatewayToken` | either, chosen at build time | ✅ verified |
 | Multi-tenancy | `CONFIG_HAWKBIT_TENANT` | ⚠️ single-tenant, must match configured `tenant` (footgun 1) |
 
+## Sharing a server with Linux devices
+
+Zephyr devices and Linux devices running SWUpdate can poll the same raptor. One
+client limit makes the separation matter: Zephyr's client rejects any
+deployment that isn't **exactly one chunk with exactly one artifact**
+(`hawkbit.c`, "Expecting 1 chunk" / "Expecting 1 artifact"). A Linux set with
+two modules, or a [zchunk delta](./swupdate.md#delta-updates-zchunk) module
+holding both a `.swu` and a `.zck`, is refused by a Zephyr device before it
+downloads anything.
+
+raptor needs no special handling for this. Target types already keep the two
+apart: a typed target accepts only distribution sets of a compatible type, and
+direct assignment, auto-assigning target filters and rollouts all enforce that.
+Give MCU sets their own type built on the seeded `firmware` module type, and
+type every device:
+
+```bash
+# A distribution-set type that needs one firmware module (look up its id first)
+curl -u admin:pw localhost:8088/rest/v1/softwaremoduletypes
+curl -u admin:pw -H 'Content-Type: application/json' -X POST \
+  localhost:8088/rest/v1/distributionsettypes \
+  -d '[{"key":"mcu","name":"MCU firmware","mandatorymodules":[{"id":<firmware-id>}]}]'
+
+# Target types: Zephyr devices take only mcu, Linux devices only os/os_app
+curl -u admin:pw -H 'Content-Type: application/json' -X POST \
+  localhost:8088/rest/v1/targettypes \
+  -d '[{"name":"zephyr","compatibledistributionsettypes":[{"id":<mcu-id>}]},
+       {"name":"linux","compatibledistributionsettypes":[{"id":<os-id>},{"id":<os_app-id>}]}]'
+
+raptorctl target type set dev-042 zephyr
+raptorctl publish zephyr.signed.bin --version 1.4.1 --module-type firmware --ds-type mcu
+```
+
+An **untyped** target accepts any set, so leaving a device untyped removes
+the protection. Typing doesn't limit a module to one artifact either, so don't
+upload anything else into an MCU module.
+
+## Update size: no delta, but compression
+
+Delta updates aren't available for Zephyr application images today. This was
+checked in October 2026 against Zephyr, upstream MCUboot, and Nordic's
+`sdk-mcuboot`/`sdk-nrf` main branches:
+
+- The Zephyr hawkBit client always downloads the whole image into slot 1 and
+  lets MCUboot swap it in. The only `Range` it sends is `bytes=N-`, to resume
+  a download (`CONFIG_HAWKBIT_SAVE_PROGRESS`), so the multi-range serving that
+  zchunk relies on goes unused.
+- Neither MCUboot nor the nRF Connect SDK patches an application image from a
+  diff. NCS's delta DFU (`dfu_target_modem_delta`) is for nRF91 modem firmware
+  only, and the modem applies it itself.
+
+The nearest option is **compressed images**: MCUboot in NCS
+(`SB_CONFIG_MCUBOOT_COMPRESSED_IMAGE_SUPPORT`, LZMA2 with an ARM thumb
+filter) decompresses slot 1 into slot 0 at boot. The download and slot 1 come
+out at roughly 70% of the image size. MCUboot has to run in overwrite-only
+mode (`SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY`), so a bad image can't be
+reverted. The client's own check is only that the artifact fits in slot 1.
+To raptor and the hawkBit client the compressed image is just a smaller
+artifact, so nothing changes on the server. Upstream MCUboot has the same
+`BOOT_DECOMPRESSION` code path, but its decompressor comes from NCS
+(`nrf_compress`).
+
+A real delta for MCUs would be a binary diff built against one specific base
+version, published as its own set and aimed with a target filter on a
+firmware-version attribute. raptor can already serve that. What doesn't
+exist yet is the device side: a hawkBit client that writes through a patcher
+instead of `flash_img`.
+
 ## Verifying against a real device
 
 raptor's test suite drives its DDI API with the Rust `hawkbit` crate and the
