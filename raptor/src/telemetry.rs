@@ -303,7 +303,8 @@ fn log_exporter(cfg: &OtelConfig) -> Result<opentelemetry_otlp::LogExporter, Box
     })
 }
 
-#[cfg(all(test, feature = "otel"))]
+#[cfg(test)]
+#[cfg(feature = "otel")]
 mod tests {
     use super::*;
     use axum::Router;

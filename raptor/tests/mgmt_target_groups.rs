@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Target groups (#89): hawkBit's single-valued organisational placement for a
 //! target, set through the normal create/update bodies and filterable with
 //! `q=group==`.

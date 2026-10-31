@@ -720,7 +720,8 @@ pub fn AssignDsDialog(
                 Button {
                     disabled: selected().is_none(),
                     onclick: move |_| {
-                        let (cid, ds_id, is_forced) = (cid(), selected().unwrap(), forced());
+                        let Some(ds_id) = selected() else { return };
+                        let (cid, is_forced) = (cid(), forced());
                         assign_error.set(None);
                         spawn(async move {
                             match api::assign_ds(&cid, ds_id, is_forced).await {
@@ -931,7 +932,8 @@ fn AssignTargetTypeDialog(
                 Button {
                     disabled: selected().is_none(),
                     onclick: move |_| {
-                        let (cid, id) = (cid(), selected().unwrap());
+                        let Some(id) = selected() else { return };
+                        let cid = cid();
                         spawn(async move {
                             match api::assign_target_type(&cid, id).await {
                                 Ok(()) => {

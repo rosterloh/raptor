@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! The four hawkBit assignment types (forced/soft/timeforced/downloadonly),
 //! how each renders in `deploymentBase`, the force-escalation endpoint, and the
 //! downloadonly completion path.

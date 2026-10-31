@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 mod common;
 
 use axum::body::Body;

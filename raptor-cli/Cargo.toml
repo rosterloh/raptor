@@ -10,6 +10,9 @@ description = "CLI and TUI client for raptor's Management API"
 name = "raptorctl"
 path = "src/main.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 raptor-api-types = { path = "../raptor-api-types" }
 clap = { version = "4", features = ["derive"] }

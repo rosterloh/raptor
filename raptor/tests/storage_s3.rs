@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! S3 backend against a real S3-compatible server. Skipped unless
 //! `TEST_S3_ENDPOINT` is set (CI runs it against a RustFS service container);
 //! the rest of the suite also runs against S3 when it is, via

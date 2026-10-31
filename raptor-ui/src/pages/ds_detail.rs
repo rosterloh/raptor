@@ -236,7 +236,8 @@ fn DeployDialog(open: Signal<bool>, ds_id: i64) -> Element {
                 Button {
                     disabled: selected().is_none(),
                     onclick: move |_| {
-                        let (cid, is_forced) = (selected().unwrap(), forced());
+                        let Some(cid) = selected() else { return };
+                        let is_forced = forced();
                         spawn(async move {
                             match api::assign_ds(&cid, ds_id, is_forced).await {
                                 Ok(r) if r.assigned > 0 => toast_ok(format!("deploying to {cid}")),

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Automatic action cleanup (#134): what gets deleted, what is protected, and
 //! that reclaiming an action's history does not rewrite a rollout's outcome.
 

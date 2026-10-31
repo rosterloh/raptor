@@ -195,7 +195,7 @@ pub async fn download(
             crate::api::attachment(&a.filename),
         )
         .body(Body::from_stream(stream))
-        .unwrap())
+        .expect("numeric/constant headers; attachment() strips unsafe filename bytes"))
 }
 
 pub async fn delete(

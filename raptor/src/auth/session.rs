@@ -21,7 +21,7 @@ impl SessionStore {
         rand::rng().fill_bytes(&mut b);
         let token = hex::encode(b);
         let now = crate::util::now_ms();
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().expect("lock poisoned by an earlier panic");
         m.retain(|_, exp| *exp > now);
         m.insert(token.clone(), now + IDLE_MS);
         token
@@ -29,7 +29,7 @@ impl SessionStore {
 
     pub fn validate(&self, token: &str) -> bool {
         let now = crate::util::now_ms();
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().expect("lock poisoned by an earlier panic");
         match m.get_mut(token) {
             Some(exp) if *exp > now => {
                 *exp = now + IDLE_MS;
@@ -44,7 +44,10 @@ impl SessionStore {
     }
 
     pub fn remove(&self, token: &str) {
-        self.0.lock().unwrap().remove(token);
+        self.0
+            .lock()
+            .expect("lock poisoned by an earlier panic")
+            .remove(token);
     }
 }
 

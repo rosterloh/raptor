@@ -60,7 +60,9 @@ pub type ApiResult<T> = Result<T, ApiError>;
 pub(crate) fn base() -> String {
     #[cfg(target_arch = "wasm32")]
     {
-        web_sys::window().unwrap().location().origin().unwrap()
+        web_sys::window()
+            .and_then(|w| w.location().origin().ok())
+            .expect("console runs in a browser window")
     }
     #[cfg(not(target_arch = "wasm32"))]
     {

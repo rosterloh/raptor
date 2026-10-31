@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 use migration::{Migrator, MigratorTrait};
 use raptor::entity::{distribution_set_type, software_module_type, target};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, Database, EntityTrait};

@@ -60,7 +60,7 @@ pub async fn download(
         return Ok(Response::builder()
             .header(header::CONTENT_TYPE, "text/plain")
             .body(Body::from(format!("{}  {}\n", a.md5, a.filename)))
-            .unwrap());
+            .expect("constant header"));
     }
 
     let a = find(&st, module_id, &filename).await?;
@@ -131,7 +131,7 @@ pub async fn download(
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
                 .header(header::CONTENT_RANGE, format!("bytes */{total}"))
                 .body(Body::empty())
-                .unwrap());
+                .expect("numeric header"));
         }
         Resolved::Parts(parts) => parts,
     };
@@ -227,7 +227,8 @@ fn respond(
     if let Some(cr) = content_range {
         b = b.header(header::CONTENT_RANGE, cr);
     }
-    b.body(body).unwrap()
+    b.body(body)
+        .expect("numeric/constant headers; attachment() strips unsafe filename bytes")
 }
 
 /// Delimiter and headers that precede one part of a `multipart/byteranges`

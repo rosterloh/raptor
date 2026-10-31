@@ -91,13 +91,14 @@ pub async fn upload_artifact(
     xhr.set_request_header(super::AJAX_HEADER.0, super::AJAX_HEADER.1)
         .map_err(|_| ApiError::Network("XHR header failed".into()))?;
 
-    let form = web_sys::FormData::new().unwrap();
+    let form = web_sys::FormData::new().map_err(|_| ApiError::Network("FormData failed".into()))?;
     let arr = js_sys::Uint8Array::from(bytes.as_slice());
     let parts = js_sys::Array::new();
     parts.push(&arr.buffer());
-    let blob = web_sys::Blob::new_with_u8_array_sequence(&parts).unwrap();
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&parts)
+        .map_err(|_| ApiError::Network("Blob failed".into()))?;
     form.append_with_blob_and_filename("file", &blob, filename)
-        .unwrap();
+        .map_err(|_| ApiError::Network("FormData append failed".into()))?;
 
     let onprog =
         Closure::<dyn FnMut(web_sys::ProgressEvent)>::new(move |e: web_sys::ProgressEvent| {
@@ -106,7 +107,7 @@ pub async fn upload_artifact(
             }
         });
     xhr.upload()
-        .unwrap()
+        .map_err(|_| ApiError::Network("XHR upload failed".into()))?
         .set_onprogress(Some(onprog.as_ref().unchecked_ref()));
 
     let (tx, rx) = futures::channel::oneshot::channel::<()>();
