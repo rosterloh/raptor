@@ -19,6 +19,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 |---|---|
 | Poll root, `config.polling.sleep`, `_links` | ✅ |
 | `deploymentBase` (download/update modes, chunks, artifacts) | ✅ |
+| Chunk `part` from module type (`application` → `bApp`, `os`/`firmware` → `os`, `runtime` → `jvm`, custom keys as-is) | ✅ |
 | Deployment feedback state machine | ✅ |
 | `cancelAction` + cancel feedback | ✅ |
 | `configData` (attributes: merge / replace / remove) | ✅ |

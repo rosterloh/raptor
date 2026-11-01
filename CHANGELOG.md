@@ -40,6 +40,9 @@ decisions.
 - Downloading an artifact stored before #183 with a control character in its
   name no longer drops the connection; such bytes become `_` in
   `Content-Disposition` (#195)
+- Zephyr guide publishes MCU sets on the `application` module type, served as
+  part `bApp`; the `firmware` type it named is served as `os`, which Zephyr
+  refuses (#200)
 
 ## [1.3.1] - 2026-10-17
 
