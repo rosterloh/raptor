@@ -27,12 +27,17 @@ fn upload(uri: &str, filename: &str, content: &[u8]) -> Request<Body> {
 /// Fixture: os module w/ artifact "fw.bin" (b"hello world"), ds "stable:1.0", target d1, forced assignment.
 /// Returns (module_id, action_id).
 async fn deploy_fixture(app: &axum::Router) -> (i64, i64) {
+    deploy_typed_fixture(app, "os", "os").await
+}
+
+/// [`deploy_fixture`] with the module and distribution-set type keys chosen.
+async fn deploy_typed_fixture(app: &axum::Router, sm_type: &str, ds_type: &str) -> (i64, i64) {
     let sm = common::body_json(
         app.clone()
             .oneshot(common::req(
                 "POST",
                 "/rest/v1/softwaremodules",
-                Some(json!([{"name": "fw", "version": "1.0", "type": "os"}])),
+                Some(json!([{"name": "fw", "version": "1.0", "type": sm_type}])),
             ))
             .await
             .unwrap(),
@@ -49,7 +54,7 @@ async fn deploy_fixture(app: &axum::Router) -> (i64, i64) {
         .await
         .unwrap();
     let ds = common::body_json(app.clone().oneshot(common::req("POST", "/rest/v1/distributionsets",
-        Some(json!([{"name": "stable", "version": "1.0", "type": "os", "modules": [{"id": sm}]}])))).await.unwrap()).await[0]["id"].as_i64().unwrap();
+        Some(json!([{"name": "stable", "version": "1.0", "type": ds_type, "modules": [{"id": sm}]}])))).await.unwrap()).await[0]["id"].as_i64().unwrap();
     app.clone()
         .oneshot(common::req(
             "POST",
@@ -79,7 +84,8 @@ async fn deploy_fixture(app: &axum::Router) -> (i64, i64) {
 #[tokio::test]
 async fn zephyr_client_json_contract() {
     let (app, _) = common::setup().await;
-    let (sm, action_id) = deploy_fixture(&app).await;
+    // the set the Zephyr guide publishes: one application module in an app set
+    let (sm, action_id) = deploy_typed_fixture(&app, "application", "app").await;
 
     // --- base poll: sleep must parse as HH:MM:SS, deploymentBase absolute
     let poll = common::body_json(
@@ -129,7 +135,12 @@ async fn zephyr_client_json_contract() {
             "unexpected {mode} mode {v}"
         );
     }
-    let art = &dep["deployment"]["chunks"][0]["artifacts"][0];
+    // the client refuses anything but exactly one chunk, of part "bApp"
+    let chunks = dep["deployment"]["chunks"].as_array().unwrap();
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0]["part"], "bApp");
+    assert_eq!(chunks[0]["artifacts"].as_array().unwrap().len(), 1);
+    let art = &chunks[0]["artifacts"][0];
     assert_eq!(art["filename"], json!("fw.bin"));
     assert!(art["size"].is_i64());
     // sha256 is checked against the flashed image, so it must be hex-64

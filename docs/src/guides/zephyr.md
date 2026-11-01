@@ -135,15 +135,18 @@ downloads anything.
 raptor needs no special handling for this. Target types already keep the two
 apart: a typed target accepts only distribution sets of a compatible type, and
 direct assignment, auto-assigning target filters and rollouts all enforce that.
-Give MCU sets their own type built on the seeded `firmware` module type, and
-type every device:
+Give MCU sets their own type built on the seeded `application` module type, and
+type every device. It must be `application`: raptor serves that module type as
+DDI chunk part `bApp`, the only part Zephyr's client accepts ("Only part 'bApp'
+is supported"). The `os` and `firmware` module types are served as part `os`
+and refused.
 
 ```bash
-# A distribution-set type that needs one firmware module (look up its id first)
+# A distribution-set type that needs one application module (look up its id first)
 curl -u admin:pw localhost:8088/rest/v1/softwaremoduletypes
 curl -u admin:pw -H 'Content-Type: application/json' -X POST \
   localhost:8088/rest/v1/distributionsettypes \
-  -d '[{"key":"mcu","name":"MCU firmware","mandatorymodules":[{"id":<firmware-id>}]}]'
+  -d '[{"key":"mcu","name":"MCU firmware","mandatorymodules":[{"id":<application-id>}]}]'
 
 # Target types: Zephyr devices take only mcu, Linux devices only os/os_app
 curl -u admin:pw -H 'Content-Type: application/json' -X POST \
@@ -152,7 +155,7 @@ curl -u admin:pw -H 'Content-Type: application/json' -X POST \
        {"name":"linux","compatibledistributionsettypes":[{"id":<os-id>},{"id":<os_app-id>}]}]'
 
 raptorctl target type set dev-042 zephyr
-raptorctl publish zephyr.signed.bin --version 1.4.1 --module-type firmware --ds-type mcu
+raptorctl publish zephyr.signed.bin --version 1.4.1 --module-type application --ds-type mcu
 ```
 
 An **untyped** target accepts any set, so leaving a device untyped removes
