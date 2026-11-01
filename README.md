@@ -66,6 +66,7 @@ Prebuilt `.deb` packages are attached to each [GitHub Release](https://github.co
 The package installs:
 
 - `/usr/bin/raptor` — the server (with the web console embedded)
+- `/usr/bin/raptorctl` — the CLI & TUI client
 - `/etc/raptor/config.toml` — default config (a dpkg conffile; your edits
   survive upgrades)
 - a `raptor.service` systemd unit running as a locked-down `DynamicUser`, with
@@ -138,7 +139,7 @@ the dashboard → cancel or complete → logout.
 for the Management API — build/upload artifacts, manage targets, and watch
 deployments from a terminal or CI job, no browser required:
 
-    cargo build --release -p raptor-cli
+    cargo build --release -p raptor-cli   # or a prebuilt release archive / the .deb
     raptorctl login --url http://localhost:8088 --user admin
     raptorctl target list
     raptorctl tui

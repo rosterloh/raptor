@@ -48,7 +48,11 @@ run = ["rm -rf target/dx/raptor-ui/release", "dx build --release --package rapto
 description = "Debian package (console bundle built first)"
 depends = ["ui"]
 # Keep build-host paths (~/.cargo/registry/...) out of shipped panic messages.
-run = 'RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo deb -p raptor'
+# cargo-deb builds only raptor's own bins; raptorctl is a deb asset, so build it first.
+run = [
+  'RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release -p raptor-cli --bin raptorctl',
+  'RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo deb -p raptor',
+]
 
 [tasks.docs]
 description = "Build the mdbook into docs/book"

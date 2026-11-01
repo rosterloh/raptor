@@ -21,6 +21,9 @@ decisions.
   `Range` requests, which SWUpdate's zchunk delta handler sends (#151)
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server
   still refuses one a distribution set references (#187)
+- Releases attach prebuilt `raptorctl` archives for macOS arm64 and Linux
+  x86_64/arm64 (installable with mise's `github:` backend), and the `.deb`
+  ships `/usr/bin/raptorctl` (#199)
 
 ### Changed
 

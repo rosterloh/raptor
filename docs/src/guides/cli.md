@@ -5,6 +5,21 @@ raptor server over the same Management API the web console uses. It is a pure
 HTTP client — install it anywhere that can reach `raptor serve`, no server-side
 changes required.
 
+## Install
+
+Each [GitHub Release](https://github.com/rosterloh/raptor/releases) attaches
+`raptorctl-<tag>-<target>.tar.gz` (plus a `.sha256`) for `aarch64-apple-darwin`,
+`x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`. With
+[mise](https://mise.jdx.dev), pin it like any other tool:
+
+```toml
+[tools]
+"github:rosterloh/raptor" = { version = "1.3.2", bin = "raptorctl" }
+```
+
+The server's `.deb` also ships `/usr/bin/raptorctl`. Elsewhere, build it from
+source with `cargo build --release -p raptor-cli`.
+
 ## Login
 
 ```console

@@ -15,6 +15,7 @@ $ sudo dpkg -i raptor_*.deb
 The package installs:
 
 - `/usr/bin/raptor` — the server, with the web console embedded
+- `/usr/bin/raptorctl` — the CLI & TUI client
 - `/etc/raptor/config.toml` — default config, registered as a dpkg *conffile*
   (your edits survive upgrades)
 - `/usr/lib/systemd/system/raptor.service` — a hardened systemd unit running as a
