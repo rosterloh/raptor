@@ -41,6 +41,7 @@ features = ["embed-ui", "otel"]
 default-features = false
 assets = [
     ["target/release/raptor", "usr/bin/", "755"],
+    ["target/release/raptorctl", "usr/bin/", "755"],
     # 0644: readable by the service's DynamicUser. Plaintext secrets belong in
     # the root-only /etc/raptor/raptor.env (see the unit's EnvironmentFile).
     ["../packaging/config.toml", "etc/raptor/config.toml", "644"],

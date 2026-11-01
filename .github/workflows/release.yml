@@ -29,3 +29,30 @@ jobs:
         with:
           files: target/debian/*.deb
           fail_on_unmatched_files: true
+
+  # Standalone raptorctl archives, named so mise's `github:` backend picks the
+  # right one per platform. Runs after `deb` so the release already exists.
+  raptorctl:
+    needs: deb
+    strategy:
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, runner: macos-latest }
+          - { target: x86_64-unknown-linux-gnu, runner: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # Each runner builds its own host target, so target/release is the output.
+      - run: RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release -p raptor-cli --bin raptorctl
+      - name: Package
+        run: |
+          name="raptorctl-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz"
+          tar -czf "$name" -C target/release raptorctl
+          shasum -a 256 "$name" > "$name.sha256"
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: raptorctl-*.tar.gz*
+          fail_on_unmatched_files: true
