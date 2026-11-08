@@ -153,6 +153,17 @@ pub enum Tone {
     Neutral,
 }
 
+/// The glyph raptorctl draws for a tone, so text-only output (tooltips, copied
+/// summaries) reads the same in the console and the terminal.
+pub fn tone_glyph(tone: Tone) -> &'static str {
+    match tone {
+        Tone::Ok => "●",
+        Tone::Pending => "◐",
+        Tone::Error => "✕",
+        Tone::Info | Tone::Neutral => "○",
+    }
+}
+
 /// Segments of a rollout progress bar, most-advanced first: (label, tone,
 /// count). Empty buckets are dropped so the bar has no zero-width slivers and
 /// the legend only names states that actually occurred.

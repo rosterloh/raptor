@@ -54,8 +54,8 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
         document::Title { "Actions — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
-                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Actions" }
-                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                h1 { class: PAGE_TITLE, "Actions" }
+                p { class: PAGE_CAPTION,
                     match &*actions.read_unchecked() {
                         Some(Ok(page)) => rsx! { "{page.total} actions" },
                         _ => rsx! { "…" },
@@ -75,7 +75,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
         }
         match &*actions.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                div { class: "border border-border-soft bg-card p-8 text-center",
+                div { class: "{PANEL} p-8 text-center",
                     p { class: "text-sm text-muted-foreground", "No actions match this status." }
                 }
             },
@@ -85,7 +85,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                 let updated_mark = logic::sort_mark(&sort, "updated");
                 let (pager_filter, pager_sort) = (filter.clone(), sort.clone());
                 rsx! {
-                div { class: "overflow-x-auto border border-border-soft bg-card",
+                div { class: "{PANEL} overflow-x-auto",
                 table { class: TABLE,
                     thead {
                         tr {

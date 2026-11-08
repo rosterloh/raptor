@@ -100,7 +100,7 @@ pub fn Tags(kind: String, query: String, offset: u64) -> Element {
     rsx! {
         document::Title { "Tags — raptor" }
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Tags" }
+            h1 { class: PAGE_TITLE, "Tags" }
             Button {
                 onclick: move |_| {
                     form_for.set(None);
@@ -402,7 +402,7 @@ pub fn TagFilter(kind: TagKind, selected: Signal<String>, on_change: EventHandle
             Some(Ok(page)) if page.content.is_empty() => rsx! {},
             Some(Ok(page)) => rsx! {
                 select {
-                    class: "rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none",
+                    class: "rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     value: "{selected}",
                     onchange: move |e| {
                         selected.set(e.value());

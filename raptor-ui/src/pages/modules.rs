@@ -30,8 +30,8 @@ pub fn Modules(query: String, offset: u64) -> Element {
         document::Title { "Modules — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
-                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Modules" }
-                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                h1 { class: PAGE_TITLE, "Modules" }
+                p { class: PAGE_CAPTION,
                     match &*modules.read_unchecked() {
                         Some(Ok(page)) => rsx! { "{page.total} software modules" },
                         _ => rsx! { "…" },
@@ -51,12 +51,12 @@ pub fn Modules(query: String, offset: u64) -> Element {
         }
         match &*modules.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                div { class: "mt-4 border border-border-soft bg-card p-8 text-center",
+                div { class: "{PANEL} mt-4 p-8 text-center",
                     p { class: "text-sm text-muted-foreground", "No software modules match this search." }
                 }
             },
             Some(Ok(page)) => rsx! {
-                div { class: "mt-4 overflow-x-auto border border-border-soft bg-card",
+                div { class: "{PANEL} mt-4 overflow-x-auto",
                 table { class: TABLE,
                     thead {
                         tr {

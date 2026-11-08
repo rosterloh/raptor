@@ -96,10 +96,10 @@ pub fn Dashboard() -> Element {
                 rsx! {
                     div { class: "mb-5 flex items-end justify-between gap-4",
                         div {
-                            h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                            h1 { class: PAGE_TITLE,
                                 "Fleet overview"
                             }
-                            p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                            p { class: PAGE_CAPTION,
                                 "{stats.total_targets} registered targets · {stats.active_actions} actions in flight"
                             }
                         }
@@ -122,7 +122,7 @@ pub fn Dashboard() -> Element {
                         div {
                             if !active_rollouts.is_empty() {
                                 SectionRule { label: "Active rollouts" }
-                                div { class: "border border-border-soft bg-card",
+                                div { class: PANEL,
                                     for r in active_rollouts {
                                         div { key: "{r.id}", class: "border-b border-border-subtle p-4 last:border-b-0",
                                             div { class: "mb-2 flex flex-wrap items-baseline justify-between gap-2",
@@ -149,7 +149,7 @@ pub fn Dashboard() -> Element {
                             // listed recent *actions*, so a device stuck for an
                             // hour never appeared anywhere.
                             SectionRule { label: "Needs attention" }
-                            div { class: "border border-border-soft bg-card",
+                            div { class: PANEL,
                                 if worst.is_empty() {
                                     p { class: "p-6 text-center text-sm text-muted-foreground",
                                         "Nothing failing. Every target is in sync or working through an assignment."
@@ -193,7 +193,7 @@ pub fn Dashboard() -> Element {
                             SegmentPanel { segments }
 
                             SectionRule { label: "Recent actions" }
-                            div { class: "border border-border-soft bg-card",
+                            div { class: PANEL,
                                 if recent.content.is_empty() {
                                     p { class: "p-6 text-center text-sm text-muted-foreground", "No actions yet." }
                                 } else {
@@ -249,7 +249,7 @@ pub fn Dashboard() -> Element {
 fn SegmentPanel(segments: Resource<api::ApiResult<Segments>>) -> Element {
     rsx! {
         SectionRule { label: "Fleet segments" }
-        div { class: "border border-border-soft bg-card",
+        div { class: PANEL,
             match &*segments.read_unchecked() {
                 Some(Ok(s)) if s.rows.is_empty() => rsx! {
                     p { class: "p-6 text-center text-sm text-muted-foreground",
@@ -406,7 +406,7 @@ fn Tile(
         Link {
             to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), group: String::new(), sort: String::new(), offset: 0 },
             class: "tick-scale relative block bg-card p-4 hover:bg-accent",
-            p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+            p { class: "mono-label text-muted-foreground",
                 "{label}"
             }
             p {

@@ -35,7 +35,9 @@
  * keep working and this commit stays a re-pointing rather than a rewrite. The
  * three border weights keep their old ordering: `border` strongest (control
  * edges), `border-soft` (container edges, table header rules), `border-subtle`
- * (row separators inside a table).
+ * (row separators inside a table). `input` is its own, brighter value: it is
+ * the edge that identifies a control (inputs, selects, outline buttons), so it
+ * must clear WCAG 1.4.11's 3:1 on `card` and `background` in both themes.
  * ─────────────────────────────────────────────────────────────────────── */
 @theme {
   /* Canvas and surfaces, darkest first */
@@ -55,7 +57,7 @@
   --color-border: #263544;
   --color-border-soft: #1a2430;
   --color-border-subtle: #131b26;
-  --color-input: #263544;
+  --color-input: #5a6d82;
 
   /* Primary action */
   --color-primary: #3ddbd9;
@@ -63,6 +65,7 @@
   --color-primary-hover: #5fe5e3;
   --color-ring: #3ddbd9;
   --color-destructive: #ef5350;
+  --color-destructive-foreground: #1a0404;
 
   /* Status. Never used for chrome, never used for actions. */
   --color-ok: #21c08b;
@@ -144,6 +147,7 @@
     --color-primary-hover: #0c5f58;
     --color-ring: #0f766e;
     --color-destructive: #c81e1e;
+    --color-destructive-foreground: #ffffff;
 
     --color-ok: #0f6b40;
     --color-pend: #92620a;
@@ -191,6 +195,7 @@
   --color-primary-hover: #0c5f58;
   --color-ring: #0f766e;
   --color-destructive: #c81e1e;
+  --color-destructive-foreground: #ffffff;
 
   --color-ok: #0f6b40;
   --color-pend: #92620a;
@@ -230,13 +235,14 @@
   --color-border: #263544;
   --color-border-soft: #1a2430;
   --color-border-subtle: #131b26;
-  --color-input: #263544;
+  --color-input: #5a6d82;
 
   --color-primary: #3ddbd9;
   --color-primary-foreground: #04231f;
   --color-primary-hover: #5fe5e3;
   --color-ring: #3ddbd9;
   --color-destructive: #ef5350;
+  --color-destructive-foreground: #1a0404;
 
   --color-ok: #21c08b;
   --color-pend: #f0b429;
@@ -265,6 +271,15 @@
    instrumentation rather than as a generic card — the detail carried over from
    the "Instrument" direction that lost the overall pick. Needs `relative` on the
    element it is applied to. */
+/* The one mono label: section rules, tile labels, filter chips, nav groups. */
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 @utility tick-scale {
   &::after {
     content: "";

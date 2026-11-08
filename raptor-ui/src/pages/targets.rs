@@ -122,10 +122,10 @@ pub fn Targets(
         document::Title { "Targets — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
-                h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                h1 { class: PAGE_TITLE,
                     "Targets"
                 }
-                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                p { class: PAGE_CAPTION,
                     match &*targets.read_unchecked() {
                         Some(Ok(page)) => rsx! { "{page.total} matching · {LIMIT} per page" },
                         _ => rsx! { "…" },
@@ -226,11 +226,11 @@ pub fn Targets(
             }
         }
 
-        div { class: "mt-4 border border-border-soft bg-card",
+        div { class: "{PANEL} mt-4",
             match &*targets.read_unchecked() {
                 Some(Ok(page)) if page.content.is_empty() => rsx! {
                     div { class: "p-8 text-center",
-                        p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                        p { class: "mono-label text-muted-foreground",
                             "No matches"
                         }
                         p { class: "mt-2 text-sm text-muted-foreground",

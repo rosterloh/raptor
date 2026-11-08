@@ -49,6 +49,10 @@ loop and fall back to a full `dx build` for a release check. If `dx serve`
 itself gets confused (stale rebuild, weird state), press `r` in its terminal
 UI to force a full rebuild.
 
+Colours, type, components and copy rules for the console (and `raptorctl tui`)
+are in [`DESIGN.md`](https://github.com/rosterloh/raptor/blob/main/DESIGN.md)
+at the repository root; read it before adding a page or a component.
+
 ## Accessing it
 
 Browse to `/ui`:
