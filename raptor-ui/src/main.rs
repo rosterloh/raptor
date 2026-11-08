@@ -8,6 +8,8 @@ mod api;
 mod components;
 mod logic;
 mod pages;
+#[cfg(test)]
+mod theme_tests;
 
 use pages::{
     Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, NotFound,

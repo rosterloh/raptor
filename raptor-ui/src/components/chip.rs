@@ -30,7 +30,7 @@ pub fn Chip(
         button {
             r#type: "button",
             aria_pressed: pressed,
-            class: "inline-flex items-center gap-1.5 rounded border px-3 py-1 font-mono text-[11px] tracking-[0.07em] uppercase transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none {state}",
+            class: "inline-flex items-center gap-1.5 rounded border px-3 py-1 mono-label transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none {state}",
             onclick: move |e| onclick.call(e),
             if let Some(t) = tone {
                 span { class: "size-[7px] shrink-0 rounded-full {crate::components::tone_fill(t)}" }

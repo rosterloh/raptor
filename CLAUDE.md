@@ -25,6 +25,8 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
   Must stay wasm32-compatible: serde/serde_json only, no new dependencies.
 - `raptor-ui/` — Dioxus/WASM web console; HTTP client in `src/api/` (one
   module per resource), pages in `src/pages/`
+- `DESIGN.md` — colour, type, component and copy rules for the console and
+  `raptorctl tui`; follow it for any UI change
 - `migration/` — sea-orm-migration crate; files named `mYYYYMMDD_NNNNNN_slug`
 - `docs/` — mdbook (`mdbook build docs`). NOTE: `docs/superpowers/` holds
   *historical* design docs and plans — the code is the source of truth.

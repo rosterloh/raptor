@@ -54,7 +54,7 @@ pub fn TargetFilters(query: String, offset: u64) -> Element {
     rsx! {
         document::Title { "Target filters — raptor" }
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Target filters" }
+            h1 { class: PAGE_TITLE, "Target filters" }
             Button {
                 onclick: move |_| {
                     form_for.set(None);
@@ -427,7 +427,7 @@ fn AutoAssignDialog(
             label { class: "mb-3 flex items-center gap-2 text-sm text-fg-dim",
                 "Action type"
                 select {
-                    class: "rounded border border-border bg-background px-3 py-1 text-sm text-foreground focus:border-ring focus:outline-none",
+                    class: "rounded border border-input bg-background px-3 py-1 text-sm text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     value: "{action_type}",
                     onchange: move |e| action_type.set(e.value()),
                     option { value: "forced", "forced" }

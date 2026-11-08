@@ -54,8 +54,8 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
         document::Title { "Actions — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
-                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Actions" }
-                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                h1 { class: PAGE_TITLE, "Actions" }
+                p { class: PAGE_CAPTION,
                     match &*actions.read_unchecked() {
                         Some(Ok(page)) => rsx! { "{page.total} actions" },
                         _ => rsx! { "…" },

@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 pub fn SectionRule(label: String) -> Element {
     rsx! {
         div { class: "mt-6 mb-3 flex items-center gap-3",
-            span { class: "font-mono text-[11px] font-medium tracking-[0.1em] text-muted-foreground uppercase",
+            span { class: "mono-label font-medium text-muted-foreground",
                 "{label}"
             }
             span { class: "h-px flex-1 bg-border-soft" }

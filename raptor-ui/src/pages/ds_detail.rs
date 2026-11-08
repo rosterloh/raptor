@@ -28,7 +28,7 @@ pub fn DsDetail(id: i64) -> Element {
         match &*ds.read_unchecked() {
             Some(Ok(d)) => rsx! {
                 div { class: "mb-4 flex items-center gap-2",
-                    h1 { class: "text-xl font-bold text-foreground", "{d.name} {d.version}" }
+                    h1 { class: PAGE_TITLE, "{d.name} {d.version}" }
                     if !d.valid {
                         span { class: "inline-block rounded border px-2 py-0.5 text-xs bg-err-bg text-err-fg border-err-border",
                             "invalid"

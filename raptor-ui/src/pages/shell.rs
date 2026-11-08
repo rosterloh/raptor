@@ -1,5 +1,5 @@
 use crate::Route;
-use crate::components::ui::Dialog;
+use crate::components::ui::{Button, ButtonSize, ButtonVariant, Dialog};
 use crate::components::{CommandPalette, FilterClear, LiveContext, ToastStack, use_theme};
 use dioxus::prelude::*;
 
@@ -42,8 +42,9 @@ pub fn Shell() -> Element {
                     img { src: LOGO, class: "h-8 w-8", alt: "" }
                     span { class: "font-display text-lg font-bold tracking-wide text-primary", "raptor" }
                 }
-                button {
-                    class: "min-h-11 rounded border border-border px-4 text-sm text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                Button {
+                    variant: ButtonVariant::Outline,
+                    size: ButtonSize::Touch,
                     aria_label: "Open navigation",
                     onclick: move |_| drawer_open.set(true),
                     "Menu"
@@ -89,8 +90,10 @@ fn Sidebar(
                     span { class: "font-display text-lg font-bold tracking-wide text-primary", "raptor" }
                 }
                 if drawer_open.is_some() {
-                    button {
-                        class: "min-h-11 rounded px-3 text-sm text-fg-dim hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Touch,
+                        class: "text-fg-dim",
                         aria_label: "Close navigation",
                         onclick: move |_| close(()),
                         "Close"
@@ -100,7 +103,7 @@ fn Sidebar(
             nav { class: "flex flex-1 flex-col gap-4 overflow-y-auto px-2 pb-4",
                 for (group , links) in nav_groups() {
                     div { key: "{group}",
-                        p { class: "px-3 pb-1 font-mono text-[10px] tracking-[0.09em] text-muted-foreground uppercase", "{group}" }
+                        p { class: "px-3 pb-1 mono-label text-muted-foreground", "{group}" }
                         div { class: "flex flex-col gap-1",
                             for (label , route) in links {
                                 NavLink { key: "{label}", to: route, label, on_navigate: move |_| close(()) }

@@ -83,8 +83,12 @@ pub fn tone_text(tone: Tone) -> &'static str {
 /// A `<select>` matching [`ui::Input`]'s border, height and focus ring — the two
 /// sit side by side in the create dialogs. Selects can't reuse the `Input`
 /// component itself (that renders an `<input>`), so the class list lives here.
-pub const SELECT: &str = "mb-3 flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-2";
-pub const HEADING: &str = "mb-4 text-xl font-bold text-foreground";
+pub const SELECT: &str = "mb-3 flex h-9 w-full min-w-0 rounded border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring";
+/// Every page's h1: condensed, uppercase, one per page.
+pub const PAGE_TITLE: &str =
+    "font-display text-3xl font-bold tracking-wider text-foreground uppercase";
+/// The mono line of live counts under a [`PAGE_TITLE`].
+pub const PAGE_CAPTION: &str = "mt-0.5 font-mono text-xs text-muted-foreground";
 pub const TABLE: &str = "w-full border-collapse text-sm";
 pub const TH: &str =
     "border-b border-border-soft px-3 py-2 text-left font-medium text-muted-foreground";

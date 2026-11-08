@@ -168,7 +168,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                     }
                 },
                 div {
-                    class: "w-full max-w-lg rounded-lg border border-border-soft bg-card shadow-lg",
+                    class: "w-full max-w-lg rounded border border-border-soft bg-card shadow-lg",
                     role: "dialog",
                     aria_modal: "true",
                     aria_label: "Command palette",

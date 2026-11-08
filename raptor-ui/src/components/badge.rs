@@ -8,6 +8,12 @@ pub fn StatusBadge(status: String) -> Element {
     let (label, tone) = crate::logic::status_style(&status);
     let tint = crate::components::tone_badge(tone);
     rsx! {
-        span { class: "inline-block rounded border px-2 py-0.5 text-xs {tint}", "{label}" }
+        span { class: "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs {tint}",
+            span {
+                class: "size-[7px] shrink-0 rounded-full {crate::components::tone_fill(tone)}",
+                aria_hidden: "true",
+            }
+            "{label}"
+        }
     }
 }

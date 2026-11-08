@@ -96,10 +96,10 @@ pub fn Dashboard() -> Element {
                 rsx! {
                     div { class: "mb-5 flex items-end justify-between gap-4",
                         div {
-                            h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                            h1 { class: PAGE_TITLE,
                                 "Fleet overview"
                             }
-                            p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                            p { class: PAGE_CAPTION,
                                 "{stats.total_targets} registered targets · {stats.active_actions} actions in flight"
                             }
                         }
@@ -406,7 +406,7 @@ fn Tile(
         Link {
             to: Route::Targets { query: String::new(), state: state.to_string(), tag: String::new(), group: String::new(), sort: String::new(), offset: 0 },
             class: "tick-scale relative block bg-card p-4 hover:bg-accent",
-            p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+            p { class: "mono-label text-muted-foreground",
                 "{label}"
             }
             p {

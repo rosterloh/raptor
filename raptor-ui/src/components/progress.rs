@@ -21,7 +21,7 @@ pub fn ProgressBar(counts: RolloutTargetsPerStatus, total: i64) -> Element {
                     key: "{label}",
                     class: "h-full {crate::components::tone_fill(tone)}",
                     style: "width: {logic::percent(n, total)}%",
-                    title: "{n} {label}",
+                    title: "{logic::tone_glyph(tone)} {n} {label}",
                 }
             }
         }

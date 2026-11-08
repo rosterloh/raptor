@@ -72,7 +72,7 @@ pub fn ModuleDetail(id: i64) -> Element {
         document::Title { "{title}" }
         match &*module.read_unchecked() {
             Some(Ok(m)) => rsx! {
-                h1 { class: HEADING, "{m.name} {m.version}" }
+                h1 { class: PAGE_TITLE, "{m.name} {m.version}" }
                 p { class: "mb-4 text-sm text-fg-dim", "type {m.module_type}" }
             },
             Some(Err(e)) => rsx! { p { class: "text-err", "{e}" } },

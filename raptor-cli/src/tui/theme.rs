@@ -7,9 +7,9 @@ pub struct Theme {
     pub fg: Color,
     pub fg_muted: Color,
     pub fg_emphasis: Color,
-    /// The whole selection style, not just a colour: under `NO_COLOR` a
-    /// background colour is invisible, so selection falls back to reverse
-    /// video instead of silently disappearing.
+    /// The whole selection style, not just a colour. Reverse video in every
+    /// mode: a background colour would collide with a status colour (Blue is
+    /// `info`) and is invisible under `NO_COLOR`.
     pub selection: Style,
     pub accent: Color,
     pub success: Color,
@@ -42,12 +42,14 @@ impl Theme {
             fg_muted: Color::DarkGray,
             // Emphasis comes from BOLD at the call site; White vanishes on light themes.
             fg_emphasis: Color::Reset,
-            selection: Style::new().bg(Color::Blue),
+            selection: Style::new().add_modifier(Modifier::REVERSED),
             accent: Color::Cyan,
             success: Color::Green,
             warning: Color::Yellow,
             error: Color::Red,
-            info: Color::Cyan,
+            // Not Cyan: that is `accent`, and an accent that also means a status
+            // stops meaning either. Matches the console's blue `info` tone.
+            info: Color::Blue,
         }
     }
 }
@@ -59,7 +61,7 @@ pub fn status_glyph(status: &str) -> &'static str {
         "in_sync" => "●",
         "pending" => "◐",
         "error" => "✕",
-        _ => "○", // registered / unknown
+        _ => "○", // registered (info colour) / unknown (muted)
     }
 }
 
@@ -68,6 +70,8 @@ pub fn status_color(theme: &Theme, status: &str) -> Color {
         "in_sync" => theme.success,
         "pending" => theme.warning,
         "error" => theme.error,
+        // Known but not yet acted on: the console's `info` tone.
+        "registered" => theme.info,
         _ => theme.fg_muted,
     }
 }

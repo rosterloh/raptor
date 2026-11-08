@@ -30,8 +30,8 @@ pub fn Modules(query: String, offset: u64) -> Element {
         document::Title { "Modules — raptor" }
         div { class: "mb-5 flex items-end justify-between gap-4",
             div {
-                h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Modules" }
-                p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+                h1 { class: PAGE_TITLE, "Modules" }
+                p { class: PAGE_CAPTION,
                     match &*modules.read_unchecked() {
                         Some(Ok(page)) => rsx! { "{page.total} software modules" },
                         _ => rsx! { "…" },

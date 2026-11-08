@@ -27,7 +27,7 @@ pub fn Types() -> Element {
     rsx! {
         document::Title { "Types — raptor" }
         div { class: "mb-4 flex items-center justify-between",
-            h1 { class: "text-xl font-bold text-foreground", "Types" }
+            h1 { class: PAGE_TITLE, "Types" }
         }
         div { class: "mb-4 flex gap-2",
             for (t , label) in [

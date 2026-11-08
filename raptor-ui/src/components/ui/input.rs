@@ -23,8 +23,8 @@ pub fn Input(
     #[props(optional)] invalid: bool,
 ) -> Element {
     let merged_class = tw_merge!(
-        "placeholder:text-muted-foreground border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow]",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-2",
+        "placeholder:text-muted-foreground border-input flex h-9 w-full min-w-0 rounded border bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow]",
+        "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         class.as_deref().unwrap_or("")
     );

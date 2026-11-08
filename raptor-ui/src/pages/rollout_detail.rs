@@ -91,7 +91,7 @@ pub fn RolloutDetail(id: i64) -> Element {
         document::Title { "{title}" }
         match &*rollout.read_unchecked() {
             Some(Ok(r)) => rsx! {
-                h1 { class: HEADING, "{r.name}" }
+                h1 { class: PAGE_TITLE, "{r.name}" }
                 div { class: "mb-4 flex items-center gap-2",
                     if r.status == "waiting_for_approval" {
                         Button {

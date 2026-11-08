@@ -108,7 +108,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
             div {
                 match &*target.read_unchecked() {
                     Some(Ok(t)) => rsx! {
-                        h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                        h1 { class: PAGE_TITLE,
                             "{t.name}"
                         }
                         p { class: "mt-0.5 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground",
@@ -120,7 +120,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
                         }
                     },
                     _ => rsx! {
-                        h1 { class: "font-display text-3xl font-bold tracking-wider uppercase text-foreground",
+                        h1 { class: PAGE_TITLE,
                             "{cid()}"
                         }
                     },
@@ -172,7 +172,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
             DsTile { label: "Installed", res: installed }
             DsTile { label: "Assigned", res: assigned }
             div { class: "tick-scale relative bg-card p-4",
-                p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                p { class: "mono-label text-muted-foreground",
                     "Last poll"
                 }
                 match &*target.read_unchecked() {
@@ -255,7 +255,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
                         // an application, a sensor carries one image — which is
                         // why the set's version alone is not the answer.
                         div {
-                            p { class: "mb-2 font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                            p { class: "mb-2 mono-label text-muted-foreground",
                                 "Installed modules"
                             }
                             match &*installed.read_unchecked() {
@@ -623,7 +623,7 @@ fn Row(k: String, v: String, #[props(default = false)] mono: bool) -> Element {
 fn DsTile(label: String, res: Resource<api::ApiResult<Option<DsRest>>>) -> Element {
     rsx! {
         div { class: "tick-scale relative bg-card p-4",
-            p { class: "font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+            p { class: "mono-label text-muted-foreground",
                 "{label}"
             }
             match &*res.read_unchecked() {

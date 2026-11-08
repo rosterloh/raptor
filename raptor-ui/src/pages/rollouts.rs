@@ -42,8 +42,8 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
     rsx! {
         document::Title { "Rollouts — raptor" }
         div { class: "mb-5",
-            h1 { class: "font-display text-3xl font-bold tracking-wider text-foreground uppercase", "Rollouts" }
-            p { class: "mt-0.5 font-mono text-xs text-muted-foreground",
+            h1 { class: PAGE_TITLE, "Rollouts" }
+            p { class: PAGE_CAPTION,
                 match &*rollouts.read_unchecked() {
                     Some(Ok(page)) => rsx! { "{page.total} rollouts" },
                     _ => rsx! { "…" },

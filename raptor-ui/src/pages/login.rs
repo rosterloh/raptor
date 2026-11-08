@@ -100,7 +100,7 @@ pub fn Login() -> Element {
                     // needing an id, and a placeholder is not a label — a screen
                     // reader gets nothing from a placeholder-only field.
                     label { class: "mb-4 block",
-                        span { class: "mb-2 block font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                        span { class: "mb-2 block mono-label text-muted-foreground",
                             "Username"
                         }
                         Input {
@@ -122,7 +122,7 @@ pub fn Login() -> Element {
                     }
 
                     label { class: "mb-5 block",
-                        span { class: "mb-2 block font-mono text-[11px] tracking-[0.09em] text-muted-foreground uppercase",
+                        span { class: "mb-2 block mono-label text-muted-foreground",
                             "Password"
                         }
                         Input {
