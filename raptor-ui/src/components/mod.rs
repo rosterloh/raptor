@@ -89,6 +89,8 @@ pub const PAGE_TITLE: &str =
     "font-display text-3xl font-bold tracking-wider text-foreground uppercase";
 /// The mono line of live counts under a [`PAGE_TITLE`].
 pub const PAGE_CAPTION: &str = "mt-0.5 font-mono text-xs text-muted-foreground";
+/// The square surface around tables and lists. [`ui::Card`] adds padding to it.
+pub const PANEL: &str = "border border-border-soft bg-card";
 pub const TABLE: &str = "w-full border-collapse text-sm";
 pub const TH: &str =
     "border-b border-border-soft px-3 py-2 text-left font-medium text-muted-foreground";

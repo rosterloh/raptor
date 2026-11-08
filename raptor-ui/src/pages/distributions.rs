@@ -74,12 +74,12 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
         }
         match &*sets.read_unchecked() {
             Some(Ok(page)) if page.content.is_empty() => rsx! {
-                div { class: "mt-4 border border-border-soft bg-card p-8 text-center",
+                div { class: "{PANEL} mt-4 p-8 text-center",
                     p { class: "text-sm text-muted-foreground", "No distribution sets match these filters." }
                 }
             },
             Some(Ok(page)) => rsx! {
-                div { class: "mt-4 overflow-x-auto border border-border-soft bg-card",
+                div { class: "{PANEL} mt-4 overflow-x-auto",
                 table { class: TABLE,
                     thead {
                         tr {

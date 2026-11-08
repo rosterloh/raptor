@@ -7,7 +7,8 @@ use tw_merge::tw_merge;
 #[component]
 pub fn Card(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
     let merged_class = tw_merge!(
-        "border border-border-soft bg-card p-4",
+        crate::components::PANEL,
+        "p-4",
         class.as_deref().unwrap_or("")
     );
 

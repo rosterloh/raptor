@@ -226,7 +226,7 @@ pub fn Targets(
             }
         }
 
-        div { class: "mt-4 border border-border-soft bg-card",
+        div { class: "{PANEL} mt-4",
             match &*targets.read_unchecked() {
                 Some(Ok(page)) if page.content.is_empty() => rsx! {
                     div { class: "p-8 text-center",

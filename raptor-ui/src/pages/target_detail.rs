@@ -194,7 +194,7 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
         }
 
         SectionRule { label: "Detail" }
-        div { class: "border border-border-soft bg-card px-4 pb-4",
+        div { class: "{PANEL} px-4 pb-4",
             Tabs {
                 labels: vec![
                     "Overview".to_string(),

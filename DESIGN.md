@@ -139,7 +139,8 @@ app-specific pieces.
 |---|---|
 | `ui::Button` | Every button. Variants: `Default` (one per view), `Outline`, `Secondary`, `Ghost`, `Link`, `Destructive`. Sizes: `Sm`, `Default`, `Lg`, `Icon`, `Touch`. |
 | `ui::Input`, `SELECT` | Text fields and selects: 36px, `input` edge |
-| `ui::Card` | A square `card` panel with padding |
+| `PANEL` | The square `card` surface around tables and lists; add padding or `overflow-x-auto` per use |
+| `ui::Card` | `PANEL` plus `p-4`, for padded content |
 | `ui::Dialog`, `ConfirmDialog` | Modals, which trap focus and close on Esc |
 | `StatusBadge` | A state as a dot plus a tinted word. Pass the raw API status. |
 | `Chip` | A toggle filter, `aria-pressed`, with an optional tone or tag dot |
