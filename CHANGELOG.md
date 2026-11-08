@@ -28,12 +28,12 @@ decisions.
 ### Changed
 
 - Console meets WCAG AA in both themes: brighter dark-theme input edges, a dark
-  label on the destructive button, and a solid focus ring everywhere (#PR)
+  label on the destructive button, and a solid focus ring everywhere (#206)
 - Console styling unified: one page-title style, 4px corners throughout, one
   mono label style, and a status dot in every badge; `DESIGN.md` documents
-  the system (#PR)
+  the system (#206)
 - `raptorctl tui` shows `registered` targets in blue and selects rows with
-  reverse video, so no colour means both a status and the accent (#PR)
+  reverse video, so no colour means both a status and the accent (#206)
 - Minimum supported Rust version is now 1.98.1 (Yocto blacksail), declared
   as `rust-version` so older toolchains fail fast
 
