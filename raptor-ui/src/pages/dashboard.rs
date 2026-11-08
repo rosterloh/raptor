@@ -40,7 +40,7 @@ pub fn Dashboard() -> Element {
         Ok::<_, api::ApiError>((stats, recent, rollouts, failing))
     });
     use_polling(data);
-    let refetch = use_coalesced_refetch(move |()| data.restart());
+    let refetch = use_coalesced_refetch(move |()| restart_idle(&mut data));
     let on_event = use_callback(move |_| refetch.call(()));
     use_live_events(LiveFilter::default(), on_event);
 

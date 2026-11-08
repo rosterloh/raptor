@@ -22,7 +22,7 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
         api::list_rollouts(offset, LIMIT, q.as_deref(), api_sort.as_deref()).await
     }));
     use_polling(rollouts);
-    let refetch = use_coalesced_refetch(move |()| rollouts.restart());
+    let refetch = use_coalesced_refetch(move |()| restart_idle(&mut rollouts));
     let on_event = use_callback(move |e| {
         // Counters move with actions, not rollout state transitions.
         let counters = matches!(&e, LiveEvent::Action(a) if a.rollout_id.is_some());

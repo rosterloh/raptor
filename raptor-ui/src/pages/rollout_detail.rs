@@ -10,8 +10,12 @@ pub fn RolloutDetail(id: i64) -> Element {
     use_polling(rollout);
     use_polling(groups);
     let refetch = use_coalesced_refetch(move |()| {
-        rollout.restart();
-        groups.restart();
+        let idle = !rollout.pending() && !groups.pending();
+        if idle {
+            rollout.restart();
+            groups.restart();
+        }
+        idle
     });
     let on_event = use_callback(move |e| {
         if matches!(

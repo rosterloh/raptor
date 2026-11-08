@@ -43,6 +43,8 @@ decisions.
 - Zephyr guide publishes MCU sets on the `application` module type, served as
   part `bApp`; the `firmware` type it named is served as `os`, which Zephyr
   refuses (#200)
+- Console pages no longer freeze during busy rollouts: a live-event or polling
+  refetch waits for a slow fetch instead of cancelling it (#204)
 
 ## [1.3.1] - 2026-10-17
 

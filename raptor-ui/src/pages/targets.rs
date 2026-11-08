@@ -82,7 +82,7 @@ pub fn Targets(
     // advancing is worse than no age at all.
     // Full rate even when live: polls and new devices publish no events.
     use_polling_always(targets, 5_000);
-    let refetch = use_coalesced_refetch(move |()| targets.restart());
+    let refetch = use_coalesced_refetch(move |()| restart_idle(&mut targets));
     let on_event = use_callback(move |e| {
         if matches!(e, LiveEvent::Target(_) | LiveEvent::Resync) {
             refetch.call(());
