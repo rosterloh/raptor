@@ -138,6 +138,7 @@ pub fn use_polling_always<T: 'static>(res: Resource<T>, ms: u32) {
 fn poll<T: 'static>(mut res: Resource<T>, ms: u32, relax_when_live: bool) {
     let live = try_use_context::<LiveContext>().filter(|_| relax_when_live);
     use_future(move || async move {
+        let mut skipped = false;
         loop {
             // Live events carry the changes; polling is only a safety net then.
             let wait = if live.is_some_and(|l| *l.0.peek()) {
@@ -147,10 +148,23 @@ fn poll<T: 'static>(mut res: Resource<T>, ms: u32, relax_when_live: bool) {
             };
             gloo_timers::future::TimeoutFuture::new(wait).await;
             if !tab_hidden() {
-                res.restart();
+                // Spare a slow fetch for one beat only: this restart also rescues a hung one.
+                skipped = res.pending() && !skipped;
+                if !skipped {
+                    res.restart();
+                }
             }
         }
     });
+}
+
+/// Restarts `res` unless a fetch is running; for `use_coalesced_refetch`.
+pub fn restart_idle<T: 'static>(res: &mut Resource<T>) -> bool {
+    let idle = !res.pending();
+    if idle {
+        res.restart();
+    }
+    idle
 }
 
 /// Wall-clock milliseconds, for turning a stored timestamp into an age. Lives

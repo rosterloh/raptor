@@ -37,7 +37,7 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
         api::all_actions(offset, LIMIT, q, api_sort.as_deref()).await
     }));
     use_polling(actions);
-    let refetch = use_coalesced_refetch(move |()| actions.restart());
+    let refetch = use_coalesced_refetch(move |()| restart_idle(&mut actions));
     let on_event = use_callback(move |e| {
         if matches!(e, LiveEvent::Action(_) | LiveEvent::Resync) {
             refetch.call(());

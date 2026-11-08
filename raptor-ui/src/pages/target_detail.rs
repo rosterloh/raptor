@@ -38,13 +38,23 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
     let mut steps = use_signal(HashMap::<i64, ProgressEvent>::new);
     let refetch = use_coalesced_refetch(move |k| match k {
         TargetRes::Target => {
-            target.restart();
-            assigned.restart();
-            installed.restart();
-            auto_confirm.restart();
+            let idle = !target.pending()
+                && !assigned.pending()
+                && !installed.pending()
+                && !auto_confirm.pending();
+            if idle {
+                target.restart();
+                assigned.restart();
+                installed.restart();
+                auto_confirm.restart();
+            }
+            idle
         }
-        TargetRes::Actions => actions.restart(),
-        TargetRes::History(_) => history_tick += 1,
+        TargetRes::Actions => restart_idle(&mut actions),
+        TargetRes::History(_) => {
+            history_tick += 1;
+            true
+        }
     });
     let on_event = use_callback(move |e| match e {
         LiveEvent::Target(_) => refetch.call(TargetRes::Target),

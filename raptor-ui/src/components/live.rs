@@ -196,9 +196,13 @@ pub fn use_live_events(filter: LiveFilter, on_event: Callback<LiveEvent>) -> Sig
 
 /// Returns a callback that marks `K` as changed; `on_due` runs for each marked
 /// key at most once per second (checked on a 250 ms tick).
+/// `on_due` returns `false` if its fetch is still running, and the key is retried
+/// later: restarting would cancel it, so under steady events a fetch slower than
+/// the window would never land.
+/// shortcut: API requests have no timeout, so a hung fetch not rescued by polling blocks its key until the browser gives up; add a request timeout if that shows up.
 /// `on_due` is captured once at mount: capture only `Copy` handles (signals, resources), never plain values that change across renders.
 pub fn use_coalesced_refetch<K: Eq + Hash + Clone + 'static>(
-    on_due: impl FnMut(K) + 'static,
+    on_due: impl FnMut(K) -> bool + 'static,
 ) -> Callback<K> {
     let dirty = use_hook(|| Rc::new(RefCell::new(Dirty::<K>::default())));
     let on_due = use_hook(|| Rc::new(RefCell::new(on_due)));
@@ -208,10 +212,7 @@ pub fn use_coalesced_refetch<K: Eq + Hash + Clone + 'static>(
         async move {
             loop {
                 gloo_timers::future::TimeoutFuture::new(250).await;
-                let due = d.borrow_mut().take_due(super::now_ms());
-                for k in due {
-                    (on_due.borrow_mut())(k);
-                }
+                Dirty::run_due(&d, super::now_ms(), &mut *on_due.borrow_mut());
             }
         }
     });

@@ -396,6 +396,21 @@ impl<K: Eq + std::hash::Hash + Clone> Dirty<K> {
         }
         due
     }
+
+    /// Calls `on_due` for each due key; a key it reports as busy (`false`) stays
+    /// marked. The borrow is released first so `on_due` may mark keys itself.
+    pub fn run_due(
+        this: &std::cell::RefCell<Self>,
+        now_ms: i64,
+        mut on_due: impl FnMut(K) -> bool,
+    ) {
+        let due = this.borrow_mut().take_due(now_ms);
+        for k in due {
+            if !on_due(k.clone()) {
+                this.borrow_mut().mark(k);
+            }
+        }
+    }
 }
 
 /// "42% · 5.0 / 100.0 MiB"; an empty artifact reads as done.
@@ -426,6 +441,48 @@ mod tests {
         assert!(d.take_due(500).is_empty());
         assert_eq!(d.take_due(1000), vec!["A"]);
         assert!(d.take_due(2500).is_empty());
+    }
+
+    #[test]
+    fn run_due_retries_a_busy_key_until_it_starts() {
+        let d = std::cell::RefCell::new(Dirty::default());
+        d.borrow_mut().mark("A");
+        let mut calls = 0;
+        Dirty::run_due(&d, 0, |_| {
+            calls += 1;
+            false
+        });
+        Dirty::run_due(&d, 1000, |_| {
+            calls += 1;
+            true
+        });
+        Dirty::run_due(&d, 2000, |_| {
+            calls += 1;
+            true
+        });
+        assert_eq!(calls, 2);
+    }
+
+    #[test]
+    fn run_due_lets_a_slow_fetch_land_under_constant_events() {
+        let d = std::cell::RefCell::new(Dirty::default());
+        let mut finishes_at = None;
+        let mut landed = 0;
+        for now in (0..10_000).step_by(250) {
+            d.borrow_mut().mark("A");
+            if finishes_at.is_some_and(|t| now >= t) {
+                finishes_at = None;
+                landed += 1;
+            }
+            Dirty::run_due(&d, now, |_| {
+                let idle = finishes_at.is_none();
+                if idle {
+                    finishes_at = Some(now + 1500);
+                }
+                idle
+            });
+        }
+        assert!(landed >= 3, "only {landed} fetches landed");
     }
 
     #[test]
