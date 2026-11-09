@@ -352,6 +352,68 @@ async fn periodic_sweep_assigns_later_target() {
     assert_eq!(actions["total"], 1);
 }
 
+#[tokio::test]
+async fn sweep_does_not_reassign_cancelled_ds() {
+    let (app, st) = common::setup().await;
+    let ds = complete_ds(&app).await;
+    let f = create_filter(&app, "beta", "controllerId==dev-*").await;
+    let id = f["id"].as_i64().unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "dev-7"}])),
+        ))
+        .await
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/targetfilters/{id}/autoAssignDS"),
+            Some(json!({"id": ds})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(assigned_ds_id(&app, "dev-7").await, Some(ds));
+    let actions = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/dev-7/actions", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let aid = actions["content"][0]["id"].as_i64().unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "DELETE",
+            &format!("/rest/v1/targets/dev-7/actions/{aid}?force=true"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(assigned_ds_id(&app, "dev-7").await, None);
+
+    // Neither the sweep nor the device's own poll undoes the cancel.
+    auto_assign_all(&st).await.unwrap();
+    let t = raptor::api::mgmt::targets::find_by_cid(&st.db, "dev-7")
+        .await
+        .unwrap();
+    raptor::domain::target_filter::auto_assign_for_target(&st, &t)
+        .await
+        .unwrap();
+    assert_eq!(assigned_ds_id(&app, "dev-7").await, None);
+    let actions = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/dev-7/actions", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(actions["total"], 1);
+}
+
 /// A target type accepting no distribution-set type, so any assignment to a
 /// target carrying it fails. Returns its id.
 async fn incompatible_target_type(app: &axum::Router) -> i64 {

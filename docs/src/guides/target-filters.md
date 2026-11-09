@@ -73,9 +73,11 @@ A matching target receives the DS:
 ## Non-disruptive by design
 
 Auto-assignment never disturbs work in flight. A matching target is **skipped** if
-it already has that DS assigned, or if it has any active action. So a device
-mid-deployment is never clobbered by an auto-assign rule; it's picked up on a
-later sweep once it's idle.
+it already has that DS assigned, if it has any active action, or if it has ever
+had an action for that DS (as in hawkBit). So a device mid-deployment is never
+clobbered by an auto-assign rule; it's picked up on a later sweep once it's
+idle. And an auto-assignment an operator cancels stays cancelled: the next sweep
+does not hand the same DS back.
 
 A matching target that *cannot* take the DS — typically because its target type
 is not compatible with the set's type — is skipped with a warning in the server

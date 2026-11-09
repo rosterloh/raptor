@@ -54,6 +54,8 @@ decisions.
   refetch waits for a slow fetch instead of cancelling it (#204)
 - A device authenticated with its own `TargetToken` can list and download
   only artifacts of modules in sets it has an action for; others get `404` (#220)
+- Cancelling an auto-assigned action is no longer undone by the next
+  auto-assignment sweep: a target that ever had an action for the set is skipped (#221)
 
 ## [1.3.1] - 2026-10-17
 
