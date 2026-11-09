@@ -387,7 +387,7 @@ async fn tenant_config_reports_the_cleanup_keys() {
     );
     assert_eq!(
         get(app, "action.cleanup.auto.status").await,
-        "FINISHED,ERROR,CANCELED"
+        "FINISHED,DOWNLOADED,ERROR,CANCELED"
     );
 }
 

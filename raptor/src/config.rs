@@ -274,7 +274,12 @@ fn default_action_expiry_days() -> u64 {
     30
 }
 fn default_cleanup_statuses() -> Vec<String> {
-    vec!["finished".into(), "error".into(), "canceled".into()]
+    vec![
+        "finished".into(),
+        "downloaded".into(),
+        "error".into(),
+        "canceled".into(),
+    ]
 }
 fn default_cleanup_interval_secs() -> u64 {
     3600

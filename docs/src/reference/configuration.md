@@ -70,7 +70,7 @@ an existing installation unasked.
 |---|---|---|---|
 | `enabled` | bool | `false` | run the sweep at all |
 | `action_expiry_days` | integer | `30` | how long a closed action is kept, from when it was last modified |
-| `action_statuses` | list | `["finished", "error", "canceled"]` | which statuses may be deleted |
+| `action_statuses` | list | `["finished", "downloaded", "error", "canceled"]` | which statuses may be deleted |
 | `interval_secs` | integer | `3600` | how often the sweep runs |
 
 ```toml

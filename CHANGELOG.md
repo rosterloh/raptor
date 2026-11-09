@@ -36,6 +36,9 @@ decisions.
   reverse video, so no colour means both a status and the accent (#206)
 - Minimum supported Rust version is now 1.98.1 (Yocto blacksail), declared
   as `rust-version` so older toolchains fail fast
+- `[cleanup] action_statuses` defaults to include `downloaded`; with cleanup on
+  and the default list, closed download-only actions are now purged too. Set the
+  list explicitly to keep them (#222)
 
 ### Fixed
 
@@ -56,6 +59,8 @@ decisions.
   only artifacts of modules in sets it has an action for; others get `404` (#220)
 - Cancelling an auto-assigned action is no longer undone by the next
   auto-assignment sweep: a target that ever had an action for the set is skipped (#221)
+- Download-only rollouts advance: a `downloaded` action counts as a success
+  and as `finished` in `totalTargetsPerStatus` (#222)
 
 ## [1.3.1] - 2026-10-17
 

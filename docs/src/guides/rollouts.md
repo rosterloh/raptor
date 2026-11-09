@@ -48,7 +48,9 @@ curl -u admin:pw -X POST localhost:8088/rest/v1/rollouts \
   inherits — `forced` (default), `soft`, `timeforced` or `downloadonly` — with
   `forcetime` alongside it for `timeforced`. A staged download-then-install is
   therefore a `downloadonly` rollout followed by a `forced` one over the same
-  filter. An unknown type is rejected with `400`.
+  filter. A `downloadonly` action closed as `downloaded` counts as a success
+  (and as `finished` in `totalTargetsPerStatus`). An unknown type is rejected
+  with `400`.
 
 The rollout starts in `ready` — or in `waiting_for_approval` when the
 [approval gate](#approval-workflow) is on.
