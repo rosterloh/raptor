@@ -86,7 +86,7 @@ fn target_attribute_field(
     values: &[String],
 ) -> Option<Result<sea_orm::sea_query::SimpleExpr, AppError>> {
     let key = field.strip_prefix("attribute.")?;
-    Some(super::tags::tag_op(op).map(|(positive, value_op)| {
+    Some(super::tags::tag_op(op).and_then(|(positive, value_op)| {
         let owners = sea_orm::sea_query::Query::select()
             .column(target_attribute::Column::TargetId)
             .from(target_attribute::Entity)
@@ -95,13 +95,13 @@ fn target_attribute_field(
                 target_attribute::Column::Value,
                 &value_op,
                 values,
-            ))
+            )?)
             .to_owned();
-        super::tags::membership(
+        Ok(super::tags::membership(
             sea_orm::sea_query::Expr::col((target::Entity, target::Column::Id)),
             owners,
             positive,
-        )
+        ))
     }))
 }
 

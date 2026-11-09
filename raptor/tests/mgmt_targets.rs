@@ -513,3 +513,51 @@ async fn target_list_filters_by_auto_confirm() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn fiql_matches_alike_on_every_backend() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "Dev_1"}, {"controllerId": "devx1"}])),
+        ))
+        .await
+        .unwrap();
+    let q = |q: &str| {
+        let app = app.clone();
+        let uri = format!("/rest/v1/targets?q={}", q.replace('%', "%25"));
+        async move {
+            let resp = app.oneshot(common::req("GET", &uri, None)).await.unwrap();
+            let status = resp.status();
+            let body = common::body_json(resp).await;
+            let mut ids: Vec<String> = body["content"]
+                .as_array()
+                .map(|c| {
+                    c.iter()
+                        .map(|t| t["controllerId"].as_str().unwrap().to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
+            ids.sort();
+            (status, ids)
+        }
+    };
+    let ok = |ids: &[&str]| (StatusCode::OK, ids.iter().map(|s| s.to_string()).collect());
+    // Case-insensitive, with `_`/`%` matched literally.
+    assert_eq!(q("controllerId==DEV*").await, ok(&["Dev_1", "devx1"]));
+    assert_eq!(q("controllerId==dev_*").await, ok(&["Dev_1"]));
+    assert_eq!(q("controllerId==dev%*").await, ok(&[]));
+    assert_eq!(q("controllerId==DEV_1").await, ok(&["Dev_1"]));
+    assert_eq!(
+        q("controllerId=in=(dev_1,DEVX1)").await,
+        ok(&["Dev_1", "devx1"])
+    );
+    // Numeric fields bind as numbers.
+    assert_eq!(q("lastControllerRequestAt=lt=500").await, ok(&[]));
+    assert_eq!(
+        q("lastControllerRequestAt=lt=soon").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}

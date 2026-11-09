@@ -63,6 +63,9 @@ decisions.
   and as `finished` in `totalTargetsPerStatus` (#222)
 - Deleting a target with action history, tags or rollout membership no
   longer fails with `500`; its dependent rows go with it (#223)
+- FIQL `q=` filters behave alike on SQLite and Postgres: text comparisons
+  ignore case as in hawkBit, `%`/`_` match literally, and numeric fields compare
+  as numbers, a non-number being `400` (#224)
 
 ## [1.3.1] - 2026-10-17
 
