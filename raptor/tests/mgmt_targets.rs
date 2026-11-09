@@ -288,6 +288,78 @@ async fn target_list_embeds_set_and_tag_refs() {
     assert_eq!(one["tags"], a["tags"]);
 }
 
+#[tokio::test]
+async fn delete_target_with_history() {
+    let (app, _) = common::setup().await;
+    let post = |uri: &str, body: serde_json::Value| {
+        let app = app.clone();
+        let uri = uri.to_string();
+        async move {
+            let resp = app
+                .oneshot(common::req("POST", &uri, Some(body)))
+                .await
+                .unwrap();
+            assert!(resp.status().is_success(), "{uri}: {}", resp.status());
+            common::body_json(resp).await
+        }
+    };
+    let sm = post(
+        "/rest/v1/softwaremodules",
+        json!([{"name": "rootfs", "version": "1", "type": "os"}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let ds = post(
+        "/rest/v1/distributionsets",
+        json!([{"name": "fw", "version": "1", "type": "os", "modules": [{"id": sm}]}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let tag = post("/rest/v1/targettags", json!([{"name": "t"}])).await[0]["id"]
+        .as_i64()
+        .unwrap();
+    post("/rest/v1/targets", json!([{"controllerId": "gw-a"}])).await;
+    post(
+        "/rest/v1/targets/gw-a/metadata",
+        json!([{"key": "k", "value": "v"}]),
+    )
+    .await;
+    post(
+        &format!("/rest/v1/targettags/{tag}/assigned"),
+        json!(["gw-a"]),
+    )
+    .await;
+    post(
+        "/rest/v1/rollouts",
+        json!({
+            "name": "r", "distributionSetId": ds, "targetFilterQuery": "controllerId==gw-a",
+            "amountGroups": 1, "successCondition": {"condition": "THRESHOLD", "expression": "100"},
+        }),
+    )
+    .await;
+    post("/rest/v1/targets/gw-a/assignedDS", json!({"id": ds})).await;
+
+    let resp = app
+        .clone()
+        .oneshot(common::req("DELETE", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(common::req("GET", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let resp = app
+        .oneshot(common::req("GET", "/rest/v1/rollouts", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 // --------------------------------------------------------------------------
 // `attribute.<key>==<value>` FIQL on targets
 // --------------------------------------------------------------------------

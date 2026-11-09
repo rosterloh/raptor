@@ -61,6 +61,8 @@ decisions.
   auto-assignment sweep: a target that ever had an action for the set is skipped (#221)
 - Download-only rollouts advance: a `downloaded` action counts as a success
   and as `finished` in `totalTargetsPerStatus` (#222)
+- Deleting a target with action history, tags or rollout membership no
+  longer fails with `500`; its dependent rows go with it (#223)
 
 ## [1.3.1] - 2026-10-17
 
