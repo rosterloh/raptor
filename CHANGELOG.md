@@ -52,6 +52,8 @@ decisions.
   refuses (#200)
 - Console pages no longer freeze during busy rollouts: a live-event or polling
   refetch waits for a slow fetch instead of cancelling it (#204)
+- A device authenticated with its own `TargetToken` can list and download
+  only artifacts of modules in sets it has an action for; others get `404` (#220)
 
 ## [1.3.1] - 2026-10-17
 
