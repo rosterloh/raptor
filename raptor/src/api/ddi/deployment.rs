@@ -28,6 +28,21 @@ fn part_for(type_key: &str) -> &str {
     }
 }
 
+/// Percent-encodes everything but RFC 3986 unreserved bytes, so a filename
+/// with a space, `#`, `?` or `%` stays one path segment (space is `%20`, not
+/// `+`: hawkBit#3371).
+fn encode_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 /// Builds one artifact entry. `http_ddi` is the plain-HTTP base for the
 /// `download-http`/`md5sum-http` links: by hawkBit convention those are the
 /// plain-HTTP variants and `download`/`md5sum` the HTTPS ones. Without a
@@ -40,7 +55,10 @@ pub fn ddi_artifact_json(
     https: bool,
     http_ddi: Option<&str>,
 ) -> Value {
-    let path = format!("softwaremodules/{module_id}/artifacts/{}", ar.filename);
+    let path = format!(
+        "softwaremodules/{module_id}/artifacts/{}",
+        encode_segment(&ar.filename)
+    );
     let dl = format!("{ddi}/{path}");
     let dl_http = match http_ddi {
         Some(h) => format!("{h}/{path}"),

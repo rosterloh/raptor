@@ -24,6 +24,8 @@ decisions.
 - Releases attach prebuilt `raptorctl` archives for macOS arm64 and Linux
   x86_64/arm64 (installable with mise's `github:` backend), and the `.deb`
   ships `/usr/bin/raptorctl` (#199)
+- A device can revoke its confirmation by posting `denied` on a running action,
+  which goes back to `wait_for_confirmation`, as in hawkBit 1.2 (#209)
 
 ### Changed
 
@@ -52,6 +54,8 @@ decisions.
   refuses (#200)
 - Console pages no longer freeze during busy rollouts: a live-event or polling
   refetch waits for a slow fetch instead of cancelling it (#204)
+- DDI artifact links percent-encode the filename, so a name with a space, `#`
+  or `%` no longer gives the device an unfetchable href (#208)
 
 ## [1.3.1] - 2026-10-17
 

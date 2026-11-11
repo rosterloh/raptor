@@ -341,3 +341,60 @@ async fn flow_disabled_goes_straight_to_running() {
     assert!(links.get("confirmationBase").is_none());
     assert_eq!(detail_status(&app, action_id).await, "running");
 }
+
+// hawkBit 1.2 (#3238): `denied` on a confirmed, running action revokes the
+// confirmation and puts it back to waiting; the device can confirm again.
+#[tokio::test]
+async fn denied_on_running_action_revokes_confirmation() {
+    let (app, state) = setup_confirm().await;
+    let action_id = assign_fixture(&app).await;
+    let feedback = format!("/DEFAULT/controller/v1/d1/confirmationBase/{action_id}/feedback");
+
+    let confirm = || {
+        ddi_post(
+            &feedback,
+            json!({"confirmation": "confirmed", "details": ["ok"]}),
+        )
+    };
+    let resp = app.clone().oneshot(confirm()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(detail_status(&app, action_id).await, "running");
+
+    let resp = app
+        .clone()
+        .oneshot(ddi_post(
+            &feedback,
+            json!({"confirmation": "denied", "details": ["user postponed"]}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        detail_status(&app, action_id).await,
+        "wait_for_confirmation"
+    );
+    let links = poll_links(&app).await;
+    assert!(links.get("confirmationBase").is_some());
+    assert!(links.get("deploymentBase").is_none());
+
+    let statuses = action_status::Entity::find()
+        .filter(action_status::Column::ActionId.eq(action_id))
+        .filter(action_status::Column::Status.eq("denied"))
+        .all(&state.db)
+        .await
+        .unwrap();
+    assert_eq!(statuses.len(), 1);
+    let msgs: Vec<String> = raptor::entity::action_status_message::Entity::find()
+        .filter(raptor::entity::action_status_message::Column::ActionStatusId.eq(statuses[0].id))
+        .all(&state.db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|m| m.message)
+        .collect();
+    assert_eq!(msgs, ["confirmation revoked by device", "user postponed"]);
+
+    let resp = app.clone().oneshot(confirm()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(detail_status(&app, action_id).await, "running");
+}
