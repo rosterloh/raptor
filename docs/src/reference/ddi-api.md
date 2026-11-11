@@ -158,6 +158,12 @@ Confirmation feedback uses a different body:
 { "confirmation": "confirmed", "details": ["…"] }   // or "denied"
 ```
 
+`denied` on an action still in `wait_for_confirmation` records the denial and
+leaves it waiting. `denied` on a `running` action revokes the earlier
+confirmation (manual or auto) and puts it back to `wait_for_confirmation`,
+recording `confirmation revoked by device` in its status history (hawkBit
+1.2). Any other status returns `400`.
+
 ## configData
 
 ```json

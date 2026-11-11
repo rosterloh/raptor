@@ -480,23 +480,40 @@ pub async fn confirm_action(
 }
 
 /// Records a denial; the action stays in `wait_for_confirmation` (device may
-/// confirm later, or an operator can cancel it).
+/// confirm later, or an operator can cancel it). Denying a `running` action
+/// revokes its earlier confirmation and puts it back to waiting (hawkBit 1.2).
 pub async fn deny_action(
     st: &AppState,
     a: &action::Model,
     details: &[String],
 ) -> Result<(), AppError> {
-    if a.status != "wait_for_confirmation" {
-        return Err(AppError::BadRequest(
-            "action is not waiting for confirmation".into(),
-        ));
+    match a.status.as_str() {
+        "wait_for_confirmation" => {
+            add_action_status(st, a, "denied", details).await?;
+            tracing::info!(
+                action_id = a.id,
+                details = details.join("; "),
+                "action denied by device"
+            );
+        }
+        "running" => {
+            let mut msgs = vec!["confirmation revoked by device".to_string()];
+            msgs.extend_from_slice(details);
+            insert_action_status(st, a, "denied", &msgs).await?;
+            set_action(st, a, "wait_for_confirmation", true).await?;
+            tracing::info!(
+                action_id = a.id,
+                details = details.join("; "),
+                "device revoked confirmation"
+            );
+            publish_action(st, a).await;
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "action is not waiting for confirmation or running".into(),
+            ));
+        }
     }
-    add_action_status(st, a, "denied", details).await?;
-    tracing::info!(
-        action_id = a.id,
-        details = details.join("; "),
-        "action denied by device"
-    );
     Ok(())
 }
 
