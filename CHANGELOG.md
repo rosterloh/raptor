@@ -66,6 +66,8 @@ decisions.
 - FIQL `q=` filters behave alike on SQLite and Postgres: text comparisons
   ignore case as in hawkBit, `%`/`_` match literally, and numeric fields compare
   as numbers, a non-number being `400` (#224)
+- `updateStatus` filters and polling-time override rules accept hawkBit's
+  upper-case values such as `IN_SYNC` (#215)
 
 ## [1.3.1] - 2026-10-17
 

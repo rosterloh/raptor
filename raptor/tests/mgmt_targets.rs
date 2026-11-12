@@ -561,3 +561,32 @@ async fn fiql_matches_alike_on_every_backend() {
         StatusCode::BAD_REQUEST
     );
 }
+
+// #215: hawkBit spells updateStatus values upper-case (`IN_SYNC`); raptor
+// stores them lower-case, so the filter must ignore case.
+#[tokio::test]
+async fn update_status_filter_accepts_hawkbit_upper_case() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "dev-1"}])),
+        ))
+        .await
+        .unwrap();
+    for (q, want) in [
+        ("updateStatus==UNKNOWN", 1),
+        ("updateStatus=in=(UNKNOWN,PENDING)", 1),
+        ("updateStatus==IN_SYNC", 0),
+    ] {
+        let body = common::body_json(
+            app.clone()
+                .oneshot(common::req("GET", &format!("/rest/v1/targets?q={q}"), None))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(body["total"], want, "{q}");
+    }
+}
