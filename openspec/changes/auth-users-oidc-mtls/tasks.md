@@ -5,14 +5,14 @@ Three parts, each its own PR, in this order. Part 3 depends on part 2.
 ## 1. Certificate DDI auth
 
 - [x] 1.1 Confirm hawkBit's header names and `authentication.header.*` keys against hawkBit 1.2.0 source (done 2026-11-12, see design §1)
-- [ ] 1.2 Add `[ddi.header_auth]` (`enabled`, `controller_id_header`, `authority_header`, `trusted_authorities`) to `DdiConfig` with defaults that leave behaviour unchanged; `trusted_proxies` (IP list, invalid entry → startup error), `auto_register` (default true); startup error when enabled with no trusted authority; config parse tests
-- [ ] 1.3 Add `AuthKind::Certificate` and the certificate branch in `auth/ddi.rs::authenticate` (controller-id header == controllerId; authority from the `,`/`;` list header or the `-0`, `-1`, … indexed headers, case-insensitive), falling through to token auth on failure; header auth attempted only when `trusted_proxies` is empty or contains the socket peer
-- [ ] 1.4 Widen `api/ddi/artifacts.rs::check_entitled` to `Target | Certificate`; in `api/ddi/root.rs` refuse auto-registration for `Certificate` when `auto_register = false`
-- [ ] 1.5 Startup warning when header auth is enabled, `trusted_proxies` is empty and `bind` is not loopback
-- [ ] 1.6 Report `authentication.header.enabled` / `authentication.header.authority` in `api/mgmt/system.rs`
-- [ ] 1.7 Integration tests in `raptor/tests/ddi_auth.rs`: controller id match and mismatch → 401, feature off ignores headers, list and indexed authority headers, untrusted authority, fall-through to gateway token, untrusted peer skips header auth, trusted peer allowed, auto-registration on and off, foreign-module download → 404; system configs keys in `mgmt_system.rs`
-- [ ] 1.8 Docs: certificate section in `guides/authentication.md` with an nginx example that verifies the client cert, strips client-supplied `X-Controller-Id` / `X-Authority*` headers and sets them from the certificate, plus the loopback-bind guidance; `[ddi.header_auth]` in `reference/configuration.md`; Auth row in `intro/compatibility.md`
-- [ ] 1.9 `CHANGELOG.md` Added bullet (#13)
+- [x] 1.2 Add `[ddi.header_auth]` (`enabled`, `controller_id_header`, `authority_header`, `trusted_authorities`) to `DdiConfig` with defaults that leave behaviour unchanged; `trusted_proxies` (IP list, invalid entry → startup error), `auto_register` (default true); startup error when enabled with no trusted authority; config parse tests
+- [x] 1.3 Add `AuthKind::Certificate` and the certificate branch in `auth/ddi.rs::authenticate` (controller-id header == controllerId; authority from the `,`/`;` list header or the `-0`, `-1`, … indexed headers, case-insensitive), falling through to token auth on failure; header auth attempted only when `trusted_proxies` is empty or contains the socket peer
+- [x] 1.4 Widen `api/ddi/artifacts.rs::check_entitled` to `Target | Certificate`; in `api/ddi/root.rs` refuse auto-registration for `Certificate` when `auto_register = false`
+- [x] 1.5 Startup warning when header auth is enabled, `trusted_proxies` is empty and `bind` is not loopback
+- [x] 1.6 Report `authentication.header.enabled` / `authentication.header.authority` in `api/mgmt/system.rs`
+- [x] 1.7 Integration tests in `raptor/tests/ddi_auth.rs`: controller id match and mismatch → 401, feature off ignores headers, list and indexed authority headers, untrusted authority, fall-through to gateway token, untrusted peer skips header auth, trusted peer allowed, auto-registration on and off, foreign-module download → 404; system configs keys in `mgmt_system.rs`
+- [x] 1.8 Docs: certificate section in `guides/authentication.md` with an nginx example that verifies the client cert, strips client-supplied `X-Controller-Id` / `X-Authority*` headers and sets them from the certificate, plus the loopback-bind guidance; `[ddi.header_auth]` in `reference/configuration.md`; Auth row in `intro/compatibility.md`
+- [x] 1.9 `CHANGELOG.md` Added bullet (#13)
 
 ## 2. Operator users and roles
 

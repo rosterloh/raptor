@@ -40,8 +40,8 @@ poll, download, and report just as before.
 ## What raptor is not (yet)
 
 raptor implements a growing subset of hawkBit. It does **not** currently provide
-the DMF (AMQP) device path, multi-tenancy, multiple operator users or roles,
-OIDC, or certificate-based device authentication. See
+the DMF (AMQP) device path, multi-tenancy, multiple operator users or roles, or
+OIDC. See
 [hawkBit Compatibility](./compatibility.md) for the authoritative list.
 
 ## Design principles

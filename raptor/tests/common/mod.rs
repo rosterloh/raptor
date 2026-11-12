@@ -193,6 +193,19 @@ pub async fn setup_with_retention(
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but with `[ddi.header_auth]` replaced and ddi.anonymous off,
+/// so certificate auth is the only credential-free path.
+pub async fn setup_with_header_auth(
+    header_auth: raptor::config::HeaderAuthConfig,
+) -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.ddi.anonymous = false;
+    cfg.ddi.header_auth = header_auth;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
     format!(
         "Basic {}",

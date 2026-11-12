@@ -89,7 +89,7 @@ the device is not acknowledging with `DELETE …/actions/{actionId}?force=true`.
 | DDI anonymous mode (raptor extension¹) | ✅ |
 | Management API HTTP Basic (single admin) | ✅ |
 | Session cookie for the web console | ✅ |
-| mTLS / certificate DDI auth | ❌ ([#13](https://github.com/rosterloh/raptor/issues/13)) |
+| mTLS / certificate DDI auth (hawkBit header authentication: `X-Controller-Id` + `X-Authority`, behind a TLS-terminating proxy) | ✅ (`[ddi.header_auth]`; adds `trusted_proxies` per hawkBit's `rp.trustedIPs`, scoped to header auth) |
 | Multiple users / roles, OIDC | ❌ ([#13](https://github.com/rosterloh/raptor/issues/13)) |
 
 ## Tenancy

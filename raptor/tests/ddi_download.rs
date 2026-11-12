@@ -466,6 +466,32 @@ async fn target_token_sees_only_assigned_modules() {
     assert_eq!(resp.status(), StatusCode::OK);
 }
 
+#[tokio::test]
+async fn certificate_auth_sees_only_assigned_modules() {
+    let (app, _) = common::setup_with_header_auth(raptor::config::HeaderAuthConfig {
+        enabled: true,
+        trusted_authorities: vec!["ca-a".into()],
+        ..Default::default()
+    })
+    .await;
+    let (sm, _) = fixture(&app).await;
+    let get = |cid: &str| {
+        Request::get(format!(
+            "/DEFAULT/controller/v1/{cid}/softwaremodules/{sm}/artifacts/fw.bin"
+        ))
+        .header("X-Controller-Id", cid)
+        .header("X-Authority", "ca-a")
+        .body(Body::empty())
+        .unwrap()
+    };
+    let resp = app.clone().oneshot(get("d1")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    // d2 authenticates by certificate (and so may register) but was never
+    // assigned the set, so the module is invisible to it.
+    let resp = app.clone().oneshot(get("d2")).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
 // hawkBit#3371: a space (and `#`, `%`) in the filename must survive the
 // advertised href, so a device fetching it verbatim gets the artifact.
 #[tokio::test]

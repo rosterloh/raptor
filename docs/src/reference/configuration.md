@@ -156,6 +156,23 @@ intervals.
 | `artifact_http_url` | string | *(unset)* | plain-HTTP base advertised in the DDI `download-http` links; unset means they reuse `url` |
 | `trusted_proxy_header` | string | *(unset)* | header to read the device address from behind a reverse proxy, e.g. `x-forwarded-for`; unset uses the socket peer |
 
+### `[ddi.header_auth]` — certificate authentication
+
+Device authentication from headers a TLS-terminating proxy sets after
+verifying the client certificate (hawkBit's header authentication). See
+[Certificate authentication](../guides/authentication.md#certificate-authentication-mtls-via-a-reverse-proxy).
+Reported to clients as `authentication.header.enabled` and
+`authentication.header.authority` on `/rest/v1/system/configs`.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | accept the headers as device credentials |
+| `controller_id_header` | string | `X-Controller-Id` | header carrying the verified controller id; must equal the path's `controllerId` |
+| `authority_header` | string | `X-Authority` | header naming the verifying authority: a `,`/`;` list, or `<name>-0`, `<name>-1`, … |
+| `trusted_authorities` | list | `[]` | authorities to trust, compared case-insensitively; **required** when `enabled` (startup fails otherwise) |
+| `trusted_proxies` | list of IPs | `[]` | socket peers allowed to send the headers; empty accepts any peer. A non-IP entry fails startup |
+| `auto_register` | bool | `true` | register an unknown controller that authenticates this way |
+
 ### Polling time overrides
 
 `polling_interval` accepts hawkBit's `pollingTime` grammar (hawkBit 0.10,
