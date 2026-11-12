@@ -7,8 +7,9 @@ etc.).
 ## Module types
 
 raptor seeds four software-module types: `os`, `firmware`, `runtime`, and
-`application`. Types are **read-only** in raptor (created via migration); you
-reference them by key when creating a module.
+`application`, and you can add your own under `/rest/v1/softwaremoduletypes`
+(see the [Management API reference](../reference/management-api.md#types)).
+You reference a type by key when creating a module.
 
 ```bash
 curl -u admin:pw -X POST localhost:8088/rest/v1/softwaremodules \

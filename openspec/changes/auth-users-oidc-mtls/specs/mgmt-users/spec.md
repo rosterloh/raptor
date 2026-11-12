@@ -29,7 +29,7 @@ The roles SHALL be `admin` (all operations) and `read_only` (reads only). Any ot
 - **THEN** the response is `400`
 
 ### Requirement: Read-only enforcement
-A `read_only` user SHALL be allowed `GET` and `HEAD` on every Management API route, including the event stream, plus `POST /rest/v1/logout`. Any other request SHALL be `403` with a hawkBit-shaped error body and change nothing.
+A `read_only` user SHALL be allowed `GET` and `HEAD` on every Management API route, including the event stream, plus `POST /rest/v1/logout`. Any other request SHALL be `403` with hawkBit's `InsufficientPermissionException` / `hawkbit.server.error.insufficientPermission` error body and change nothing.
 
 #### Scenario: Read-only assign
 - **WHEN** a `read_only` user posts to `/rest/v1/targets/dev-1/assignedDS`
@@ -57,9 +57,16 @@ A user SHALL not be able to delete, disable or demote their own account through 
 - **WHEN** admin `alice` changes her own role to `read_only`
 - **THEN** the response is `400`
 
+### Requirement: Secrets hidden from read-only users
+Responses to a `read_only` user SHALL omit every target's `securityToken`, as hawkBit does without `READ_TARGET_SECURITY_TOKEN`, so a viewer cannot impersonate devices.
+
+#### Scenario: Viewer reads a target
+- **WHEN** a `read_only` user GETs `/rest/v1/targets/dev-1`
+- **THEN** the response has no `securityToken` key
+
 ### Requirement: User info
-`GET /rest/v1/userinfo` SHALL return the caller's `username`, `role` and `tenant`, for any authenticated caller.
+`GET /rest/v1/userinfo` SHALL return hawkBit's `MgmtUserInfo` shape, `{tenant, username, permissions}`, for any authenticated caller. `permissions` SHALL use hawkBit's names: the full set for `admin`, and only the `READ_*` permissions, without the security-token ones, for `read_only`. A raptor-extension `role` field SHALL be added.
 
 #### Scenario: Console role check
 - **WHEN** a `read_only` user's console calls `/rest/v1/userinfo`
-- **THEN** it gets `{"username":"bob","role":"read_only","tenant":"DEFAULT"}`
+- **THEN** it gets `tenant`, `username`, `role: "read_only"` and `permissions` containing `READ_TARGET` but not `CREATE_TARGET` or `READ_TARGET_SECURITY_TOKEN`

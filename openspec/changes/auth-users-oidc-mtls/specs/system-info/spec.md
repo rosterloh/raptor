@@ -10,5 +10,5 @@
 - **THEN** the response is `403`
 
 #### Scenario: Certificate auth reported
-- **WHEN** `[ddi.certificate]` is enabled with trusted issuer hashes `a1,b2`
+- **WHEN** `[ddi.header_auth]` is enabled with `trusted_authorities = ["a1", "b2"]`
 - **THEN** `authentication.header.enabled` is `true` and `authentication.header.authority` is `a1,b2`

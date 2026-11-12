@@ -18,17 +18,19 @@ as rows that a tenant can be attached to.
 Three independently shippable parts, in order of value. Each is opt-in; a
 `raptor.toml` from today keeps working with unchanged behaviour.
 
-1. **Certificate DDI auth.** A TLS-terminating reverse proxy forwards the
-   client certificate's CN, and optionally its issuer hash, in request headers
-   (hawkBit's `X-Ssl-Client-*` pattern). When `[ddi.certificate]` is enabled,
-   a CN equal to the request's `controllerId` authenticates as that device.
+1. **Certificate DDI auth.** A TLS-terminating reverse proxy verifies the
+   client certificate and forwards the device id and the issuing authority in
+   headers (hawkBit's header authentication: `X-Controller-Id` and
+   `X-Authority`). When `[ddi.header_auth]` is enabled, a controller id equal
+   to the request's `controllerId`, vouched for by a trusted authority,
+   authenticates as that device.
    The device can auto-register, and its downloads are limited to its own
    deployments, like a target token. Docs explain how to stop devices spoofing
    the headers. raptor warns at startup if it listens beyond loopback.
 2. **Operator users and roles.** A new `users` table (with `tenant` from day
    one, and a composite `(tenant, username)` index) holds extra operator
    accounts, each with role `admin` or `read_only`. Read-only users can read
-   everything and change nothing (`403`). The `[mgmt]` config account stays,
+   everything except device security tokens and change nothing (`403`). The `[mgmt]` config account stays,
    always as an admin, so it still works as a break-glass login. Admins manage
    users through `/rest/v1/users` (a raptor extension), `raptorctl user` and a
    console page. Decisions and audit fields record the real user instead of
@@ -69,14 +71,14 @@ every existing JSON shape. `GET /rest/v1/session` still answers `204`/`401`.
 
 - **Code**: `raptor/src/auth/` (new certificate branch, role check, bearer
   validation, session identity), new `api/mgmt/users.rs` and OIDC handlers,
-  `config.rs` (`[ddi.certificate]`, `[mgmt.oidc]`), `domain/rollout.rs`
+  `config.rs` (`[ddi.header_auth]`, `[mgmt.oidc]`), `domain/rollout.rs`
   (attribution), `raptor-api-types` (user DTOs), `raptor-ui` (login, users
   page, role-aware controls), `raptor-cli` (user commands, `RAPTOR_TOKEN`).
 - **Schema**: one migration adding `users`. It must work on SQLite and
   Postgres.
-- **Dependencies**: OIDC needs JWT signature validation (likely
-  `jsonwebtoken`). It needs approval before it is added. `reqwest`, `rand`
-  and `argon2` are already dependencies.
+- **Dependencies**: `jsonwebtoken` 11.1.0 for JWT signature validation
+  (approved 2026-11-12). `reqwest`, `rand` and `argon2` are already
+  dependencies.
 - **Docs**: `guides/authentication.md`, `reference/configuration.md`,
   `reference/management-api.md`, `intro/compatibility.md` (Auth table), a new
   reverse-proxy example for certificate auth, and `CHANGELOG.md`.

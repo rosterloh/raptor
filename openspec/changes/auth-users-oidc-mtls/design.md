@@ -48,33 +48,47 @@ See `proposal.md` for the motivation. What exists today:
 ### 1. Certificate auth is another `AuthKind`, checked before tokens
 
 Add `AuthKind::Certificate`. In `authenticate`, after the anonymous check,
-certificate auth is tried first when enabled. A CN equal to `controllerId`
-(and, if configured, a trusted issuer hash) wins. Anything else falls through
-to the existing token branches unchanged. The two handler checks become
-`matches!(auth, Target | Certificate)` for download scoping and
-`auth == Target` stays as is for the auto-register refusal, so certificate
-devices may self-register.
+header auth is tried first when enabled. It succeeds when the controller-id
+header equals `controllerId` and an authority header names a trusted
+authority. Anything else falls through to the existing token branches
+unchanged. The two handler checks become `matches!(auth, Target | Certificate)`
+for download scoping. The auto-register refusal stays on `Target` only, so
+certificate devices may self-register.
 
-*Why fall through instead of rejecting?* hawkBit chains its auth filters
-independently, and a proxy that forwards a gateway's own certificate must not
-lock out that gateway's `GatewayToken` traffic. *Why allow auto-registration?*
-Certificate fleets are provisioned at manufacture and never pre-created in
-the server. Requiring a pre-created target would defeat the purpose, and the
-certificate is already a per-device credential signed by a CA the operator
-trusts.
+This mirrors hawkBit 1.2's `SecurityHeaderAuthenticator`, verified against
+source (`hawkbit-ddi-security`, tag 1.2.0):
+
+- Header names default to `X-Controller-Id` and `X-Authority`
+  (`hawkbit.server.ddi.security.rp.controllerIdHeader` / `authorityHeader`).
+- The authority header is either one `,`/`;`-separated value, or, when that
+  header is absent, `X-Authority-0`, `-1`, … read until one is missing
+  (starting at 0, or at 1 if `-0` is absent). Matching is case-insensitive
+  and trimmed.
+- A trusted authority is mandatory. Upstream, an empty authority config
+  matches nothing, which silently disables the feature. raptor makes that a
+  startup error instead.
+- Each DDI auth filter runs independently and only sets the authentication on
+  success, which is where the fall-through comes from.
+- Every successful DDI authenticator yields the same controller principal, and
+  `findOrRegisterTargetIfItDoesNotExist` runs for all of them, so header-auth
+  devices auto-register upstream as well.
+- Upstream also has `rp.trustedIPs`, a source-IP allowlist applied to every
+  DDI auth filter. It is not adopted here (see the decision discussion).
 
 Config:
 
 ```toml
-[ddi.certificate]
+[ddi.header_auth]
 enabled = true
-cn_header = "X-Ssl-Client-Cn"              # default
-issuer_hash_header = "X-Ssl-Issuer-Hash"   # default prefix; -1, -2, … read in turn
-trusted_issuer_hashes = ["4b5a8e1f"]       # optional; empty = trust whatever the proxy verified
+controller_id_header = "X-Controller-Id"   # default
+authority_header = "X-Authority"           # default
+trusted_authorities = ["4b5a8e1f"]         # required when enabled
 ```
 
-The header defaults follow hawkBit's reverse-proxy documentation as recalled
-here; task 1.1 confirms them against hawkBit's source before they are frozen.
+Reported as `authentication.header.enabled` and
+`authentication.header.authority` (the list joined with `,`). The same key
+names appear in hawkBit's `TenantConfigurationProperties` and its UI.
+
 Alternative considered: raptor terminating TLS with `rustls` and reading the
 peer certificate directly. Rejected for now: it would put TLS config, cert
 reload and ALPN into raptor, against the "terminate TLS at a proxy" stance in
@@ -106,8 +120,15 @@ method)` function in one place, and hawkBit's permission names are the
 vocabulary to use, so policy translates between the two servers (comment on
 #13).
 
-The `403` body uses hawkBit's shape. Task 2.1 confirms hawkBit's
-`exceptionClass`/`errorCode` for insufficient permissions.
+The `403` body is hawkBit's `SP_INSUFFICIENT_PERMISSION`:
+`exceptionClass` `org.eclipse.hawkbit.repository.exception.InsufficientPermissionException`,
+`errorCode` `hawkbit.server.error.insufficientPermission` (verified in
+`hawkbit-core` `SpServerError` and `RestConfiguration`, 1.2.0).
+
+Read-only users also never see target `securityToken`s. hawkBit gates them
+behind a separate `READ_TARGET_SECURITY_TOKEN` permission, because a token is
+enough to impersonate a device. `TargetRest.security_token` becomes
+`Option<String>` with `skip_serializing_if`, filled only for admins.
 
 ### 4. `users` table; the config admin stays outside it
 
@@ -152,11 +173,10 @@ reads them from a TTY prompt or stdin, never from argv.
   attribution a stable name. The role column on an `oidc` row is a cache of
   the last token. The token stays authoritative.
 
-New dependency: JWT/JWS validation. `jsonwebtoken` is the likely choice
-(widely used, RS/ES/PS algorithms, takes a JWK). Per the project's rules this
-needs explicit approval before it is added, which is task 3.1. A full OIDC
-client crate (`openidconnect`) was considered and rejected: it pulls a large
-tree, and the flow above is small enough to own.
+New dependency: `jsonwebtoken` 11.1.0 (latest on crates.io, 2026-09-16) for
+JWS validation against JWKs. Approved 2026-11-12. A full OIDC client crate
+(`openidconnect`) was considered and rejected: it pulls a large tree, and the
+flow above is small enough to own.
 
 Config:
 
@@ -180,17 +200,23 @@ therefore requires `url` to be set, and startup fails without it when
 ### 6. Console and CLI learn the role from `/rest/v1/userinfo`
 
 `/rest/v1/session` keeps its `204`/`401` contract, so the console's existing
-probe is unchanged. A new `GET /rest/v1/userinfo` returns
-`{username, role, tenant}`. Task 2.1 checks whether hawkBit has a same-named
-endpoint, and if it does, its fields are kept and `role` is added. The console
-calls it once after login and keeps the result in context.
+probe is unchanged. hawkBit already has `GET /rest/v1/userinfo` returning
+`MgmtUserInfo {tenant, username, permissions[]}` (verified, 1.2.0). raptor
+implements that shape, with `permissions` in hawkBit's vocabulary
+(`READ_TARGET`, `CREATE_ROLLOUT`, `APPROVE_ROLLOUT`, …), and adds a `role`
+field as an extension. `admin` maps to the full permission set and
+`read_only` to the `READ_*` set without `READ_TARGET_SECURITY_TOKEN` and
+`READ_GATEWAY_SECURITY_TOKEN`. hawkBit tooling that inspects permissions
+therefore works unchanged, and finer roles can later be expressed as other
+permission sets. The console calls it once after login and keeps the result
+in context.
 
 ## Risks / Trade-offs
 
 - [Proxy headers are forgeable by anyone who reaches raptor directly] →
-  certificate auth is off by default. The docs require binding to loopback or a
+  header auth is off by default and needs a trusted authority. The docs require binding to loopback or a
   private interface behind the proxy, and the proxy must strip incoming
-  `X-Ssl-*` headers. A startup warning fires when `bind` is not loopback.
+  `X-Controller-Id` / `X-Authority*` headers. A startup warning fires when `bind` is not loopback.
 - [Fall-through could hide a misconfigured CN header (every request falls to
   tokens)] → log certificate rejections at `debug` with the reason, and count
   them under the `ddi` auth-failure metric only when the request finally fails.
@@ -222,7 +248,3 @@ calls it once after login and keeps the result in context.
   config admin and local users working) rather than abort? The spec currently
   says abort. Switching later changes only startup behaviour, not routes or
   tasks.
-- Exact hawkBit spellings to confirm in implementation (tasks 1.1, 2.1): the
-  CN and issuer-hash header names, the `authentication.header.*` config keys,
-  the insufficient-permission error body, and whether `/rest/v1/userinfo`
-  exists upstream.

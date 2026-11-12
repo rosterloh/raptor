@@ -57,11 +57,15 @@ SoftwareModuleType        DistributionSetType
 
 ## Seeded types
 
-Software-module and distribution-set types are **read-only** in this version,
-created by the initial migration:
+The initial migration seeds these types. Operators can create, update and
+delete their own through the Management API; a type still in use cannot be
+deleted.
 
 - Software-module types: `os`, `firmware`, `runtime`, `application`
 - Distribution-set types: `os`, `os_app`, `app`
+
+Target types are not seeded. A target type lists the distribution-set types a
+target of that type may be assigned.
 
 ## Tenancy
 
