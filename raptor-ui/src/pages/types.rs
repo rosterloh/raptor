@@ -717,7 +717,7 @@ fn TargetTypeFormDialog(
             .and_then(|t| t.description.clone())
             .unwrap_or_default()
     });
-    let mut colour = use_signal(|| {
+    let colour = use_signal(|| {
         existing
             .as_ref()
             .and_then(|t| t.colour.clone())
@@ -778,11 +778,8 @@ fn TargetTypeFormDialog(
                     oninput: move |e: FormEvent| name.set(e.value()) }
                 Input { class: "mb-3", placeholder: "Description (optional)", value: "{description}",
                     oninput: move |e: FormEvent| description.set(e.value()) }
-                Input {
-                    class: "mb-3 font-mono text-sm",
-                    placeholder: "Colour, e.g. #00ff00 (optional)",
-                    value: "{colour}",
-                    oninput: move |e: FormEvent| colour.set(e.value()),
+                div { class: "mb-3 flex items-center gap-3",
+                    ColourField { value: colour }
                 }
                 if editing_id.is_none() {
                     p { class: "mb-3 text-xs text-muted-foreground",

@@ -52,6 +52,21 @@ pub fn tag_colour(colour: Option<&str>) -> Option<String> {
     valid.then(|| format!("#{hex}"))
 }
 
+/// The value for an `<input type="color">`, which only takes `#rrggbb`:
+/// `#rgb` is expanded, and anything that isn't valid hex shows black.
+pub fn colour_picker_value(colour: &str) -> String {
+    let Some(c) = tag_colour(Some(colour)) else {
+        return "#000000".into();
+    };
+    let hex = c[1..].to_ascii_lowercase();
+    if hex.len() == 3 {
+        let long: String = hex.chars().flat_map(|ch| [ch, ch]).collect();
+        format!("#{long}")
+    } else {
+        format!("#{hex}")
+    }
+}
+
 /// Percent-encode everything outside RFC 3986 unreserved characters.
 pub fn urlencode(s: &str) -> String {
     s.bytes()
@@ -555,6 +570,14 @@ mod tests {
         assert_eq!(tag_colour(Some("#zzzzzz")), None);
         // no CSS injection through the style attribute
         assert_eq!(tag_colour(Some("#fff;background:url(x)")), None);
+    }
+
+    #[test]
+    fn colour_picker_value_is_always_rrggbb() {
+        assert_eq!(colour_picker_value("#A1B2C3"), "#a1b2c3");
+        assert_eq!(colour_picker_value(" #abc "), "#aabbcc");
+        assert_eq!(colour_picker_value(""), "#000000");
+        assert_eq!(colour_picker_value("red"), "#000000");
     }
 
     #[test]
