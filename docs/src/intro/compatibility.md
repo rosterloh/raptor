@@ -3,10 +3,10 @@
 raptor implements a subset of hawkBit, chosen to cover the device update
 workflow first. This page is the source of truth for what exists today.
 
-> **Baseline:** this matrix is measured against hawkBit **1.x**. hawkBit
+> **Baseline:** this matrix is measured against hawkBit **1.2**. hawkBit
 > reached [1.0 in April
-> 2026](https://newsroom.eclipse.org/news/community-news/eclipse-hawkbit%E2%84%A2-10-release)
-> and 1.1.0 in July, [removing some features along the
+> 2026](https://newsroom.eclipse.org/news/community-news/eclipse-hawkbit%E2%84%A2-10-release),
+> then 1.1.0 in July and 1.2.0 in November, [removing some features along the
 > way](https://github.com/eclipse-hawkbit/hawkbit/releases) — rows below
 > reflect that, not the older 0.x contract.
 
@@ -28,6 +28,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | `.MD5SUM` companion endpoint | ✅ |
 | Auto-registration (gateway token / anonymous¹) | ✅ |
 | `confirmationBase` confirmation flow | ✅ |
+| Device revokes a confirmation (`denied` on a running action, hawkBit 1.2) | ✅ |
 | Maintenance windows (`deployment.maintenanceWindow`) | ✅ |
 | DMF (AMQP) device path | ❌ ([#11](https://github.com/rosterloh/raptor/issues/11)) |
 | `pollingTime` RSQL-matched overrides (hawkBit 0.10) | ✅ |
@@ -46,8 +47,11 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Actions (per-target and fleet-wide list/filter) | ✅ |
 | Rollouts (create/start/pause/resume/stop/delete, deploy groups) | ✅ |
 | Target filters + auto-assignment | ✅ |
+| Auto-assignments as a separate resource with approve/deny and lifecycle (hawkBit 1.2) | ❌ ([#211](https://github.com/rosterloh/raptor/issues/211)); auto-assignment on target filters still works |
+| `externalRef` on distribution-set assignment (hawkBit 1.2) | ❌ ([#212](https://github.com/rosterloh/raptor/issues/212)) |
 | Per-target auto-confirm | ✅ |
 | FIQL filter targets by auto-confirm status (`autoConfirm==`, hawkBit 1.1) | ✅ |
+| FIQL sub-entity id fields (`tag.id==`, `assignedDS.id==`, …, hawkBit 1.2) | ❌ ([#213](https://github.com/rosterloh/raptor/issues/213)) |
 | Target groups (`group` attribute, `q=group==`) | ✅ |
 | Paging (`offset`/`limit`), `sort=`, `q=` FIQL on lists | ✅ |
 | Software-module / distribution-set / target **types** CRUD (composition drives `complete`; target-type/DS-type compatibility enforced) | ✅ |

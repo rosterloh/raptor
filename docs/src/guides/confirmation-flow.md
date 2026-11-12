@@ -57,6 +57,12 @@ curl -X POST localhost:8088/DEFAULT/controller/v1/device-42/confirmationBase/7/f
 A denied action remains in `wait_for_confirmation`; the device may confirm later,
 or an operator can cancel it.
 
+A device can also take a confirmation back: posting `denied` for an action that
+is already `running` (confirmed by the device or by auto-confirm) moves it back
+to `wait_for_confirmation`, so the next poll offers `confirmationBase` again
+instead of `deploymentBase`. The history records `confirmation revoked by
+device`. This matches hawkBit 1.2.
+
 ## Auto-confirm
 
 A target can be set to **auto-confirm**, so assignments skip the wait state

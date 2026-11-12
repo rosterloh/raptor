@@ -465,3 +465,60 @@ async fn target_token_sees_only_assigned_modules() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 }
+
+// hawkBit#3371: a space (and `#`, `%`) in the filename must survive the
+// advertised href, so a device fetching it verbatim gets the artifact.
+#[tokio::test]
+async fn filename_with_space_and_hash_downloads_via_advertised_href() {
+    use raptor::entity::artifact;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Expr};
+
+    let (app, state) = common::setup().await;
+    let (_, aid) = fixture(&app).await;
+    artifact::Entity::update_many()
+        .col_expr(artifact::Column::Filename, Expr::value("fw v2#1%.bin"))
+        .filter(artifact::Column::Filename.eq("fw.bin"))
+        .exec(&state.db)
+        .await
+        .unwrap();
+
+    let dep = common::body_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!("/DEFAULT/controller/v1/d1/deploymentBase/{aid}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    let art = &dep["deployment"]["chunks"][0]["artifacts"][0];
+    assert_eq!(art["filename"], "fw v2#1%.bin");
+    let href = art["_links"]["download-http"]["href"].as_str().unwrap();
+    let path = href.strip_prefix("http://localhost:8080").unwrap();
+    assert!(path.ends_with("/artifacts/fw%20v2%231%25.bin"), "{path}");
+
+    let resp = app
+        .clone()
+        .oneshot(Request::get(path).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(&body[..], b"hello world");
+
+    let md5 = art["_links"]["md5sum-http"]["href"].as_str().unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(md5.strip_prefix("http://localhost:8080").unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
