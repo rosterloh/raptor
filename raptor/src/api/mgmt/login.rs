@@ -41,7 +41,9 @@ pub async fn login(
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
-    if !crate::auth::mgmt::verify_creds(&st.cfg.mgmt, &req.username, &req.password) {
+    let Some(principal) =
+        crate::auth::mgmt::authenticate(&st, &req.username, &req.password).await?
+    else {
         let body = raptor_api_types::ErrorBody {
             exception_class: "org.springframework.security.authentication.BadCredentialsException"
                 .into(),
@@ -49,8 +51,8 @@ pub async fn login(
             message: "unauthorized".into(),
         };
         return Ok((StatusCode::UNAUTHORIZED, Json(body)).into_response());
-    }
-    let token = st.sessions.create();
+    };
+    let token = st.sessions.create(principal);
     let secure = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())

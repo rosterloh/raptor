@@ -1276,3 +1276,25 @@ async fn evaluator_carries_on_past_a_target_that_cannot_take_the_ds() {
     assert_eq!(status(ids[0]).await, "finished");
     assert_eq!(status(ids[1]).await, "running");
 }
+
+/// The approver recorded is whoever made the request, not the config admin.
+#[tokio::test]
+async fn approval_records_the_requesting_user() {
+    let (app, st) = common::setup_with_rollout_approval().await;
+    common::insert_user(&st, "alice", "admin", "local").await;
+    let ds = fixture(&app, 1).await;
+    let id = create_rollout(&app, ds).await["id"].as_i64().unwrap();
+    let resp = app
+        .clone()
+        .oneshot(common::req_as(
+            "alice",
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/approve"),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(r["approveDecidedBy"], "alice");
+}

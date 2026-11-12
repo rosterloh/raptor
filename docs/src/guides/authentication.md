@@ -124,8 +124,8 @@ chain to `device-ca.pem` before raptor sees the request.
 
 ## Management zone (operators)
 
-The Management API and web console authenticate against a **single admin
-credential** using HTTP Basic:
+The Management API and web console authenticate with HTTP Basic or a session
+cookie. The `[mgmt]` account in the config file is always an admin:
 
 ```toml
 [mgmt]
@@ -142,8 +142,48 @@ $ printf 'yourpassword\n' | raptor hash-password
 The web console also issues a **session cookie** (via `POST /rest/v1/login`) so
 browser users don't send Basic credentials on every request.
 
-> **Note:** raptor has a single admin user in this version. Multiple users,
-> roles and OIDC are not yet implemented.
+### Users and roles
+
+Admins can add more operator accounts through `/rest/v1/users`, `raptorctl
+user` or the console's **Users** page. Each user has one of two roles:
+
+| Role | May |
+|---|---|
+| `admin` | everything, including managing users |
+| `read_only` | `GET`/`HEAD` on every Management API route (including the event stream) and log out |
+
+Anything else a `read_only` user sends is answered `403` with hawkBit's
+`InsufficientPermissionException` body, before any handler runs, so a new
+write endpoint is protected without extra code. Read-only users never see a
+target's `securityToken` (hawkBit's `READ_TARGET_SECURITY_TOKEN`), since a
+token is enough to impersonate the device.
+
+```console
+$ raptorctl user create alice --role read-only      # prompts for the password
+$ printf 's3cret\n' | raptorctl user create ci --role admin
+$ raptorctl user set alice --disable
+$ raptorctl user delete alice -y
+```
+
+- The `[mgmt]` account is not stored as a user. It cannot be deleted, disabled
+  or demoted through the API, so it stays a break-glass admin. Its username is
+  reserved.
+- With no users created, behaviour is exactly as before.
+- Users are stored in the database with argon2id password hashes. Passwords
+  are never returned by the API.
+- Deleting or disabling a user, or changing their role, ends their open
+  sessions at once.
+- A user cannot delete, disable or demote their own account.
+- `GET /rest/v1/userinfo` returns the caller's username, role and hawkBit
+  permission names; the console uses it to hide controls the role cannot use.
+  The server enforces the role either way.
+- Rollout approvals record the approving user (`approveDecidedBy`).
+
+With only two roles, an admin can approve their own rollout. A separate
+approver role would need per-route permissions.
+
+> **Note:** OIDC sign-in is not yet implemented
+> ([#13](https://github.com/rosterloh/raptor/issues/13)).
 
 ## Deployment guidance
 

@@ -16,6 +16,7 @@ const PREVIEW_DEBOUNCE_MS: u32 = 400;
 
 #[component]
 pub fn TargetFilters(query: String, offset: u64) -> Element {
+    let can_write = use_can_write();
     let nav = use_navigator();
     let goto = move |query: String, offset: u64| {
         nav.replace(Route::TargetFilters { query, offset });
@@ -55,12 +56,14 @@ pub fn TargetFilters(query: String, offset: u64) -> Element {
         document::Title { "Target filters — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: PAGE_TITLE, "Target filters" }
-            Button {
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "New filter"
+            if can_write {
+                Button {
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "New filter"
+                }
             }
         }
         div { class: "mb-3",
@@ -107,37 +110,39 @@ pub fn TargetFilters(query: String, offset: u64) -> Element {
                                 td { class: TD, {logic::format_ts(f.last_modified_at)} }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let f = f.clone();
-                                                move |_| {
-                                                    form_for.set(Some(f.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let f = f.clone();
-                                                move |_| {
-                                                    assign_for.set(Some(f.clone()));
-                                                    show_assign.set(true);
-                                                }
-                                            },
-                                            "Auto-assign…"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                move |_| {
-                                                    delete_for.set(Some(f.clone()));
-                                                    confirm_delete.set(true);
-                                                }
-                                            },
-                                            "Delete"
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let f = f.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(f.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let f = f.clone();
+                                                    move |_| {
+                                                        assign_for.set(Some(f.clone()));
+                                                        show_assign.set(true);
+                                                    }
+                                                },
+                                                "Auto-assign…"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    move |_| {
+                                                        delete_for.set(Some(f.clone()));
+                                                        confirm_delete.set(true);
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }

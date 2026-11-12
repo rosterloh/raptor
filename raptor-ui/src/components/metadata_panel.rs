@@ -15,6 +15,7 @@ pub fn MetadataPanel(
     prefix: ReadSignal<String>,
     #[props(default = false)] show_visible: bool,
 ) -> Element {
+    let can_write = use_can_write();
     let mut entries = use_resource(move || async move { api::list_metadata(&prefix()).await });
 
     let mut show_form = use_signal(|| false);
@@ -24,13 +25,15 @@ pub fn MetadataPanel(
     rsx! {
         div { class: "mb-2 flex items-center justify-between",
             h2 { class: "font-semibold text-foreground", "Metadata" }
-            button {
-                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "Add…"
+            if can_write {
+                button {
+                    class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "Add…"
+                }
             }
         }
         match &*entries.read_unchecked() {
@@ -65,37 +68,39 @@ pub fn MetadataPanel(
                                 }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let m = m.clone();
-                                                move |_| {
-                                                    form_for.set(Some(m.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                let key = m.key;
-                                                let prefix = prefix();
-                                                move |_| {
-                                                    let key = key.clone();
-                                                    let prefix = prefix.clone();
-                                                    spawn(async move {
-                                                        match api::delete_metadata(&prefix, &key).await {
-                                                            Ok(()) => {
-                                                                toast_ok(format!("deleted {key}"));
-                                                                entries.restart();
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let m = m.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(m.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    let key = m.key;
+                                                    let prefix = prefix();
+                                                    move |_| {
+                                                        let key = key.clone();
+                                                        let prefix = prefix.clone();
+                                                        spawn(async move {
+                                                            match api::delete_metadata(&prefix, &key).await {
+                                                                Ok(()) => {
+                                                                    toast_ok(format!("deleted {key}"));
+                                                                    entries.restart();
+                                                                }
+                                                                Err(e) => toast_error(e.to_string()),
                                                             }
-                                                            Err(e) => toast_error(e.to_string()),
-                                                        }
-                                                    });
-                                                }
-                                            },
-                                            "Delete"
+                                                        });
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }

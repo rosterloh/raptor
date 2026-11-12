@@ -1,6 +1,8 @@
 use crate::Route;
 use crate::components::ui::{Button, ButtonSize, ButtonVariant, Dialog};
-use crate::components::{CommandPalette, FilterClear, LiveContext, ToastStack, use_theme};
+use crate::components::{
+    CommandPalette, FilterClear, LiveContext, Me, ToastStack, use_is_admin, use_theme,
+};
 use dioxus::prelude::*;
 
 const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
@@ -9,6 +11,7 @@ const LOGO: Asset = asset!("/assets/logo/logo-sidebar.png");
 pub fn Shell() -> Element {
     FilterClear::provide();
     LiveContext::provide();
+    let me = Me::provide();
     let mut palette_open = use_signal(|| false);
     let mut drawer_open = use_signal(|| false);
     let (is_dark, toggle_theme) = use_theme();
@@ -17,7 +20,14 @@ pub fn Shell() -> Element {
     // "Loading…", then jumped to the login page once the first API call came
     // back 401. The probe runs once per mount, not per navigation, because the
     // router keeps the layout mounted across child routes.
-    let session = use_resource(|| async { crate::api::session().await });
+    // `/rest/v1/userinfo` doubles as the session probe and tells the pages
+    // which controls this operator's role may use.
+    let session = use_resource(move || async move {
+        let info = crate::api::userinfo().await?;
+        let mut m = me.0;
+        m.set(Some(info));
+        Ok::<(), crate::api::ApiError>(())
+    });
     if !matches!(&*session.read_unchecked(), Some(Ok(()))) {
         // In flight, or refused — and a refusal has already navigated to the
         // login page from the api layer's 401 handling. Nothing to draw either way.
@@ -77,6 +87,7 @@ fn Sidebar(
     toggle_theme: Callback<()>,
 ) -> Element {
     let nav = use_navigator();
+    let admin = use_is_admin();
     let close = move |()| {
         if let Some(mut open) = drawer_open {
             open.set(false);
@@ -101,7 +112,7 @@ fn Sidebar(
                 }
             }
             nav { class: "flex flex-1 flex-col gap-4 overflow-y-auto px-2 pb-4",
-                for (group , links) in nav_groups() {
+                for (group , links) in nav_groups(admin) {
                     div { key: "{group}",
                         p { class: "px-3 pb-1 mono-label text-muted-foreground", "{group}" }
                         div { class: "flex flex-col gap-1",
@@ -140,7 +151,11 @@ fn Sidebar(
 
 type NavGroup = (&'static str, Vec<(&'static str, Route)>);
 
-fn nav_groups() -> Vec<NavGroup> {
+fn nav_groups(admin: bool) -> Vec<NavGroup> {
+    let mut config = vec![("Tags", Route::tags()), ("Types", Route::Types {})];
+    if admin {
+        config.push(("Users", Route::Users {}));
+    }
     vec![
         (
             "Fleet",
@@ -159,10 +174,7 @@ fn nav_groups() -> Vec<NavGroup> {
                 ("Actions", Route::actions()),
             ],
         ),
-        (
-            "Configuration",
-            vec![("Tags", Route::tags()), ("Types", Route::Types {})],
-        ),
+        ("Configuration", config),
     ]
 }
 
@@ -188,11 +200,15 @@ mod tests {
 
     #[test]
     fn navigation_groups_cover_every_operator_page() {
-        let groups = nav_groups();
-        assert_eq!(
-            groups.iter().map(|(_, links)| links.len()).sum::<usize>(),
-            9
-        );
+        let count = |admin| {
+            nav_groups(admin)
+                .iter()
+                .map(|(_, links)| links.len())
+                .sum::<usize>()
+        };
+        assert_eq!(count(false), 9);
+        assert_eq!(count(true), 10, "admins also get Users");
+        let groups = nav_groups(false);
         assert_eq!(
             groups.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
             ["Fleet", "Releases", "Configuration"]

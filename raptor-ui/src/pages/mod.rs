@@ -17,6 +17,7 @@ mod target_detail;
 mod target_filters;
 mod targets;
 mod types;
+mod users;
 
 pub use actions::Actions;
 pub use dashboard::Dashboard;
@@ -34,3 +35,4 @@ pub use target_detail::TargetDetail;
 pub use target_filters::TargetFilters;
 pub use targets::Targets;
 pub use types::Types;
+pub use users::Users;

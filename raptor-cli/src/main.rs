@@ -56,6 +56,9 @@ enum Cmd {
     /// List rollouts and decide the ones awaiting approval
     #[command(subcommand)]
     Rollout(commands::RolloutCmd),
+    /// Manage operator users (admin only)
+    #[command(subcommand)]
+    User(commands::UserCmd),
     /// Create a software module, upload its artifact, and create a
     /// distribution set wrapping it — one call for the common single-module
     /// release, threaded by id instead of `--json` + `jq`.
@@ -133,6 +136,7 @@ async fn main() {
         Cmd::Tag(c) => commands::tag(&client, c, cli.json).await,
         Cmd::Action(c) => commands::action(&client, c, cli.json).await,
         Cmd::Rollout(c) => commands::rollout(&client, c, cli.json).await,
+        Cmd::User(c) => commands::user(&client, c, cli.json).await,
         Cmd::Publish {
             file,
             version,

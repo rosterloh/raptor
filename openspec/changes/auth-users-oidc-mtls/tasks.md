@@ -17,19 +17,19 @@ Three parts, each its own PR, in this order. Part 3 depends on part 2.
 ## 2. Operator users and roles
 
 - [x] 2.1 Confirm hawkBit's insufficient-permission `403` body and `/rest/v1/userinfo` shape (done 2026-11-12, see design §3 and §6)
-- [ ] 2.2 Migration `m<date>_000001_users`: `users` table with `tenant` and named unique index `(tenant, username)`; SeaORM entity; migration test on SQLite (CI covers Postgres)
-- [ ] 2.3 `Principal { username, role, source }`; session store keeps `{principal, expiry}` and gains `remove_user`
-- [ ] 2.4 `mgmt_auth`: resolve cookie → Basic (config admin, then enabled local users) to a `Principal` extension; `login` accepts local users
-- [ ] 2.5 `Role::permissions()` in hawkBit vocabulary as the single definition; role gate in `mgmt_auth`: `read_only` allowed `GET`/`HEAD` and `POST /rest/v1/logout`, else `403`; `/rest/v1/users` admin-only; unit test that the method gate and `permissions()` agree
-- [ ] 2.6 DTOs in `raptor-api-types` (`UserRest`, `UserCreate`, `UserUpdate`, `UserInfo` matching hawkBit's `MgmtUserInfo` plus `role`) with round-trip JSON tests; no password field on read DTOs; make `TargetRest.security_token` optional and skipped when absent
-- [ ] 2.7 `api/mgmt/users.rs`: CRUD with paging/sort/FIQL (`username`, `role`, `enabled`, `source`), reserved config username → 409, self delete/disable/demote → 400, password on `oidc` user → 400, sessions revoked on delete/disable/role change; mapper in `mappers.rs`
-- [ ] 2.8 `GET /rest/v1/userinfo` with hawkBit permission names per role; omit target `securityToken` for `read_only` in every target-returning mapper
-- [ ] 2.9 Replace `cfg.mgmt.username` in `domain/rollout.rs` approve/deny with the request's `Principal`
-- [ ] 2.10 Integration tests `raptor/tests/mgmt_users.rs`: CRUD and error paths, local login via Basic and session, read-only `403` on every non-GET route in the router (iterate the route table so new write routes are covered), revoked session → 401, attribution on rollout approval, empty table = unchanged behaviour
-- [ ] 2.11 `raptorctl user list|create|set|delete` (TTY prompt or stdin for passwords, `-y` on delete)
-- [ ] 2.12 Console: fetch `/rest/v1/userinfo` after login, hide write controls for `read_only`, show `403` as a permissions message, Users page for admins (follow `DESIGN.md`; regenerate and commit `raptor-ui/assets/tailwind.css`)
-- [ ] 2.13 Docs: users and roles in `guides/authentication.md`, `/rest/v1/users` and `/rest/v1/userinfo` in `reference/management-api.md`, `raptorctl user` in `guides/cli.md`, compatibility Auth row, `web-console.md`
-- [ ] 2.14 `CHANGELOG.md` Added bullet (#13)
+- [x] 2.2 Migration `m<date>_000001_users`: `users` table with `tenant` and named unique index `(tenant, username)`; SeaORM entity; migration test on SQLite (CI covers Postgres)
+- [x] 2.3 `Principal { username, role, source }`; session store keeps `{principal, expiry}` and gains `remove_user`
+- [x] 2.4 `mgmt_auth`: resolve cookie → Basic (config admin, then enabled local users) to a `Principal` extension; `login` accepts local users
+- [x] 2.5 `Role::permissions()` in hawkBit vocabulary as the single definition; role gate in `mgmt_auth`: `read_only` allowed `GET`/`HEAD` and `POST /rest/v1/logout`, else `403`; `/rest/v1/users` admin-only; unit test that the method gate and `permissions()` agree
+- [x] 2.6 DTOs in `raptor-api-types` (`UserRest`, `UserCreate`, `UserUpdate`, `UserInfo` matching hawkBit's `MgmtUserInfo` plus `role`) with round-trip JSON tests; no password field on read DTOs; make `TargetRest.security_token` optional and skipped when absent
+- [x] 2.7 `api/mgmt/users.rs`: CRUD with paging/sort/FIQL (`username`, `role`, `enabled`, `source`), reserved config username → 409, self delete/disable/demote → 400, password on `oidc` user → 400, sessions revoked on delete/disable/role change; mapper in `mappers.rs`
+- [x] 2.8 `GET /rest/v1/userinfo` with hawkBit permission names per role; omit target `securityToken` for `read_only` in every target-returning mapper
+- [x] 2.9 Replace `cfg.mgmt.username` in `domain/rollout.rs` approve/deny with the request's `Principal`
+- [x] 2.10 Integration tests `raptor/tests/mgmt_users.rs`: CRUD and error paths, local login via Basic and session, read-only `403` on every non-GET route in the router (iterate the route table so new write routes are covered), revoked session → 401, attribution on rollout approval, empty table = unchanged behaviour
+- [x] 2.11 `raptorctl user list|create|set|delete` (TTY prompt or stdin for passwords, `-y` on delete)
+- [x] 2.12 Console: fetch `/rest/v1/userinfo` after login, hide write controls for `read_only`, show `403` as a permissions message, Users page for admins (follow `DESIGN.md`; regenerate and commit `raptor-ui/assets/tailwind.css`)
+- [x] 2.13 Docs: users and roles in `guides/authentication.md`, `/rest/v1/users` and `/rest/v1/userinfo` in `reference/management-api.md`, `raptorctl user` in `guides/cli.md`, compatibility Auth row, `web-console.md`
+- [x] 2.14 `CHANGELOG.md` Added bullet (#13)
 
 ## 3. OIDC
 

@@ -29,6 +29,14 @@ pub fn random_salt() -> [u8; 16] {
     b
 }
 
+/// argon2id PHC hash, as `raptor hash-password` prints it.
+pub fn hash_password(pw: &str) -> Result<String, argon2::password_hash::Error> {
+    use argon2::PasswordHasher;
+    argon2::Argon2::default()
+        .hash_password_with_salt(pw.as_bytes(), &random_salt())
+        .map(|h| h.to_string())
+}
+
 /// The device's source address, for `target.address`. Uses the configured
 /// trusted proxy header when raptor sits behind a proxy, else the socket peer.
 pub fn client_address(

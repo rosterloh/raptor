@@ -18,7 +18,25 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `POST` | `/rest/v1/login` | exchange credentials for a session cookie |
 | `POST` | `/rest/v1/logout` | clear the session |
 | `GET` | `/rest/v1/session` | 204 if the request is authenticated, 401 if not |
+| `GET` | `/rest/v1/userinfo` | hawkBit `MgmtUserInfo`: `tenant`, `username`, `permissions`, plus raptor's `role` |
 | `GET` | `/health` | liveness probe (returns `ok`) |
+
+## Users (raptor extension)
+
+Admin only; `read_only` users get `403`. See
+[Authentication](../guides/authentication.md#users-and-roles).
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/rest/v1/users` | list; `q` over `username`, `role`, `enabled`, `source` |
+| `POST` | `/rest/v1/users` | create a local user: `{"username", "password", "role"}` |
+| `GET` | `/rest/v1/users/{id}` | one user |
+| `PUT` | `/rest/v1/users/{id}` | change `role`, `enabled` or `password` |
+| `DELETE` | `/rest/v1/users/{id}` | delete; ends the user's sessions |
+
+`role` is `admin` or `read_only`; `source` is `local` or `oidc`. Responses never
+include a password or hash. Creating a duplicate username, or the `[mgmt]`
+username, is `409`. Deleting, disabling or demoting your own account is `400`.
 
 ## Targets
 
@@ -274,6 +292,7 @@ rollout's `rollout` events plus `action` events whose `rolloutId` matches. Each 
 | `204` | no content (e.g. no assigned DS) |
 | `400` | invalid FIQL or malformed body |
 | `401` | bad or missing credentials |
+| `403` | the caller's role does not allow the request |
 | `404` | unknown entity |
 | `409` | duplicate key (e.g. module name+version+type) |
 | `410` | feedback for a non-active action |

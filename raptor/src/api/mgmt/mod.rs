@@ -18,6 +18,7 @@ pub mod tags;
 pub mod target_filters;
 pub mod targets;
 pub mod types;
+pub mod users;
 
 use crate::state::AppState;
 use axum::Router;
@@ -40,6 +41,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(system::routes())
         .merge(events::routes())
         .merge(login::gated_routes())
+        .merge(users::routes())
         .route_layer(middleware::from_fn_with_state(
             state,
             crate::auth::mgmt::mgmt_auth,

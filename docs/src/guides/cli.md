@@ -75,6 +75,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `rollout create <name> --ds <id> --filter <fiql> --groups <n> --success <pct>` | create a rollout (flags for every `RolloutCreate` field) |
 | `rollout start/pause/resume/stop <id>` | drive a rollout's lifecycle; `stop` confirms unless `-y` |
 | `rollout approve/deny <id>` | decide rollouts awaiting approval |
+| `user list/create/set/delete` | operator users (admin only); passwords from a TTY prompt or stdin, `delete` confirms unless `-y` |
 | `status` | fleet-wide statistics |
 
 Run `raptorctl <command> --help` for full flag lists.

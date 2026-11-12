@@ -34,13 +34,9 @@ enum Cmd {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match Cmd::parse() {
         Cmd::HashPassword => {
-            use argon2::PasswordHasher;
             let mut pw = String::new();
             std::io::stdin().read_line(&mut pw)?;
-            // argon2 0.6 takes the salt as raw bytes and does the b64 itself.
-            match argon2::Argon2::default()
-                .hash_password_with_salt(pw.trim_end().as_bytes(), &raptor::util::random_salt())
-            {
+            match raptor::util::hash_password(pw.trim_end()) {
                 Ok(hash) => println!("{hash}"),
                 Err(e) => return Err(format!("hash password error: {}", e).into()),
             }
