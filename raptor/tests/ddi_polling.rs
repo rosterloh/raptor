@@ -169,3 +169,19 @@ async fn malformed_config_falls_back_instead_of_failing_the_poll() {
     let body = common::body_json(resp).await;
     assert_eq!(body["config"]["polling"]["sleep"], "00:05:00");
 }
+
+// #215: an override rule written with hawkBit's upper-case enum values
+// matches raptor's lower-case stored status.
+#[tokio::test]
+async fn override_rule_matches_upper_case_update_status() {
+    let (app, _) = app_with_polling_interval("00:05:00, updateStatus==UNKNOWN -> 00:00:30").await;
+    create_target(&app, "dev-1", None).await;
+    let body = common::body_json(
+        app.clone()
+            .oneshot(ddi_get("/DEFAULT/controller/v1/dev-1"))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(body["config"]["polling"]["sleep"], "00:00:30");
+}

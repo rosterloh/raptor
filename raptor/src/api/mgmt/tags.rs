@@ -210,7 +210,7 @@ pub fn target_tag_field(
     if field != "tag" {
         return None;
     }
-    Some(tag_op(*op).map(|(positive, name_op)| {
+    Some(tag_op(*op).and_then(|(positive, name_op)| {
         let tag_ids = SqlQuery::select()
             .column(target_tag::Column::Id)
             .from(target_tag::Entity)
@@ -218,18 +218,18 @@ pub fn target_tag_field(
                 target_tag::Column::Name,
                 &name_op,
                 values,
-            ))
+            )?)
             .to_owned();
         let owners = SqlQuery::select()
             .column(target_tag_assignment::Column::TargetId)
             .from(target_tag_assignment::Entity)
             .and_where(SqlExpr::col(target_tag_assignment::Column::TagId).in_subquery(tag_ids))
             .to_owned();
-        membership(
+        Ok(membership(
             SqlExpr::col((target::Entity, target::Column::Id)),
             owners,
             positive,
-        )
+        ))
     }))
 }
 
@@ -242,7 +242,7 @@ pub fn ds_tag_field(
     if field != "tag" {
         return None;
     }
-    Some(tag_op(*op).map(|(positive, name_op)| {
+    Some(tag_op(*op).and_then(|(positive, name_op)| {
         let tag_ids = SqlQuery::select()
             .column(ds_tag::Column::Id)
             .from(ds_tag::Entity)
@@ -250,18 +250,18 @@ pub fn ds_tag_field(
                 ds_tag::Column::Name,
                 &name_op,
                 values,
-            ))
+            )?)
             .to_owned();
         let owners = SqlQuery::select()
             .column(ds_tag_assignment::Column::DsId)
             .from(ds_tag_assignment::Entity)
             .and_where(SqlExpr::col(ds_tag_assignment::Column::TagId).in_subquery(tag_ids))
             .to_owned();
-        membership(
+        Ok(membership(
             SqlExpr::col((distribution_set::Entity, distribution_set::Column::Id)),
             owners,
             positive,
-        )
+        ))
     }))
 }
 
@@ -894,7 +894,7 @@ mod tests {
     fn tag_eq_is_an_in_subquery() {
         let s = target_sql("tag==beta");
         assert!(s.contains("\"id\" IN (SELECT \"target_id\""), "{s}");
-        assert!(s.contains("\"name\" = 'beta'"), "{s}");
+        assert!(s.contains("LOWER(\"target_tag\".\"name\") = 'beta'"), "{s}");
         assert!(!s.contains("NOT IN"), "{s}");
     }
 
@@ -903,7 +903,7 @@ mod tests {
         let s = target_sql("tag!=beta");
         assert!(s.contains("NOT IN (SELECT \"target_id\""), "{s}");
         // The name comparison inside the subquery stays positive.
-        assert!(s.contains("\"name\" = 'beta'"), "{s}");
+        assert!(s.contains("LOWER(\"target_tag\".\"name\") = 'beta'"), "{s}");
     }
 
     #[test]
@@ -922,7 +922,7 @@ mod tests {
     fn tag_combines_with_plain_columns() {
         let s = target_sql("tag==beta;updateStatus==in_sync");
         assert!(s.contains("AND"), "{s}");
-        assert!(s.contains("\"update_status\" = 'in_sync'"), "{s}");
+        assert!(s.contains("\"update_status\") = 'in_sync'"), "{s}");
     }
 
     #[test]

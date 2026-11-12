@@ -94,7 +94,7 @@ password_hash = "REPLACE_WITH_ARGON2_HASH"
 # [cleanup]
 # enabled = true
 # action_expiry_days = 30
-# action_statuses = ["finished", "error", "canceled"]
+# action_statuses = ["finished", "downloaded", "error", "canceled"]
 # interval_secs = 3600
 
 # Release retention: keep the newest keep_releases distribution sets of each

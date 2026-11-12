@@ -288,6 +288,78 @@ async fn target_list_embeds_set_and_tag_refs() {
     assert_eq!(one["tags"], a["tags"]);
 }
 
+#[tokio::test]
+async fn delete_target_with_history() {
+    let (app, _) = common::setup().await;
+    let post = |uri: &str, body: serde_json::Value| {
+        let app = app.clone();
+        let uri = uri.to_string();
+        async move {
+            let resp = app
+                .oneshot(common::req("POST", &uri, Some(body)))
+                .await
+                .unwrap();
+            assert!(resp.status().is_success(), "{uri}: {}", resp.status());
+            common::body_json(resp).await
+        }
+    };
+    let sm = post(
+        "/rest/v1/softwaremodules",
+        json!([{"name": "rootfs", "version": "1", "type": "os"}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let ds = post(
+        "/rest/v1/distributionsets",
+        json!([{"name": "fw", "version": "1", "type": "os", "modules": [{"id": sm}]}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let tag = post("/rest/v1/targettags", json!([{"name": "t"}])).await[0]["id"]
+        .as_i64()
+        .unwrap();
+    post("/rest/v1/targets", json!([{"controllerId": "gw-a"}])).await;
+    post(
+        "/rest/v1/targets/gw-a/metadata",
+        json!([{"key": "k", "value": "v"}]),
+    )
+    .await;
+    post(
+        &format!("/rest/v1/targettags/{tag}/assigned"),
+        json!(["gw-a"]),
+    )
+    .await;
+    post(
+        "/rest/v1/rollouts",
+        json!({
+            "name": "r", "distributionSetId": ds, "targetFilterQuery": "controllerId==gw-a",
+            "amountGroups": 1, "successCondition": {"condition": "THRESHOLD", "expression": "100"},
+        }),
+    )
+    .await;
+    post("/rest/v1/targets/gw-a/assignedDS", json!({"id": ds})).await;
+
+    let resp = app
+        .clone()
+        .oneshot(common::req("DELETE", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(common::req("GET", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let resp = app
+        .oneshot(common::req("GET", "/rest/v1/rollouts", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 // --------------------------------------------------------------------------
 // `attribute.<key>==<value>` FIQL on targets
 // --------------------------------------------------------------------------
@@ -440,4 +512,81 @@ async fn target_list_filters_by_auto_confirm() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn fiql_matches_alike_on_every_backend() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "Dev_1"}, {"controllerId": "devx1"}])),
+        ))
+        .await
+        .unwrap();
+    let q = |q: &str| {
+        let app = app.clone();
+        let uri = format!("/rest/v1/targets?q={}", q.replace('%', "%25"));
+        async move {
+            let resp = app.oneshot(common::req("GET", &uri, None)).await.unwrap();
+            let status = resp.status();
+            let body = common::body_json(resp).await;
+            let mut ids: Vec<String> = body["content"]
+                .as_array()
+                .map(|c| {
+                    c.iter()
+                        .map(|t| t["controllerId"].as_str().unwrap().to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
+            ids.sort();
+            (status, ids)
+        }
+    };
+    let ok = |ids: &[&str]| (StatusCode::OK, ids.iter().map(|s| s.to_string()).collect());
+    // Case-insensitive, with `_`/`%` matched literally.
+    assert_eq!(q("controllerId==DEV*").await, ok(&["Dev_1", "devx1"]));
+    assert_eq!(q("controllerId==dev_*").await, ok(&["Dev_1"]));
+    assert_eq!(q("controllerId==dev%*").await, ok(&[]));
+    assert_eq!(q("controllerId==DEV_1").await, ok(&["Dev_1"]));
+    assert_eq!(
+        q("controllerId=in=(dev_1,DEVX1)").await,
+        ok(&["Dev_1", "devx1"])
+    );
+    // Numeric fields bind as numbers.
+    assert_eq!(q("lastControllerRequestAt=lt=500").await, ok(&[]));
+    assert_eq!(
+        q("lastControllerRequestAt=lt=soon").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+// #215: hawkBit spells updateStatus values upper-case (`IN_SYNC`); raptor
+// stores them lower-case, so the filter must ignore case.
+#[tokio::test]
+async fn update_status_filter_accepts_hawkbit_upper_case() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "dev-1"}])),
+        ))
+        .await
+        .unwrap();
+    for (q, want) in [
+        ("updateStatus==UNKNOWN", 1),
+        ("updateStatus=in=(UNKNOWN,PENDING)", 1),
+        ("updateStatus==IN_SYNC", 0),
+    ] {
+        let body = common::body_json(
+            app.clone()
+                .oneshot(common::req("GET", &format!("/rest/v1/targets?q={q}"), None))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(body["total"], want, "{q}");
+    }
 }

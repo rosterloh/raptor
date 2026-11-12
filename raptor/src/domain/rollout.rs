@@ -619,7 +619,11 @@ async fn evaluate_rollout(st: &AppState, r: &rollout::Model) -> Result<(), AppEr
     } else {
         actions.len().max(1) as i64
     };
-    let success = actions.iter().filter(|a| a.status == "finished").count() as i64;
+    // A downloadonly action's terminal success is `downloaded`.
+    let success = actions
+        .iter()
+        .filter(|a| matches!(a.status.as_str(), "finished" | "downloaded"))
+        .count() as i64;
     let error = actions
         .iter()
         .filter(|a| matches!(a.status.as_str(), "error" | "canceled"))
@@ -848,11 +852,12 @@ async fn fill_dynamic_group(st: &AppState, r: &rollout::Model) -> Result<(), App
 }
 
 /// Bucket an action status into the hawkBit `totalTargetsPerStatus` field it
-/// contributes to. Everything still in flight (`running`, `canceling`,
+/// contributes to. A downloadonly action closed as `downloaded` counts as
+/// finished; everything still in flight (`running`, `canceling`,
 /// `wait_for_confirmation`) counts as running.
 pub(crate) fn bucket(counts: &mut TargetsPerStatus, action_status: &str, n: i64) {
     match action_status {
-        "finished" => counts.finished += n,
+        "finished" | "downloaded" => counts.finished += n,
         "error" => counts.error += n,
         "canceled" => counts.cancelled += n,
         _ => counts.running += n,

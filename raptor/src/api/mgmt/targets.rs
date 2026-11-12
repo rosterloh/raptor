@@ -5,8 +5,8 @@
 use super::mappers::{TargetRest, target_rest};
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
 use crate::entity::{
-    distribution_set, distribution_set_type, target, target_attribute, target_metadata, target_tag,
-    target_tag_assignment, target_type,
+    action, distribution_set, distribution_set_type, rollout_target_group, target,
+    target_attribute, target_metadata, target_tag, target_tag_assignment, target_type,
 };
 use crate::error::AppError;
 use crate::state::AppState;
@@ -19,7 +19,7 @@ use axum::routing::{get, post};
 use raptor_api_types::{DsRef, TagRef, TargetCreate, TargetUpdate};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait,
-    QueryFilter,
+    QueryFilter, TransactionTrait,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -86,7 +86,7 @@ fn target_attribute_field(
     values: &[String],
 ) -> Option<Result<sea_orm::sea_query::SimpleExpr, AppError>> {
     let key = field.strip_prefix("attribute.")?;
-    Some(super::tags::tag_op(op).map(|(positive, value_op)| {
+    Some(super::tags::tag_op(op).and_then(|(positive, value_op)| {
         let owners = sea_orm::sea_query::Query::select()
             .column(target_attribute::Column::TargetId)
             .from(target_attribute::Entity)
@@ -95,13 +95,13 @@ fn target_attribute_field(
                 target_attribute::Column::Value,
                 &value_op,
                 values,
-            ))
+            )?)
             .to_owned();
-        super::tags::membership(
+        Ok(super::tags::membership(
             sea_orm::sea_query::Expr::col((target::Entity, target::Column::Id)),
             owners,
             positive,
-        )
+        ))
     }))
 }
 
@@ -369,15 +369,34 @@ pub async fn delete(
     Path(cid): Path<String>,
 ) -> Result<StatusCode, AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
+    // Every table with a foreign key to `target`; none cascade.
+    let txn = st.db.begin().await?;
+    let action_ids: Vec<i64> = action::Entity::find()
+        .filter(action::Column::TargetId.eq(t.id))
+        .all(&txn)
+        .await?
+        .into_iter()
+        .map(|a| a.id)
+        .collect();
+    crate::domain::cleanup::delete_actions(&txn, action_ids).await?;
     target_attribute::Entity::delete_many()
         .filter(target_attribute::Column::TargetId.eq(t.id))
-        .exec(&st.db)
+        .exec(&txn)
         .await?;
     target_metadata::Entity::delete_many()
         .filter(target_metadata::Column::TargetId.eq(t.id))
-        .exec(&st.db)
+        .exec(&txn)
         .await?;
-    t.delete(&st.db).await?;
+    target_tag_assignment::Entity::delete_many()
+        .filter(target_tag_assignment::Column::TargetId.eq(t.id))
+        .exec(&txn)
+        .await?;
+    rollout_target_group::Entity::delete_many()
+        .filter(rollout_target_group::Column::TargetId.eq(t.id))
+        .exec(&txn)
+        .await?;
+    t.delete(&txn).await?;
+    txn.commit().await?;
     Ok(StatusCode::OK)
 }
 

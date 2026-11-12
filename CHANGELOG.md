@@ -38,6 +38,9 @@ decisions.
   reverse video, so no colour means both a status and the accent (#206)
 - Minimum supported Rust version is now 1.98.1 (Yocto blacksail), declared
   as `rust-version` so older toolchains fail fast
+- `[cleanup] action_statuses` defaults to include `downloaded`; with cleanup on
+  and the default list, closed download-only actions are now purged too. Set the
+  list explicitly to keep them (#222)
 
 ### Fixed
 
@@ -54,6 +57,19 @@ decisions.
   refuses (#200)
 - Console pages no longer freeze during busy rollouts: a live-event or polling
   refetch waits for a slow fetch instead of cancelling it (#204)
+- A device authenticated with its own `TargetToken` can list and download
+  only artifacts of modules in sets it has an action for; others get `404` (#220)
+- Cancelling an auto-assigned action is no longer undone by the next
+  auto-assignment sweep: a target that ever had an action for the set is skipped (#221)
+- Download-only rollouts advance: a `downloaded` action counts as a success
+  and as `finished` in `totalTargetsPerStatus` (#222)
+- Deleting a target with action history, tags or rollout membership no
+  longer fails with `500`; its dependent rows go with it (#223)
+- FIQL `q=` filters behave alike on SQLite and Postgres: text comparisons
+  ignore case as in hawkBit, `%`/`_` match literally, and numeric fields compare
+  as numbers, a non-number being `400` (#224)
+- `updateStatus` filters and polling-time override rules accept hawkBit's
+  upper-case values such as `IN_SYNC` (#215)
 - DDI artifact links percent-encode the filename, so a name with a space, `#`
   or `%` no longer gives the device an unfetchable href (#208)
 

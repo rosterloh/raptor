@@ -3,15 +3,29 @@
 //! targets that register or change attributes after the filter is created.
 //!
 //! Assignment is deliberately non-disruptive: it never supersedes a target's
-//! in-flight action and never re-assigns a DS the target already has assigned.
+//! in-flight action and never re-assigns a DS the target already has, or has
+//! ever had, an action for (so a cancelled auto-assignment stays cancelled).
 
 use crate::api::mgmt::targets::condition;
 use crate::domain::deployment::{active_action, assign_ds};
-use crate::entity::{distribution_set, target, target_filter};
+use crate::entity::{action, distribution_set, target, target_filter};
 use crate::error::AppError;
 use crate::metrics::{SWEEP_SKIP_AUTO_ASSIGN_FILTER, SWEEP_SKIP_AUTO_ASSIGN_TARGET};
 use crate::state::AppState;
+use sea_orm::sea_query::{Query, SimpleExpr};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+/// Targets with no action (any status) for `ds_id`, like hawkBit's
+/// `hasNotDistributionSetInActions`.
+fn never_had_ds(ds_id: i64) -> SimpleExpr {
+    target::Column::Id.not_in_subquery(
+        Query::select()
+            .column(action::Column::TargetId)
+            .from(action::Entity)
+            .and_where(action::Column::DsId.eq(ds_id))
+            .to_owned(),
+    )
+}
 
 /// Assigns `ds_id` to `target` unless it already has that DS assigned or has an
 /// active action (auto-assignment must not disturb an in-flight deployment).
@@ -75,6 +89,7 @@ pub async fn run_auto_assign(st: &AppState, filter: &target_filter::Model) -> Re
     let cond = condition(&filter.query)?;
     let targets = target::Entity::find()
         .filter(cond)
+        .filter(never_had_ds(ds_id))
         .order_by_asc(target::Column::Id)
         .all(&st.db)
         .await?;
@@ -127,6 +142,7 @@ pub async fn auto_assign_for_target(st: &AppState, target: &target::Model) -> Re
         };
         let matched = target::Entity::find()
             .filter(cond)
+            .filter(never_had_ds(ds_id))
             .filter(target::Column::Id.eq(target.id))
             .one(&st.db)
             .await?

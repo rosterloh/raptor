@@ -28,7 +28,7 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 | `GET` | `/rest/v1/targets` | list (paging/sort/FIQL) |
 | `GET` | `/rest/v1/targets/{cid}` | get one |
 | `PUT` | `/rest/v1/targets/{cid}` | update name/description/token/`requestAttributes`/`group` |
-| `DELETE` | `/rest/v1/targets/{cid}` | delete |
+| `DELETE` | `/rest/v1/targets/{cid}` | delete, with its actions, attributes, metadata, tag links and rollout membership |
 | `GET` | `/rest/v1/targets/{cid}/attributes` | device-reported attributes |
 | `POST` / `DELETE` | `/rest/v1/targets/{cid}/targettype` | assign / unassign the target type |
 | `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |

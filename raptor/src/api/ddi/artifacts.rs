@@ -4,7 +4,8 @@
 //! module only resolves metadata and streams bytes.
 
 use super::range::Resolved;
-use crate::entity::{artifact, ds_module, target};
+use crate::auth::ddi::AuthKind;
+use crate::entity::{action, artifact, ds_module, target};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::base_url;
@@ -16,15 +17,17 @@ use axum::{Extension, Json};
 use bytes::Bytes;
 use futures::StreamExt;
 use raptor_api_types::DownloadEvent;
+use sea_orm::sea_query::Query;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::Value;
 
 pub async fn list(
     State(st): State<AppState>,
-    Extension(_auth): Extension<crate::auth::ddi::AuthKind>,
+    Extension(auth): Extension<AuthKind>,
     headers: HeaderMap,
     Path((_tenant, cid, module_id)): Path<(String, String, i64)>,
 ) -> Result<Json<Vec<Value>>, AppError> {
+    check_entitled(&st, auth, &cid, module_id).await?;
     let base = base_url(&st.cfg, &headers);
     let ddi = super::ddi_base(&base, &st.cfg.tenant, &cid);
     let https = base.starts_with("https://");
@@ -50,10 +53,11 @@ pub async fn list(
 
 pub async fn download(
     State(st): State<AppState>,
-    Extension(_auth): Extension<crate::auth::ddi::AuthKind>,
+    Extension(auth): Extension<AuthKind>,
     headers: HeaderMap,
     Path((_tenant, cid, module_id, filename)): Path<(String, String, i64, String)>,
 ) -> Result<Response, AppError> {
+    check_entitled(&st, auth, &cid, module_id).await?;
     // .MD5SUM companion file
     if let Some(real) = filename.strip_suffix(".MD5SUM") {
         let a = find(&st, module_id, real).await?;
@@ -250,6 +254,39 @@ async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact:
         .filter(artifact::Column::Filename.eq(filename))
         .one(&st.db)
         .await?
+        .ok_or(AppError::NotFound("artifact"))
+}
+
+/// A target authenticated with its own token sees only modules of DSs it has
+/// (or had) an action for; anything else is 404, as hawkBit does.
+async fn check_entitled(
+    st: &AppState,
+    auth: AuthKind,
+    cid: &str,
+    module_id: i64,
+) -> Result<(), AppError> {
+    if auth != AuthKind::Target {
+        return Ok(());
+    }
+    let ds_ids = Query::select()
+        .column(action::Column::DsId)
+        .from(action::Entity)
+        .and_where(
+            action::Column::TargetId.in_subquery(
+                Query::select()
+                    .column(target::Column::Id)
+                    .from(target::Entity)
+                    .and_where(target::Column::ControllerId.eq(cid))
+                    .to_owned(),
+            ),
+        )
+        .to_owned();
+    ds_module::Entity::find()
+        .filter(ds_module::Column::ModuleId.eq(module_id))
+        .filter(ds_module::Column::DsId.in_subquery(ds_ids))
+        .one(&st.db)
+        .await?
+        .map(|_| ())
         .ok_or(AppError::NotFound("artifact"))
 }
 

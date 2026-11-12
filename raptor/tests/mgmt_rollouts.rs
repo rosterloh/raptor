@@ -612,6 +612,60 @@ async fn rollout_action_type_is_inherited_by_the_actions_it_creates() {
 }
 
 #[tokio::test]
+async fn downloadonly_rollout_finishes_once_devices_report_downloaded() {
+    let (app, st) = common::setup().await;
+    let ds = fixture(&app, 2).await;
+    let mut body = create_body(ds, 1, "100", None);
+    body["type"] = json!("downloadonly");
+    let id = common::body_json(
+        app.clone()
+            .oneshot(common::req("POST", "/rest/v1/rollouts", Some(body)))
+            .await
+            .unwrap(),
+    )
+    .await["id"]
+        .as_i64()
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/rollouts/{id}/start"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    for i in 0..2 {
+        let (aid, _) = device_action(&app, i).await;
+        let fb = json!({
+            "id": aid.to_string(),
+            "status": {"execution": "downloaded", "result": {"finished": "none"}, "details": []}
+        });
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::post(format!(
+                    "/DEFAULT/controller/v1/dev-{i}/deploymentBase/{aid}/feedback"
+                ))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(fb.to_string()))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+    evaluate_rollouts(&st).await.unwrap();
+
+    let r = get_json(&app, &format!("/rest/v1/rollouts/{id}")).await;
+    assert_eq!(r["status"], "finished");
+    assert_eq!(
+        per_status(&r),
+        json!({"finished": 2}).as_object().cloned().unwrap()
+    );
+}
+
+#[tokio::test]
 async fn rollout_rejects_an_unknown_action_type() {
     let (app, _) = common::setup().await;
     let ds = fixture(&app, 1).await;

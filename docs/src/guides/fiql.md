@@ -26,7 +26,14 @@ it to a database query.
 - AND binds tighter than OR; use parentheses to group.
 
 **Wildcards:** `*` in a value becomes a SQL `LIKE` wildcard, so
-`controllerId==dev-*` matches everything starting with `dev-`.
+`controllerId==dev-*` matches everything starting with `dev-`. `%` and `_` in a
+value match themselves.
+
+**Case:** as in hawkBit, text comparisons (`==`, `!=`, `=in=`, `=out=`, with or
+without wildcards) ignore case, on SQLite and Postgres alike.
+
+**Types:** numeric fields (ids, `lastControllerRequestAt`, timestamps) take
+integers and boolean fields `true`/`false`; any other value is a `400`.
 
 ## Examples
 

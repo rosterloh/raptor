@@ -416,6 +416,56 @@ async fn legacy_unsafe_filename_still_downloads() {
     }
 }
 
+#[tokio::test]
+async fn target_token_sees_only_assigned_modules() {
+    let (app, _) = common::setup_with_url("http://localhost:8080").await;
+    let (sm, _) = fixture(&app).await;
+    app.clone()
+        .oneshot(common::req(
+            "PUT",
+            "/rest/v1/targets/d1",
+            Some(json!({"securityToken": "t1"})),
+        ))
+        .await
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "d2", "securityToken": "t2"}])),
+        ))
+        .await
+        .unwrap();
+    let get = |cid: &str, token: &str, path: &str| {
+        Request::get(format!(
+            "/DEFAULT/controller/v1/{cid}/softwaremodules/{sm}/artifacts{path}"
+        ))
+        .header(header::AUTHORIZATION, format!("TargetToken {token}"))
+        .body(Body::empty())
+        .unwrap()
+    };
+    for path in ["", "/fw.bin", "/fw.bin.MD5SUM"] {
+        let resp = app.clone().oneshot(get("d1", "t1", path)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "d1 {path}");
+        let resp = app.clone().oneshot(get("d2", "t2", path)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "d2 {path}");
+    }
+    // The gateway token is fleet-wide and stays unrestricted.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/DEFAULT/controller/v1/d2/softwaremodules/{sm}/artifacts/fw.bin"
+            ))
+            .header(header::AUTHORIZATION, "GatewayToken gw-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 // hawkBit#3371: a space (and `#`, `%`) in the filename must survive the
 // advertised href, so a device fetching it verbatim gets the artifact.
 #[tokio::test]

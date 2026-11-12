@@ -10,6 +10,9 @@ Devices authenticate on every DDI request with one of:
 - **Target security token** —
   `Authorization: TargetToken <token>`, matched against the target's stored
   token. Each target has its own token (generated at creation, or supplied).
+  A target authenticated this way can list and download only the artifacts of
+  modules in distribution sets it has (or had) an action for; any other gets
+  `404`.
 - **Gateway token** —
   `Authorization: GatewayToken <token>`, a single shared token from config. A
   valid gateway token also enables **auto-registration** of unknown controller
