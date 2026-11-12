@@ -8,15 +8,26 @@ sign-on, bearer-token access for tooling, and mapping identities to raptor roles
 ## ADDED Requirements
 
 ### Requirement: Opt-in provider configuration
-OIDC SHALL be enabled only by a `[mgmt.oidc]` section with `issuer`, `client_id`, `client_secret`, `role_claim` and the claim values that grant `admin` and `read_only`. raptor SHALL fetch the issuer's discovery document and keys at startup and refuse to start if that fails.
+OIDC SHALL be enabled only by a `[mgmt.oidc]` section with `issuer`, `client_id`, `client_secret`, `role_claim` and the claim values that grant `admin` and `read_only`. Invalid configuration (missing `url`, an unparseable issuer URL, no role values) SHALL stop `raptor serve` at startup.
 
-#### Scenario: Issuer unreachable
-- **WHEN** `[mgmt.oidc]` is set and the issuer's discovery URL cannot be fetched
+#### Scenario: Missing base URL
+- **WHEN** `[mgmt.oidc]` is set and `url` is not
 - **THEN** `raptor serve` exits with an error before listening
 
 #### Scenario: Section absent
 - **WHEN** there is no `[mgmt.oidc]` section
 - **THEN** no OIDC routes respond and bearer tokens are rejected
+
+### Requirement: Provider outages never stop the server
+raptor SHALL start, and keep serving the DDI API and non-OIDC operators, while the provider's discovery document or keys cannot be fetched. Until they are, SSO login SHALL return `503` and bearer tokens `401`. raptor SHALL log the failure and retry with backoff.
+
+#### Scenario: Issuer down at startup
+- **WHEN** raptor starts while the issuer is unreachable
+- **THEN** devices poll normally, the config admin can log in, and `/rest/v1/oidc/login` returns `503`
+
+#### Scenario: Issuer recovers
+- **WHEN** the issuer becomes reachable after startup
+- **THEN** a later retry loads its keys and SSO and bearer auth start working without a restart
 
 ### Requirement: Console single sign-on
 `GET /rest/v1/oidc/login` SHALL redirect to the provider using the authorization-code flow with PKCE, a random `state` and a `nonce`. The callback SHALL verify `state`, exchange the code, validate the ID token, then set the normal session cookie and redirect to the console.

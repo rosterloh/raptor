@@ -52,8 +52,9 @@ header auth is tried first when enabled. It succeeds when the controller-id
 header equals `controllerId` and an authority header names a trusted
 authority. Anything else falls through to the existing token branches
 unchanged. The two handler checks become `matches!(auth, Target | Certificate)`
-for download scoping. The auto-register refusal stays on `Target` only, so
-certificate devices may self-register.
+for download scoping. Certificate devices may self-register, as upstream,
+unless `auto_register = false`. That switch is for operators whose trusted CA
+also signs certificates for things that are not devices.
 
 This mirrors hawkBit 1.2's `SecurityHeaderAuthenticator`, verified against
 source (`hawkbit-ddi-security`, tag 1.2.0):
@@ -72,8 +73,13 @@ source (`hawkbit-ddi-security`, tag 1.2.0):
 - Every successful DDI authenticator yields the same controller principal, and
   `findOrRegisterTargetIfItDoesNotExist` runs for all of them, so header-auth
   devices auto-register upstream as well.
-- Upstream also has `rp.trustedIPs`, a source-IP allowlist applied to every
-  DDI auth filter. It is not adopted here (see the decision discussion).
+- Upstream also has `rp.trustedIPs`, a source-IP allowlist (exact
+  addresses) applied to every DDI auth filter. raptor adopts it as
+  `trusted_proxies`, but scoped to header auth only. Token auth never trusted
+  proxy headers, so gating it by peer IP would only break direct device
+  connections. Requests from other peers skip header auth and fall through to
+  tokens. The comparison uses the socket peer, never `trusted_proxy_header`,
+  because the proxy is the peer by definition.
 
 Config:
 
@@ -83,6 +89,8 @@ enabled = true
 controller_id_header = "X-Controller-Id"   # default
 authority_header = "X-Authority"           # default
 trusted_authorities = ["4b5a8e1f"]         # required when enabled
+trusted_proxies = ["10.0.0.5"]             # optional; empty = any peer (startup warning if bind is public)
+auto_register = true                       # default
 ```
 
 Reported as `authentication.header.enabled` and
@@ -106,19 +114,25 @@ bare expiry.
 Handlers that need attribution take `Extension<Principal>`. The first one is
 rollout approve/deny, replacing `cfg.mgmt.username`.
 
-### 3. Roles enforced by HTTP method, in the same middleware
+### 3. Roles enforced by HTTP method; permissions defined in one place
 
 `read_only` is allowed `GET`/`HEAD` on any route, plus `POST /rest/v1/logout`.
 Everything else is `403`. `/rest/v1/users` writes and reads are admin-only.
 The check lives in `mgmt_auth` right after resolution, so no handler can forget
 it. A new route is protected by default.
 
-*Alternative:* per-route permission annotations in hawkBit's vocabulary. That
-gives finer control, but every route would need annotating and two roles
-don't need it. If roles grow, the method rule becomes a `Role -> allowed(route,
-method)` function in one place, and hawkBit's permission names are the
-vocabulary to use, so policy translates between the two servers (comment on
-#13).
+Each role's hawkBit permission set (`Role::permissions()`) is also defined in
+one function. `/rest/v1/userinfo` reports it, and the method gate is checked
+against it in a unit test, so what raptor reports and what it enforces cannot
+drift apart.
+
+*Alternative chosen against for now:* per-route permission annotations in
+hawkBit's vocabulary (`READ_TARGET`, `APPROVE_ROLLOUT`, …). That allows more
+roles, but every route (about 100) needs labelling. The trigger to move to it
+is a third role. The likeliest is an approver, since with one write role the
+rollout approval gate is self-approval. At that point the gate becomes
+`principal.permissions().contains(route.required)` and `permissions()` is
+already there.
 
 The `403` body is hawkBit's `SP_INSUFFICIENT_PERMISSION`:
 `exceptionClass` `org.eclipse.hawkbit.repository.exception.InsufficientPermissionException`,
@@ -153,10 +167,14 @@ reads them from a TTY prompt or stdin, never from argv.
 
 ### 5. OIDC: discovery at startup, PKCE code flow, JWKS-validated bearer
 
-- **Startup**: fetch `<issuer>/.well-known/openid-configuration` and the JWKS
-  with the existing `reqwest`. Failure stops `serve`, the same contract as the
-  S3 `HEAD` check: a misconfigured IdP is found at deploy time, not at the
-  first login.
+- **Startup**: validate the config (issuer URL parses, `url` set, role values
+  present), and abort on error. Then fetch `<issuer>/.well-known/openid-configuration`
+  and the JWKS with the existing `reqwest`. A *fetch* failure does not abort:
+  OIDC state is `Unavailable`, SSO returns `503`, bearer tokens get `401`,
+  and a background task retries with exponential backoff (1 s → 5 min) until
+  it loads. Unlike the S3 `HEAD` check, which aborts, devices never need the
+  IdP, so an IdP outage during a restart must not take the DDI API down with
+  it.
 - **Console SSO**: `/rest/v1/oidc/login` stores `{state, nonce, pkce_verifier}`
   in a short-lived (10 min) in-memory map and redirects. `/rest/v1/oidc/callback`
   checks `state`, exchanges the code, validates the ID token (signature, `iss`,
@@ -230,9 +248,14 @@ in context.
 - [JIT `users` rows grow with every OIDC identity] → small. Admins can delete
   rows, and a deleted OIDC user is recreated only if their token still maps
   to a role.
-- [The IdP being down at startup blocks raptor from starting, DDI included] →
-  deliberate (fail fast), but it couples device service to the IdP's
-  availability during restarts. Open question below.
+- [An IdP that is down at startup leaves SSO unavailable] → raptor still
+  starts. The failure is logged at `error` on every retry, so a provider that
+  is wrong rather than down (wrong issuer URL that resolves, for example)
+  shows up in logs, not as a silent hang. The config admin and local users
+  keep working.
+- [With one write role, rollout approval is self-approval] → accepted for
+  now. It is the documented trigger to move to per-route permissions and add
+  an approver role.
 
 ## Migration Plan
 
@@ -241,10 +264,3 @@ in context.
 - Rollback: revert the binary. The extra table is ignored by older releases,
   and nobody can log in as a table user until the new version is back.
 - Upgrade needs no config change. Each part turns on by adding its section.
-
-## Open Questions
-
-- Should an unreachable IdP at startup degrade (log, disable OIDC, keep the
-  config admin and local users working) rather than abort? The spec currently
-  says abort. Switching later changes only startup behaviour, not routes or
-  tasks.
