@@ -1,5 +1,9 @@
 # raptor v1 — hawkBit-compatible OTA update server in Rust
 
+> **Historical.** Imported from `docs/superpowers/specs/2026-07-04-raptor-v1-design.md` (plan: `docs/superpowers/plans/2026-07-04-raptor-v1.md`) when raptor moved to OpenSpec
+> (2026-11-12). Kept as written; the code and `openspec/specs/` are the
+> source of truth for current behaviour.
+
 **Date:** 2026-07-04
 **Status:** Approved design, pre-implementation
 

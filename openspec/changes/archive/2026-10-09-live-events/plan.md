@@ -1,5 +1,8 @@
 # Live events (SSE) and update progress — Implementation Plan
 
+> **Historical.** The original superpowers implementation plan, kept for
+> its reasoning and code sketches. `tasks.md` is the OpenSpec checklist view.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stream thin change notices and live download/install progress from raptor to the web console over SSE, so a target's update is visible as it happens.

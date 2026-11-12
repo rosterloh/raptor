@@ -1,5 +1,8 @@
 # raptor v1 Implementation Plan
 
+> **Historical.** The original superpowers implementation plan, kept for
+> its reasoning and code sketches. `tasks.md` is the OpenSpec checklist view.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A hawkBit drop-in OTA update server in Rust: DDI v1 API + core Management API, SQLite/Postgres, content-addressed artifact store, single binary.

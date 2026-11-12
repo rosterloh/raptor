@@ -1,5 +1,9 @@
 # raptor UI — Dioxus web management console
 
+> **Historical.** Imported from `docs/superpowers/specs/2026-07-05-raptor-ui-design.md` (plan: `docs/superpowers/plans/2026-07-05-raptor-ui.md`) when raptor moved to OpenSpec
+> (2026-11-12). Kept as written; the code and `openspec/specs/` are the
+> source of truth for current behaviour.
+
 **Date:** 2026-07-05
 **Status:** Approved design, pre-implementation
 

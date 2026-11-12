@@ -1,5 +1,8 @@
 # raptor UI (Dioxus web console) Implementation Plan
 
+> **Historical.** The original superpowers implementation plan, kept for
+> its reasoning and code sketches. `tasks.md` is the OpenSpec checklist view.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A full management console for raptor — Dioxus WASM SPA embedded in the raptor binary at `/ui`, with cookie-session login, driving the existing `/rest/v1` Management API end-to-end.

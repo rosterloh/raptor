@@ -34,7 +34,7 @@ pub struct Config {
     /// Tenant name this instance answers to on the DDI `/{tenant}/controller/v1/...`
     /// path segment. DDI requests naming any other tenant are rejected —
     /// raptor is single-tenant by design (run one instance per fleet); see
-    /// docs/superpowers/specs/2026-08-26-multi-tenancy-design.md. Compared
+    /// openspec/changes/archive/2026-08-26-multi-tenancy/design.md. Compared
     /// case-insensitively, since Zephyr's `CONFIG_HAWKBIT_TENANT` defaults to
     /// `"default"`.
     #[serde(default = "default_tenant")]

@@ -101,7 +101,7 @@ segment with `404`, matching hawkBit's own behavior. There is no per-tenant
 data isolation — run one raptor instance per fleet. The schema does carry a
 `tenant` column on every query-root table so isolation can land later without
 a migration; see the
-[design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md).
+[design doc](https://github.com/rosterloh/raptor/blob/main/openspec/changes/archive/2026-08-26-multi-tenancy/design.md).
 
 > **Note:** Items marked ❌ link to their tracking issue on the [GitHub
 > repository](https://github.com/rosterloh/raptor/issues). The schema is

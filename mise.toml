@@ -9,6 +9,8 @@ cargo-binstall = "1.25.3"
 "cargo:cargo-nextest" = "0.9.148"
 "cargo:cargo-llvm-cov" = "0.9.1"
 mdbook = "0.5.4"
+# Spec-driven change workflow: openspec/ (specs, changes, archive).
+"npm:@fission-ai/openspec" = "2.0.0"
 
 # cargo-deb publishes no binaries of its own; this lets binstall use the
 # quickinstall cache (as plain `cargo binstall` does) instead of compiling it.

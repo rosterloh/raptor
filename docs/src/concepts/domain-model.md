@@ -70,5 +70,5 @@ raptor is single-tenant: every query-root table carries a `tenant` column
 isolation can land later without a schema migration, not to isolate data
 today. The DDI tenant URL segment must match the configured `tenant` (default
 `DEFAULT`) or the request is rejected. See
-[the design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md)
+[the design doc](https://github.com/rosterloh/raptor/blob/main/openspec/changes/archive/2026-08-26-multi-tenancy/design.md)
 for the full rationale.

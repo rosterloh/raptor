@@ -3,7 +3,7 @@
 //! `(tenant, name)` key. Behaviour stays single-tenant — nothing queries on
 //! `tenant` yet — this only lays the schema groundwork so real isolation can
 //! land later without a table rebuild. See
-//! docs/superpowers/specs/2026-08-26-multi-tenancy-design.md.
+//! openspec/changes/archive/2026-08-26-multi-tenancy/design.md.
 //!
 //! Eight tables declare their unique name inline on `CREATE TABLE`
 //! (`unique_key()`), which Postgres and SQLite both implement as a table

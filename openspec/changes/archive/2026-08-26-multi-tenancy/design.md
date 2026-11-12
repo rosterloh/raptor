@@ -1,5 +1,9 @@
 # Multi-tenancy — design decision
 
+> **Historical.** Imported from `docs/superpowers/specs/2026-08-26-multi-tenancy-design.md` when raptor moved to OpenSpec
+> (2026-11-12). Kept as written; the code and `openspec/specs/` are the
+> source of truth for current behaviour.
+
 **Date:** 2026-08-26
 **Status:** Approved design, partially implemented (schema only; see below)
 **Tracking:** [#12](https://github.com/rosterloh/raptor/issues/12)
