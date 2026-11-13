@@ -111,6 +111,7 @@ croner = "4.0.0"
 rusty-s3 = { version = "0.10", default-features = false, features = ["rustcrypto", "xml"] }
 reqwest = { version = "0.13", features = ["stream"] }
 url = "2"
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

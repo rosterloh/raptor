@@ -459,7 +459,7 @@ fn target_type_field_omitted_when_none() {
         name: "d1".into(),
         description: None,
         update_status: "unknown".into(),
-        security_token: "x".into(),
+        security_token: Some("x".into()),
         group: None,
         created_at: 1,
         last_modified_at: 2,
@@ -607,4 +607,31 @@ fn event_payloads_round_trip() {
     round_trip::<ProgressEvent>(
         json!({"controllerId": "dev-1", "actionId": 42, "cnt": 2, "of": 5}),
     );
+}
+
+#[test]
+fn target_without_token_omits_the_key() {
+    round_trip::<TargetRest>(json!({
+        "controllerId": "d1", "name": "d1", "description": null,
+        "updateStatus": "in_sync",
+        "createdAt": 1, "lastModifiedAt": 2, "address": null, "ipAddress": null,
+        "lastControllerRequestAt": null, "pollStatus": null,
+        "requestAttributes": false,
+        "_links": {}
+    }));
+}
+
+#[test]
+fn user_shapes() {
+    round_trip::<UserRest>(json!({
+        "id": 1, "username": "alice", "role": "read_only", "source": "local",
+        "enabled": true, "createdAt": 1, "lastModifiedAt": 2,
+        "_links": {"self": {"href": "http://x/rest/v1/users/1"}}
+    }));
+    round_trip::<UserCreate>(json!({"username": "alice", "password": "pw", "role": "admin"}));
+    round_trip::<UserUpdate>(json!({"enabled": false}));
+    round_trip::<UserInfo>(json!({
+        "tenant": "DEFAULT", "username": "alice",
+        "permissions": ["READ_TARGET"], "role": "read_only"
+    }));
 }

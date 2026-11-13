@@ -61,6 +61,7 @@ fn server_message(e: &api::ApiError) -> String {
 
 #[component]
 fn SmTypesPanel() -> Element {
+    let can_write = use_can_write();
     let mut offset = use_signal(|| 0u64);
     let mut types =
         use_resource(move || async move { api::list_sm_types(offset(), LIMIT, None).await });
@@ -71,12 +72,14 @@ fn SmTypesPanel() -> Element {
 
     rsx! {
         div { class: "mb-3 flex justify-end",
-            Button {
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "New module type"
+            if can_write {
+                Button {
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "New module type"
+                }
             }
         }
         match &*types.read_unchecked() {
@@ -103,26 +106,28 @@ fn SmTypesPanel() -> Element {
                                 td { class: "{TD} tabular-nums text-fg-dim", "{t.max_assignments}" }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let t = t.clone();
-                                                move |_| {
-                                                    form_for.set(Some(t.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                move |_| {
-                                                    delete_for.set(Some(t.clone()));
-                                                    confirm_delete.set(true);
-                                                }
-                                            },
-                                            "Delete"
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(t.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    move |_| {
+                                                        delete_for.set(Some(t.clone()));
+                                                        confirm_delete.set(true);
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }
@@ -263,6 +268,7 @@ fn SmTypeFormDialog(
 
 #[component]
 fn DsTypesPanel() -> Element {
+    let can_write = use_can_write();
     let mut offset = use_signal(|| 0u64);
     let mut types =
         use_resource(move || async move { api::list_ds_types(offset(), LIMIT, None).await });
@@ -275,12 +281,14 @@ fn DsTypesPanel() -> Element {
 
     rsx! {
         div { class: "mb-3 flex justify-end",
-            Button {
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "New distribution set type"
+            if can_write {
+                Button {
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "New distribution set type"
+                }
             }
         }
         match &*types.read_unchecked() {
@@ -308,7 +316,6 @@ fn DsTypesPanel() -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     modules_for.set(Some(t.clone()));
                                                     show_modules.set(true);
@@ -316,26 +323,29 @@ fn DsTypesPanel() -> Element {
                                             },
                                             "Modules…"
                                         }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let t = t.clone();
-                                                move |_| {
-                                                    form_for.set(Some(t.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                move |_| {
-                                                    delete_for.set(Some(t.clone()));
-                                                    confirm_delete.set(true);
-                                                }
-                                            },
-                                            "Delete"
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(t.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        delete_for.set(Some(t.clone()));
+                                                        confirm_delete.set(true);
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }
@@ -479,6 +489,7 @@ enum Membership {
 /// rather than a toast per failed click.
 #[component]
 fn DsTypeModulesDialog(open: Signal<bool>, ds_type_id: i64, ds_type_name: String) -> Element {
+    let can_write = use_can_write();
     let mut mandatory =
         use_resource(move || async move { api::ds_type_mandatory(ds_type_id).await });
     let mut optional = use_resource(move || async move { api::ds_type_optional(ds_type_id).await });
@@ -526,7 +537,7 @@ fn DsTypeModulesDialog(open: Signal<bool>, ds_type_id: i64, ds_type_name: String
                                     span { "{sm.key}" }
                                     select {
                                         class: "rounded border border-border bg-background px-2 py-1 text-xs text-foreground",
-                                        disabled: locked().is_some(),
+                                        disabled: locked().is_some() || !can_write,
                                         value: match membership(sm.id) {
                                             Membership::None => "none",
                                             Membership::Mandatory => "mandatory",
@@ -578,6 +589,7 @@ fn DsTypeModulesDialog(open: Signal<bool>, ds_type_id: i64, ds_type_name: String
 
 #[component]
 fn TargetTypesPanel() -> Element {
+    let can_write = use_can_write();
     let mut offset = use_signal(|| 0u64);
     let mut types =
         use_resource(move || async move { api::list_target_types(offset(), LIMIT, None).await });
@@ -590,12 +602,14 @@ fn TargetTypesPanel() -> Element {
 
     rsx! {
         div { class: "mb-3 flex justify-end",
-            Button {
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "New target type"
+            if can_write {
+                Button {
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "New target type"
+                }
             }
         }
         match &*types.read_unchecked() {
@@ -632,7 +646,6 @@ fn TargetTypesPanel() -> Element {
                                         button {
                                             class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
                                             onclick: {
-                                                let t = t.clone();
                                                 move |_| {
                                                     compat_for.set(Some(t.clone()));
                                                     show_compat.set(true);
@@ -640,26 +653,29 @@ fn TargetTypesPanel() -> Element {
                                             },
                                             "Compatible sets…"
                                         }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let t = t.clone();
-                                                move |_| {
-                                                    form_for.set(Some(t.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                move |_| {
-                                                    delete_for.set(Some(t.clone()));
-                                                    confirm_delete.set(true);
-                                                }
-                                            },
-                                            "Delete"
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(t.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        delete_for.set(Some(t.clone()));
+                                                        confirm_delete.set(true);
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }
@@ -815,6 +831,7 @@ fn TargetTypeCompatDialog(
     target_type_id: i64,
     target_type_name: String,
 ) -> Element {
+    let can_write = use_can_write();
     let mut compatible =
         use_resource(move || async move { api::target_type_compatible(target_type_id).await });
     let all = use_resource(move || async move { api::list_ds_types(0, 100, None).await });
@@ -835,6 +852,7 @@ fn TargetTypeCompatDialog(
                                 label { class: "flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent",
                                     input {
                                         r#type: "checkbox",
+                                        disabled: !can_write,
                                         checked: compatible.read_unchecked().as_ref().and_then(|r| r.as_ref().ok()).is_some_and(|v| v.iter().any(|t| t.id == ds.id)),
                                         onchange: move |e: FormEvent| {
                                             let on = e.checked();

@@ -34,13 +34,9 @@ enum Cmd {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match Cmd::parse() {
         Cmd::HashPassword => {
-            use argon2::PasswordHasher;
             let mut pw = String::new();
             std::io::stdin().read_line(&mut pw)?;
-            // argon2 0.6 takes the salt as raw bytes and does the b64 itself.
-            match argon2::Argon2::default()
-                .hash_password_with_salt(pw.trim_end().as_bytes(), &raptor::util::random_salt())
-            {
+            match raptor::util::hash_password(pw.trim_end()) {
                 Ok(hash) => println!("{hash}"),
                 Err(e) => return Err(format!("hash password error: {}", e).into()),
             }
@@ -72,6 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // installs the subscriber before anything else logs.
             let cfg = Config::load(Some(&config))?;
             validate_polling_schedule(&cfg)?;
+            validate_header_auth(&cfg.ddi.header_auth)?;
+            raptor::auth::oidc::validate(&cfg)?;
             if cfg.retention.keep_releases == Some(0) {
                 return Err("[retention] keep_releases must be at least 1".into());
             }
@@ -83,6 +81,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     url = %u,
                     "[ddi] artifact_http_url is not an http:// URL; it is advertised as the \
                      plain-HTTP artifact link (download-http), so devices will follow it as-is."
+                );
+            }
+            if header_auth_spoofable(&cfg) {
+                tracing::warn!(
+                    bind = %cfg.bind,
+                    "[ddi.header_auth] is enabled with no trusted_proxies while raptor listens beyond \
+                     loopback: any client that reaches raptor directly can forge the controller-id \
+                     and authority headers. Bind to loopback or a private interface behind the \
+                     proxy, or list the proxy in trusted_proxies."
                 );
             }
             if cfg.ddi.confirmation_flow && !cfg.ddi.auto_confirm_default {
@@ -105,6 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let bind = cfg.bind;
             let eval_interval = cfg.rollout_eval_interval_secs.max(1);
             let state = AppState::with_metrics(db, cfg, store, metrics);
+            if let Some(oidc) = &state.oidc {
+                oidc.clone().spawn_loader();
+            }
             let eval_state = state.clone();
             tokio::spawn(async move {
                 let mut interval =
@@ -201,6 +211,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// through the same path a device poll evaluates it with
 /// (`api::mgmt::targets::condition`), so an unknown field name fails here
 /// too, not silently the first time a device happens to match it.
+/// Header auth with nothing to trust would silently authenticate nobody
+/// (hawkBit's behaviour); refuse to start instead.
+fn validate_header_auth(h: &raptor::config::HeaderAuthConfig) -> Result<(), String> {
+    if h.enabled && h.trusted_authorities.iter().all(|a| a.trim().is_empty()) {
+        return Err("[ddi.header_auth] is enabled but trusted_authorities is empty".into());
+    }
+    Ok(())
+}
+
+fn header_auth_spoofable(cfg: &Config) -> bool {
+    let h = &cfg.ddi.header_auth;
+    h.enabled && h.trusted_proxies.is_empty() && !cfg.bind.ip().is_loopback()
+}
+
 fn validate_polling_schedule(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let schedule = cfg
         .ddi
@@ -308,5 +332,42 @@ mod tests {
     #[test]
     fn rejects_hawkbit_style_whitespace_around_the_operator() {
         assert_polling_interval("00:05:00, group == 'eu' -> 00:01:00", false);
+    }
+
+    fn header_auth(enabled: bool, authorities: &[&str]) -> raptor::config::HeaderAuthConfig {
+        raptor::config::HeaderAuthConfig {
+            enabled,
+            trusted_authorities: authorities.iter().map(|a| a.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn header_auth_needs_a_trusted_authority_when_enabled() {
+        assert!(validate_header_auth(&header_auth(true, &[])).is_err());
+        assert!(validate_header_auth(&header_auth(true, &[" "])).is_err());
+        assert!(validate_header_auth(&header_auth(true, &["ca-a"])).is_ok());
+        assert!(validate_header_auth(&header_auth(false, &[])).is_ok());
+    }
+
+    #[test]
+    fn spoofing_warning_only_for_public_bind_without_proxies() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                "database_url = \"sqlite::memory:\"\n\
+                 artifact_dir = \"/tmp\"\n\
+                 [mgmt]\nusername = \"admin\"\npassword_hash = \"x\"\n",
+            )?;
+            let mut cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            cfg.ddi.header_auth = header_auth(true, &["ca-a"]);
+            assert!(header_auth_spoofable(&cfg), "default bind is 0.0.0.0");
+            cfg.bind = "127.0.0.1:8088".parse().unwrap();
+            assert!(!header_auth_spoofable(&cfg));
+            cfg.bind = "0.0.0.0:8088".parse().unwrap();
+            cfg.ddi.header_auth.trusted_proxies = vec!["10.0.0.5".parse().unwrap()];
+            assert!(!header_auth_spoofable(&cfg));
+            Ok(())
+        });
     }
 }

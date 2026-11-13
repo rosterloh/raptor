@@ -5,9 +5,12 @@ versioned bundle of software modules.
 
 ## DS types
 
-raptor seeds three distribution-set types: `os`, `os_app`, and `app`. Like
-module types, they are read-only. The type determines which module types a DS
-needs to be considered **complete**.
+raptor seeds three distribution-set types: `os`, `os_app`, and `app`, and you
+can create your own under `/rest/v1/distributionsettypes`. A type lists
+**mandatory** and **optional** module types; a DS needs one module of every
+mandatory type to be considered **complete**. Deleting a type that sets still
+use returns `409`. See the
+[Management API reference](../reference/management-api.md#types).
 
 ## Creating a distribution set
 

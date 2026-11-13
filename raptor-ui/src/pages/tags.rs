@@ -69,6 +69,7 @@ impl TagKind {
 
 #[component]
 pub fn Tags(kind: String, query: String, offset: u64) -> Element {
+    let can_write = use_can_write();
     let tag_kind = TagKind::from_slug(&kind);
     let nav = use_navigator();
     let goto = move |kind: TagKind, query: String, offset: u64| {
@@ -101,12 +102,14 @@ pub fn Tags(kind: String, query: String, offset: u64) -> Element {
         document::Title { "Tags — raptor" }
         div { class: "mb-4 flex items-center justify-between",
             h1 { class: PAGE_TITLE, "Tags" }
-            Button {
-                onclick: move |_| {
-                    form_for.set(None);
-                    show_form.set(true);
-                },
-                "New tag"
+            if can_write {
+                Button {
+                    onclick: move |_| {
+                        form_for.set(None);
+                        show_form.set(true);
+                    },
+                    "New tag"
+                }
             }
         }
         div { class: "mb-3 flex gap-2",
@@ -158,26 +161,28 @@ pub fn Tags(kind: String, query: String, offset: u64) -> Element {
                                 td { class: TD, {logic::format_ts(t.last_modified_at)} }
                                 td { class: TD,
                                     div { class: "flex justify-end gap-2",
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                                            onclick: {
-                                                let t = t.clone();
-                                                move |_| {
-                                                    form_for.set(Some(t.clone()));
-                                                    show_form.set(true);
-                                                }
-                                            },
-                                            "Edit"
-                                        }
-                                        button {
-                                            class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
-                                            onclick: {
-                                                move |_| {
-                                                    delete_for.set(Some(t.clone()));
-                                                    confirm_delete.set(true);
-                                                }
-                                            },
-                                            "Delete"
+                                        if can_write {
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                                                onclick: {
+                                                    let t = t.clone();
+                                                    move |_| {
+                                                        form_for.set(Some(t.clone()));
+                                                        show_form.set(true);
+                                                    }
+                                                },
+                                                "Edit"
+                                            }
+                                            button {
+                                                class: "rounded px-2 py-1 text-xs text-err hover:bg-accent",
+                                                onclick: {
+                                                    move |_| {
+                                                        delete_for.set(Some(t.clone()));
+                                                        confirm_delete.set(true);
+                                                    }
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }
@@ -428,14 +433,17 @@ pub fn EntityTags(
     entity_key: String,
     tags: Resource<api::ApiResult<Vec<TagRest>>>,
 ) -> Element {
+    let can_write = use_can_write();
     let mut show_manage = use_signal(|| false);
     rsx! {
         div { class: "mb-2 flex items-center justify-between",
             h2 { class: "font-semibold text-foreground", "Tags" }
-            button {
-                class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
-                onclick: move |_| show_manage.set(true),
-                "Manage…"
+            if can_write {
+                button {
+                    class: "rounded px-2 py-1 text-xs text-fg-dim hover:bg-accent",
+                    onclick: move |_| show_manage.set(true),
+                    "Manage…"
+                }
             }
         }
         match &*tags.read_unchecked() {

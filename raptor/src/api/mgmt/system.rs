@@ -42,6 +42,12 @@ fn tenant_configs(cfg: &Config) -> BTreeMap<String, TenantConfigValue> {
         g(json!(cfg.ddi.gateway_token.is_some())),
     );
     m.insert("authentication.targettoken.enabled".into(), g(json!(true)));
+    let h = &cfg.ddi.header_auth;
+    m.insert("authentication.header.enabled".into(), g(json!(h.enabled)));
+    m.insert(
+        "authentication.header.authority".into(),
+        g(json!(h.trusted_authorities.join(","))),
+    );
     m.insert(
         "user.confirmation.flow.enabled".into(),
         g(json!(cfg.ddi.confirmation_flow)),

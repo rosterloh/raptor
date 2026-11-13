@@ -15,6 +15,7 @@ mod software_modules;
 mod tags;
 mod target_filters;
 mod targets;
+mod users;
 
 pub use actions::*;
 pub use common::*;
@@ -26,6 +27,7 @@ pub use software_modules::*;
 pub use tags::*;
 pub use target_filters::*;
 pub use targets::*;
+pub use users::*;
 
 #[cfg(test)]
 mod tests;

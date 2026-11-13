@@ -34,7 +34,7 @@ pub struct Config {
     /// Tenant name this instance answers to on the DDI `/{tenant}/controller/v1/...`
     /// path segment. DDI requests naming any other tenant are rejected —
     /// raptor is single-tenant by design (run one instance per fleet); see
-    /// docs/superpowers/specs/2026-08-26-multi-tenancy-design.md. Compared
+    /// openspec/changes/archive/2026-08-26-multi-tenancy/design.md. Compared
     /// case-insensitively, since Zephyr's `CONFIG_HAWKBIT_TENANT` defaults to
     /// `"default"`.
     #[serde(default = "default_tenant")]
@@ -386,6 +386,56 @@ pub struct DdiConfig {
     /// unless an operator states that a proxy is in front and rewriting it.
     #[serde(default)]
     pub trusted_proxy_header: Option<String>,
+    /// Device auth by headers a TLS-terminating proxy sets from the client
+    /// certificate (hawkBit's "header authentication"). Off by default.
+    #[serde(default)]
+    pub header_auth: HeaderAuthConfig,
+}
+
+/// `[ddi.header_auth]`. Header names and matching follow hawkBit 1.2's
+/// `SecurityHeaderAuthenticator` (`hawkbit.server.ddi.security.rp.*`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct HeaderAuthConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Header carrying the controller id the proxy verified.
+    #[serde(default = "default_controller_id_header")]
+    pub controller_id_header: String,
+    /// Header carrying the verifying authority: one `,`/`;` list, or
+    /// `<name>-0`, `<name>-1`, ... when the bare header is absent.
+    #[serde(default = "default_authority_header")]
+    pub authority_header: String,
+    /// Authorities (e.g. issuer hashes) whose word is trusted. Required when
+    /// `enabled`; compared case-insensitively.
+    #[serde(default)]
+    pub trusted_authorities: Vec<String>,
+    /// Socket peers allowed to supply these headers; empty accepts any peer.
+    #[serde(default)]
+    pub trusted_proxies: Vec<std::net::IpAddr>,
+    /// Whether an unknown controller authenticated this way is registered.
+    #[serde(default = "default_true")]
+    pub auto_register: bool,
+}
+
+fn default_controller_id_header() -> String {
+    "X-Controller-Id".into()
+}
+
+fn default_authority_header() -> String {
+    "X-Authority".into()
+}
+
+impl Default for HeaderAuthConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            controller_id_header: default_controller_id_header(),
+            authority_header: default_authority_header(),
+            trusted_authorities: Vec::new(),
+            trusted_proxies: Vec::new(),
+            auto_register: true,
+        }
+    }
 }
 
 impl Default for DdiConfig {
@@ -398,6 +448,7 @@ impl Default for DdiConfig {
             auto_confirm_default: false,
             artifact_http_url: None,
             trusted_proxy_header: None,
+            header_auth: HeaderAuthConfig::default(),
         }
     }
 }
@@ -575,6 +626,61 @@ fn format_hhmmss(d: std::time::Duration) -> String {
 pub struct MgmtConfig {
     pub username: String,
     pub password_hash: String,
+    /// Sign-in through an OpenID Connect provider. Off unless present.
+    #[serde(default)]
+    pub oidc: Option<OidcConfig>,
+}
+
+/// `[mgmt.oidc]`: console SSO and bearer tokens from an OpenID Connect
+/// provider. The redirect URI is `<url>/rest/v1/oidc/callback`.
+#[derive(Clone, Deserialize)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    pub client_secret: String,
+    /// Required `aud` of bearer tokens; defaults to `client_id`.
+    #[serde(default)]
+    pub audience: Option<String>,
+    #[serde(default = "default_oidc_scopes")]
+    pub scopes: Vec<String>,
+    /// Claim holding group/role names, a string or an array of strings.
+    pub role_claim: String,
+    #[serde(default)]
+    pub admin_values: Vec<String>,
+    #[serde(default)]
+    pub read_only_values: Vec<String>,
+    #[serde(default = "default_username_claim")]
+    pub username_claim: String,
+}
+
+impl OidcConfig {
+    pub fn audience(&self) -> &str {
+        self.audience.as_deref().unwrap_or(&self.client_id)
+    }
+}
+
+// Hand-written so the client secret never lands in a log line via `{:?}`.
+impl std::fmt::Debug for OidcConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OidcConfig")
+            .field("issuer", &self.issuer)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<redacted>")
+            .field("audience", &self.audience)
+            .field("scopes", &self.scopes)
+            .field("role_claim", &self.role_claim)
+            .field("admin_values", &self.admin_values)
+            .field("read_only_values", &self.read_only_values)
+            .field("username_claim", &self.username_claim)
+            .finish()
+    }
+}
+
+fn default_oidc_scopes() -> Vec<String> {
+    vec!["openid".into(), "profile".into()]
+}
+fn default_username_claim() -> String {
+    "preferred_username".into()
 }
 
 /// 8088 rather than 8080: still unprivileged, but far less likely to collide
@@ -640,6 +746,54 @@ password_hash = "$argon2id$fake"
             assert_eq!(cfg.cleanup.action_expiry_days, 30);
             assert_eq!(cfg.retention.keep_releases, None);
             assert!(cfg.otel.is_none());
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn header_auth_defaults_off_with_hawkbit_header_names() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file("raptor.toml", MINIMAL)?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            let h = &cfg.ddi.header_auth;
+            assert!(!h.enabled);
+            assert_eq!(h.controller_id_header, "X-Controller-Id");
+            assert_eq!(h.authority_header, "X-Authority");
+            assert!(h.trusted_authorities.is_empty() && h.trusted_proxies.is_empty());
+            assert!(h.auto_register);
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn parses_header_auth_section() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!(
+                    "{MINIMAL}[ddi.header_auth]\nenabled = true\n\
+                     trusted_authorities = [\"ca-a\"]\n\
+                     trusted_proxies = [\"10.0.0.5\", \"::1\"]\n\
+                     auto_register = false\n"
+                ),
+            )?;
+            let cfg = Config::load(Some(std::path::Path::new("raptor.toml"))).unwrap();
+            let h = &cfg.ddi.header_auth;
+            assert!(h.enabled && !h.auto_register);
+            assert_eq!(h.trusted_authorities, ["ca-a"]);
+            assert_eq!(h.trusted_proxies.len(), 2);
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn rejects_non_ip_trusted_proxy() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_file(
+                "raptor.toml",
+                &format!("{MINIMAL}[ddi.header_auth]\ntrusted_proxies = [\"proxy.lan\"]\n"),
+            )?;
+            assert!(Config::load(Some(std::path::Path::new("raptor.toml"))).is_err());
             Ok(())
         });
     }

@@ -3,8 +3,9 @@
 //! definitions live in the `raptor-api-types` crate; this module only builds
 //! them from SeaORM entity models.
 
-use crate::entity::{distribution_set, software_module, target};
-pub use raptor_api_types::{DsRest, PollStatus, SmRest, TargetRest};
+use crate::auth::principal::Role;
+use crate::entity::{distribution_set, software_module, target, user};
+pub use raptor_api_types::{DsRest, PollStatus, SmRest, TargetRest, UserRest};
 use serde_json::json;
 use std::time::Duration;
 
@@ -22,7 +23,14 @@ pub fn sm_rest(m: &software_module::Model, type_key: &str, base: &str) -> SmRest
     }
 }
 
-pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> TargetRest {
+/// `role` decides whether `securityToken` is included (hawkBit's
+/// `READ_TARGET_SECURITY_TOKEN`).
+pub fn target_rest(
+    t: &target::Model,
+    poll_interval: Duration,
+    base: &str,
+    role: Role,
+) -> TargetRest {
     let poll_status = t.last_poll_at.map(|last| {
         let next = last + poll_interval.as_millis() as i64;
         PollStatus {
@@ -36,7 +44,9 @@ pub fn target_rest(t: &target::Model, poll_interval: Duration, base: &str) -> Ta
         name: t.name.clone(),
         description: t.description.clone(),
         update_status: t.update_status.clone(),
-        security_token: t.security_token.clone(),
+        security_token: role
+            .sees_security_tokens()
+            .then(|| t.security_token.clone()),
         created_at: t.created_at,
         last_modified_at: t.updated_at,
         address: t.address.clone(),
@@ -77,5 +87,18 @@ pub fn ds_rest(
         last_modified_at: ds.updated_at,
         modules,
         links: json!({"self": {"href": format!("{base}/rest/v1/distributionsets/{}", ds.id)}}),
+    }
+}
+
+pub fn user_rest(u: &user::Model) -> UserRest {
+    UserRest {
+        id: u.id,
+        username: u.username.clone(),
+        role: u.role.clone(),
+        source: u.source.clone(),
+        enabled: u.enabled,
+        created_at: u.created_at,
+        last_modified_at: u.updated_at,
+        links: json!({"self": {"href": format!("/rest/v1/users/{}", u.id)}}),
     }
 }

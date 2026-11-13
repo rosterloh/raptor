@@ -132,8 +132,8 @@ hawkBit's own, and raptor matches it.
 
 Denial is terminal: `approval_denied` is not a startable status and nothing
 transitions out of it, so a denied rollout can only be deleted. There is no
-"undeny" — create a fresh rollout instead. Because raptor authenticates a
-single operator account, `approveDecidedBy` is always that account's username.
+"undeny" — create a fresh rollout instead. `approveDecidedBy` is the username
+of the operator who approved or denied it.
 
 The flag is reported to clients as hawkBit's `rollout.approval.enabled` tenant
 config key on `GET /rest/v1/system/configs`.

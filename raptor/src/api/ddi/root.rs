@@ -90,6 +90,9 @@ pub async fn get_or_register(
             if auth == AuthKind::Target {
                 return Err(AppError::NotFound("target")); // middleware already guards this
             }
+            if auth == AuthKind::Certificate && !st.cfg.ddi.header_auth.auto_register {
+                return Err(AppError::Unauthorized);
+            }
             let now = now_ms();
             let created = target::ActiveModel {
                 controller_id: Set(cid.to_string()),

@@ -13,7 +13,7 @@ mod theme_tests;
 
 use pages::{
     Actions, Dashboard, Distributions, DsDetail, Login, ModuleDetail, Modules, NotFound,
-    RolloutDetail, Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets, Types,
+    RolloutDetail, Rollouts, Shell, Tags, TargetDetail, TargetFilters, Targets, Types, Users,
 };
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
@@ -51,6 +51,8 @@ pub enum Route {
         RolloutDetail { id: i64 },
         #[route("/actions?:filter&:sort&:offset")]
         Actions { filter: String, sort: String, offset: u64 },
+        #[route("/users")]
+        Users {},
         #[route("/:..route")]
         NotFound { route: Vec<String> },
 }

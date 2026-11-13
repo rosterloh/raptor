@@ -467,6 +467,7 @@ mod tests {
             url: "http://127.0.0.1:1".into(),
             user: "u".into(),
             pass: "p".into(),
+            token: None,
         };
         App::new(Client::new(&cfg), 0).0
     }

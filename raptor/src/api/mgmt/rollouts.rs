@@ -3,6 +3,7 @@
 //! target listings.
 
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
+use crate::auth::principal::Principal;
 use crate::domain::rollout::{ApprovalDecision, rollout_group_rest, rollout_rest};
 use crate::entity::{rollout, rollout_group, rollout_target_group};
 use crate::error::AppError;
@@ -10,7 +11,7 @@ use crate::state::AppState;
 use crate::util::base_url;
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use raptor_api_types::{RolloutCreate, RolloutGroupRest, RolloutRest};
@@ -128,10 +129,18 @@ pub struct ApprovalParams {
 pub async fn approve(
     State(st): State<AppState>,
     Path(id): Path<i64>,
+    Extension(who): Extension<Principal>,
     Query(p): Query<ApprovalParams>,
 ) -> Result<StatusCode, AppError> {
     let r = find_rollout(&st, id).await?;
-    crate::domain::rollout::decide_approval(&st, r, ApprovalDecision::Approved, p.remark).await?;
+    crate::domain::rollout::decide_approval(
+        &st,
+        r,
+        ApprovalDecision::Approved,
+        who.username,
+        p.remark,
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -140,10 +149,18 @@ pub async fn approve(
 pub async fn deny(
     State(st): State<AppState>,
     Path(id): Path<i64>,
+    Extension(who): Extension<Principal>,
     Query(p): Query<ApprovalParams>,
 ) -> Result<StatusCode, AppError> {
     let r = find_rollout(&st, id).await?;
-    crate::domain::rollout::decide_approval(&st, r, ApprovalDecision::Denied, p.remark).await?;
+    crate::domain::rollout::decide_approval(
+        &st,
+        r,
+        ApprovalDecision::Denied,
+        who.username,
+        p.remark,
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

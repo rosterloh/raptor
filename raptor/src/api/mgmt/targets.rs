@@ -4,6 +4,7 @@
 
 use super::mappers::{TargetRest, target_rest};
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
+use crate::auth::principal::Principal;
 use crate::entity::{
     action, distribution_set, distribution_set_type, rollout_target_group, target,
     target_attribute, target_metadata, target_tag, target_tag_assignment, target_type,
@@ -13,7 +14,7 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms, random_token};
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use raptor_api_types::{DsRef, TagRef, TargetCreate, TargetUpdate};
@@ -128,6 +129,7 @@ pub async fn find_by_cid(db: &DatabaseConnection, cid: &str) -> Result<target::M
 pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Json(body): Json<Vec<TargetCreate>>,
 ) -> Result<(StatusCode, Json<Vec<TargetRest>>), AppError> {
     // Phase 1: Validate all items first
@@ -178,7 +180,7 @@ pub async fn create(
         }
         .insert(&st.db)
         .await?;
-        out.push(target_rest(&t, interval, &base));
+        out.push(target_rest(&t, interval, &base, who.role));
     }
     Ok((StatusCode::CREATED, Json(out)))
 }
@@ -292,6 +294,7 @@ fn attach_refs(
 pub async fn list(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Query(p): Query<ListParams>,
 ) -> Result<Json<Paged<TargetRest>>, AppError> {
     let base = base_url(&st.cfg, &headers);
@@ -306,7 +309,7 @@ pub async fn list(
     let content = rows
         .iter()
         .map(|t| {
-            let mut out = target_rest(t, interval, &base);
+            let mut out = target_rest(t, interval, &base, who.role);
             attach_refs(&mut out, t, &sets, &tags);
             out
         })
@@ -317,6 +320,7 @@ pub async fn list(
 pub async fn get_one(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Path(cid): Path<String>,
 ) -> Result<Json<TargetRest>, AppError> {
     let t = find_by_cid(&st.db, &cid).await?;
@@ -327,6 +331,7 @@ pub async fn get_one(
         &t,
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),
+        who.role,
     );
     attach_refs(&mut out, &t, &sets, &tags);
     Ok(Json(out))
@@ -335,6 +340,7 @@ pub async fn get_one(
 pub async fn update(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Path(cid): Path<String>,
     Json(u): Json<TargetUpdate>,
 ) -> Result<Json<TargetRest>, AppError> {
@@ -361,6 +367,7 @@ pub async fn update(
         &t,
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),
+        who.role,
     )))
 }
 

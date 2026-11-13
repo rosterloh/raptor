@@ -24,7 +24,9 @@ pub struct TargetRest {
     pub name: String,
     pub description: Option<String>,
     pub update_status: String,
-    pub security_token: String,
+    /// Omitted for callers without hawkBit's `READ_TARGET_SECURITY_TOKEN`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub security_token: Option<String>,
     pub created_at: i64,
     pub last_modified_at: i64,
     pub address: Option<String>,

@@ -62,3 +62,29 @@ async fn controller_id_is_unique_per_tenant_not_globally() {
     let rows = target::Entity::find().all(&db).await.unwrap();
     assert_eq!(rows.len(), 2);
 }
+
+/// Usernames are unique per tenant via the named `users_tenant_username`
+/// index, so the same name can exist in two tenants but not twice in one.
+#[tokio::test]
+async fn username_is_unique_per_tenant() {
+    use raptor::entity::user;
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+    Migrator::up(&db, None).await.unwrap();
+
+    let base = user::ActiveModel {
+        username: Set("alice".into()),
+        role: Set("admin".into()),
+        source: Set("local".into()),
+        enabled: Set(true),
+        created_at: Set(0),
+        updated_at: Set(0),
+        ..Default::default()
+    };
+    base.clone().insert(&db).await.unwrap();
+    assert!(base.clone().insert(&db).await.is_err());
+
+    let mut other = base;
+    other.tenant = Set("acme".into());
+    other.insert(&db).await.unwrap();
+    assert_eq!(user::Entity::find().all(&db).await.unwrap().len(), 2);
+}

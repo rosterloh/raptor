@@ -193,6 +193,19 @@ pub async fn setup_with_retention(
     (raptor::app::build_app(state.clone()), state)
 }
 
+/// Like setup() but with `[ddi.header_auth]` replaced and ddi.anonymous off,
+/// so certificate auth is the only credential-free path.
+pub async fn setup_with_header_auth(
+    header_auth: raptor::config::HeaderAuthConfig,
+) -> (Router, AppState) {
+    let (_, state) = setup().await;
+    let mut cfg = state.cfg.clone();
+    cfg.ddi.anonymous = false;
+    cfg.ddi.header_auth = header_auth;
+    let state = AppState::new(state.db.clone(), cfg, state.store.clone());
+    (raptor::app::build_app(state.clone()), state)
+}
+
 pub fn mgmt_auth_header() -> String {
     format!(
         "Basic {}",
@@ -200,11 +213,45 @@ pub fn mgmt_auth_header() -> String {
     )
 }
 
+/// Stores a user whose password is [`TEST_PASSWORD`], hashed cheaply like the
+/// config admin's (see [`TEST_HASH`]); returns its id.
+pub async fn insert_user(st: &AppState, username: &str, role: &str, source: &str) -> i64 {
+    use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+    raptor::entity::user::ActiveModel {
+        username: Set(username.into()),
+        password_hash: Set((source == "local").then(|| TEST_HASH.clone())),
+        role: Set(role.into()),
+        source: Set(source.into()),
+        enabled: Set(true),
+        created_at: Set(0),
+        updated_at: Set(0),
+        ..Default::default()
+    }
+    .insert(&st.db)
+    .await
+    .unwrap()
+    .id
+}
+
 pub fn req(method: &str, uri: &str, body: Option<serde_json::Value>) -> Request<Body> {
+    req_as("admin", method, uri, body)
+}
+
+/// [`req`] with Basic auth as `user` / [`TEST_PASSWORD`].
+pub fn req_as(
+    user: &str,
+    method: &str,
+    uri: &str,
+    body: Option<serde_json::Value>,
+) -> Request<Body> {
+    let auth = format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode(format!("{user}:{TEST_PASSWORD}"))
+    );
     let b = Request::builder()
         .method(method)
         .uri(uri)
-        .header(header::AUTHORIZATION, mgmt_auth_header())
+        .header(header::AUTHORIZATION, auth)
         .header(header::CONTENT_TYPE, "application/json");
     match body {
         Some(j) => b.body(Body::from(j.to_string())).unwrap(),

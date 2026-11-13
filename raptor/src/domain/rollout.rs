@@ -324,6 +324,7 @@ pub async fn decide_approval(
     st: &AppState,
     r: rollout::Model,
     decision: ApprovalDecision,
+    decided_by: String,
     remark: Option<String>,
 ) -> Result<rollout::Model, AppError> {
     if r.status != "waiting_for_approval" {
@@ -336,10 +337,6 @@ pub async fn decide_approval(
         ApprovalDecision::Approved => "ready",
         ApprovalDecision::Denied => "approval_denied",
     };
-    // raptor authenticates a single configured operator account, so the
-    // decider is that account — there is no per-request identity to carry.
-    let decided_by = st.cfg.mgmt.username.clone();
-
     let mut rm: rollout::ActiveModel = r.into();
     rm.status = Set(status.into());
     rm.approval_decided_by = Set(Some(decided_by));
