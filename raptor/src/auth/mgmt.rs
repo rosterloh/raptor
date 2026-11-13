@@ -1,5 +1,6 @@
 //! Management API auth middleware: resolves a session cookie or HTTP Basic
-//! auth (the `[mgmt]` config admin, then enabled local users) to a
+//! auth (the `[mgmt]` config admin, then enabled local users) or an OIDC
+//! bearer token to a
 //! [`Principal`] request extension, then applies the role gate.
 
 use crate::auth::principal::{Principal, Role, Source};
@@ -76,6 +77,9 @@ async fn check_auth(state: &AppState, headers: &HeaderMap) -> Result<Principal, 
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .ok_or_else(unauthorized)?;
+    if let Some(token) = header.strip_prefix("Bearer ") {
+        return crate::auth::oidc::bearer(state, token.trim()).await;
+    }
     let b64 = header.strip_prefix("Basic ").ok_or_else(unauthorized)?;
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(b64)

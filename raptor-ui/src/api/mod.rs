@@ -234,6 +234,21 @@ pub async fn logout() -> ApiResult<()> {
 /// Probes a `/rest` path rather than `/health` because `dx serve` only proxies
 /// `/rest` to the API in development; `/health` would hit the dev server and
 /// answer even with the API down, which is precisely the case worth catching.
+/// Whether the server has `[mgmt.oidc]` configured (204 from the probe).
+pub async fn sso_available() -> bool {
+    reqwest::Client::new()
+        .get(format!("{}/rest/v1/oidc/login?probe", base()))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().as_u16() == 204)
+}
+
+/// Where the SSO button sends the browser; the server redirects on to the
+/// provider and back to `/ui` with a session.
+pub fn sso_login_url() -> String {
+    format!("{}/rest/v1/oidc/login", base())
+}
+
 pub async fn api_reachable() -> bool {
     reqwest::Client::new()
         .get(format!("{}/rest/v1/session", base()))

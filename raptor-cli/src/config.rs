@@ -1,5 +1,6 @@
 //! CLI config: server URL + Basic auth credentials. Precedence is
-//! flags > env (`RAPTOR_URL`/`RAPTOR_USER`/`RAPTOR_PASS`) > config file
+//! flags > env (`RAPTOR_URL`/`RAPTOR_USER`/`RAPTOR_PASS`) > config file.
+//! `RAPTOR_TOKEN` (an OIDC bearer token) replaces user and password
 //! (`~/.config/raptor/cli.toml`, mode 0600).
 
 use anyhow::{Context, Result, bail};
@@ -74,19 +75,31 @@ impl Config {
         let url = self
             .url
             .context("no server URL configured — run 'raptorctl login' first")?;
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            bail!("server URL must start with http:// or https://");
+        }
+        let url = url.trim_end_matches('/').to_string();
+        if let Ok(token) = std::env::var("RAPTOR_TOKEN")
+            && !token.is_empty()
+        {
+            return Ok(Resolved {
+                url,
+                user: self.user.unwrap_or_default(),
+                pass: String::new(),
+                token: Some(token),
+            });
+        }
         let user = self
             .user
             .context("no username configured — run 'raptorctl login' first")?;
         let pass = self
             .pass
             .context("no password configured — run 'raptorctl login' first")?;
-        if !url.starts_with("http://") && !url.starts_with("https://") {
-            bail!("server URL must start with http:// or https://");
-        }
         Ok(Resolved {
-            url: url.trim_end_matches('/').to_string(),
+            url,
             user,
             pass,
+            token: None,
         })
     }
 }
@@ -96,6 +109,22 @@ pub struct Resolved {
     pub url: String,
     pub user: String,
     pub pass: String,
+    /// Sent as `Authorization: Bearer` instead of Basic when set.
+    pub token: Option<String>,
+}
+
+impl Resolved {
+    pub fn authorization(&self) -> String {
+        use base64::Engine;
+        match &self.token {
+            Some(t) => format!("Bearer {t}"),
+            None => format!(
+                "Basic {}",
+                base64::engine::general_purpose::STANDARD
+                    .encode(format!("{}:{}", self.user, self.pass))
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -114,6 +143,7 @@ mod tests {
             std::env::remove_var("RAPTOR_URL");
             std::env::remove_var("RAPTOR_USER");
             std::env::remove_var("RAPTOR_PASS");
+            std::env::remove_var("RAPTOR_TOKEN");
         }
         let r = cfg
             .resolve(Some("http://flag".into()), None)
@@ -129,7 +159,33 @@ mod tests {
             std::env::remove_var("RAPTOR_URL");
             std::env::remove_var("RAPTOR_USER");
             std::env::remove_var("RAPTOR_PASS");
+            std::env::remove_var("RAPTOR_TOKEN");
         }
         assert!(cfg.resolve(None, None).is_err());
+    }
+
+    #[test]
+    fn token_replaces_basic_credentials() {
+        let cfg = Config {
+            url: Some("http://file".into()),
+            ..Default::default()
+        };
+        // SAFETY: single-threaded test process, no concurrent env reads.
+        unsafe {
+            std::env::remove_var("RAPTOR_URL");
+            std::env::remove_var("RAPTOR_USER");
+            std::env::remove_var("RAPTOR_PASS");
+            std::env::set_var("RAPTOR_TOKEN", "eyJ.x.y");
+        }
+        let r = cfg.resolve(None, None);
+        unsafe { std::env::remove_var("RAPTOR_TOKEN") };
+        assert_eq!(r.expect("resolve").authorization(), "Bearer eyJ.x.y");
+        let basic = Resolved {
+            url: String::new(),
+            user: "u".into(),
+            pass: "p".into(),
+            token: None,
+        };
+        assert_eq!(basic.authorization(), "Basic dTpw");
     }
 }

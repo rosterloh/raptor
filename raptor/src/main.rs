@@ -69,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cfg = Config::load(Some(&config))?;
             validate_polling_schedule(&cfg)?;
             validate_header_auth(&cfg.ddi.header_auth)?;
+            raptor::auth::oidc::validate(&cfg)?;
             if cfg.retention.keep_releases == Some(0) {
                 return Err("[retention] keep_releases must be at least 1".into());
             }
@@ -111,6 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let bind = cfg.bind;
             let eval_interval = cfg.rollout_eval_interval_secs.max(1);
             let state = AppState::with_metrics(db, cfg, store, metrics);
+            if let Some(oidc) = &state.oidc {
+                oidc.clone().spawn_loader();
+            }
             let eval_state = state.clone();
             tokio::spawn(async move {
                 let mut interval =

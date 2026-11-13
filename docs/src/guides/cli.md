@@ -46,6 +46,14 @@ $ RAPTOR_URL=http://localhost:8088 RAPTOR_USER=admin RAPTOR_PASS=secret \
 
 Precedence is flags > environment > the saved config file.
 
+With [OIDC](./authentication.md#single-sign-on-oidc) configured, set
+`RAPTOR_TOKEN` to a JWT from the provider instead of a user and password; it is
+sent as `Authorization: Bearer`:
+
+```console
+$ RAPTOR_URL=https://raptor.example.com RAPTOR_TOKEN="$(get-token)" raptorctl target list
+```
+
 ## Commands
 
 Every command accepts `--json` to print the server's raw response instead of a

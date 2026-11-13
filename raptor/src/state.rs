@@ -18,6 +18,8 @@ pub struct Inner {
     pub sessions: crate::auth::session::SessionStore,
     pub metrics: Metrics,
     pub events: crate::events::Events,
+    /// Present when `[mgmt.oidc]` is configured.
+    pub oidc: Option<std::sync::Arc<crate::auth::oidc::Oidc>>,
 }
 
 impl AppState {
@@ -56,7 +58,9 @@ impl AppState {
         metrics: Metrics,
         events: Events,
     ) -> Self {
+        let oidc = crate::auth::oidc::Oidc::from_config(&cfg);
         Self(Arc::new(Inner {
+            oidc,
             db,
             cfg,
             store,

@@ -52,6 +52,16 @@ pub async fn login(
         };
         return Ok((StatusCode::UNAUTHORIZED, Json(body)).into_response());
     };
+    let cookie = session_set_cookie(&st, &headers, principal);
+    Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
+}
+
+/// Starts a session for `principal` and returns its `Set-Cookie` value.
+pub fn session_set_cookie(
+    st: &AppState,
+    headers: &HeaderMap,
+    principal: crate::auth::principal::Principal,
+) -> String {
     let token = st.sessions.create(principal);
     let secure = headers
         .get("x-forwarded-proto")
@@ -61,7 +71,7 @@ pub async fn login(
     if secure {
         cookie.push_str("; Secure");
     }
-    Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
+    cookie
 }
 
 pub async fn logout(State(st): State<AppState>, headers: HeaderMap) -> Response {

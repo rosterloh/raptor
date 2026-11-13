@@ -34,19 +34,19 @@ Three parts, each its own PR, in this order. Part 3 depends on part 2.
 ## 3. OIDC
 
 - [x] 3.1 Approval for `jsonwebtoken` (granted 2026-11-12; 11.1.0 is latest on crates.io, re-check at implementation time)
-- [ ] 3.2 `[mgmt.oidc]` config (`issuer`, `client_id`, `client_secret`, `audience`, `scopes`, `role_claim`, `admin_values`, `read_only_values`, `username_claim`); startup requires `url` when present
-- [ ] 3.3 Startup config validation (abort on error); discovery and JWKS fetch via `reqwest` that never aborts: `Unavailable` state (SSO `503`, bearer `401`), background retry with backoff 1 s → 5 min, `error` log per failure; JWKS cache with refresh-on-unknown-`kid`, rate-limited
-- [ ] 3.4 Bearer branch in `mgmt_auth`: signature, `iss`, `aud`, `exp`/`nbf` (60 s leeway); role mapping; JIT `users` upsert (`source = oidc`); disabled user → 401; no mapping → 403
-- [ ] 3.5 `GET /rest/v1/oidc/login` (state, nonce, PKCE, 10-minute in-memory store) and `/rest/v1/oidc/callback` (verify state, code exchange, ID-token validation, session cookie, redirect to `/ui`); both outside the auth gate
-- [ ] 3.6 Reject Basic/password login for `oidc` users
-- [ ] 3.7 Integration tests `raptor/tests/mgmt_oidc.rs` against an in-process stub issuer (discovery, JWKS, token endpoint) signing test tokens: valid bearer, expired, wrong audience, wrong issuer, unknown `kid` then rotation, issuer down at startup then recovering (DDI and config admin unaffected), role mapping and no-match, JIT row, disabled user, forged `state`, full callback flow
-- [ ] 3.8 `raptorctl`: `RAPTOR_TOKEN` sends a bearer token instead of Basic
-- [ ] 3.9 Console: SSO button on the login page when OIDC is configured (expose that through a public unauthenticated flag, for example a `200`/`404` from `/rest/v1/oidc/login?probe`, decided in implementation)
-- [ ] 3.10 Docs: OIDC section in `guides/authentication.md` with a Keycloak example, `[mgmt.oidc]` in `reference/configuration.md`, compatibility Auth row (OIDC, bearer)
-- [ ] 3.11 `CHANGELOG.md` Added bullet (#13)
+- [x] 3.2 `[mgmt.oidc]` config (`issuer`, `client_id`, `client_secret`, `audience`, `scopes`, `role_claim`, `admin_values`, `read_only_values`, `username_claim`); startup requires `url` when present
+- [x] 3.3 Startup config validation (abort on error); discovery and JWKS fetch via `reqwest` that never aborts: `Unavailable` state (SSO `503`, bearer `401`), background retry with backoff 1 s → 5 min, `error` log per failure; JWKS cache with refresh-on-unknown-`kid`, rate-limited
+- [x] 3.4 Bearer branch in `mgmt_auth`: signature, `iss`, `aud`, `exp`/`nbf` (60 s leeway); role mapping; JIT `users` upsert (`source = oidc`); disabled user → 401; no mapping → 403
+- [x] 3.5 `GET /rest/v1/oidc/login` (state, nonce, PKCE, 10-minute in-memory store) and `/rest/v1/oidc/callback` (verify state, code exchange, ID-token validation, session cookie, redirect to `/ui`); both outside the auth gate
+- [x] 3.6 Reject Basic/password login for `oidc` users
+- [x] 3.7 Integration tests `raptor/tests/mgmt_oidc.rs` against an in-process stub issuer (discovery, JWKS, token endpoint) signing test tokens: valid bearer, expired, wrong audience, wrong issuer, unknown `kid` then rotation, issuer down at startup then recovering (DDI and config admin unaffected), role mapping and no-match, JIT row, disabled user, forged `state`, full callback flow
+- [x] 3.8 `raptorctl`: `RAPTOR_TOKEN` sends a bearer token instead of Basic
+- [x] 3.9 Console: SSO button on the login page when OIDC is configured (expose that through a public unauthenticated flag, for example a `200`/`404` from `/rest/v1/oidc/login?probe`, decided in implementation)
+- [x] 3.10 Docs: OIDC section in `guides/authentication.md` with a Keycloak example, `[mgmt.oidc]` in `reference/configuration.md`, compatibility Auth row (OIDC, bearer)
+- [x] 3.11 `CHANGELOG.md` Added bullet (#13)
 
 ## 4. Verification (each part)
 
-- [ ] 4.1 `mise run check`, plus the Postgres suite for the migration in part 2
+- [x] 4.1 `mise run check`, plus the Postgres suite for the migration in part 2
 - [ ] 4.2 Stock-client check: SWUpdate / rauc-hawkbit-updater / Zephyr token flows unchanged with each part enabled and disabled
 - [ ] 4.3 `openspec validate auth-users-oidc-mtls --strict`; archive the change after part 3 merges

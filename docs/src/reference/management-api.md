@@ -15,8 +15,10 @@ each exposing a `routes()` that `mod.rs` merges — e.g. target endpoints in
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/rest/v1/login` | exchange credentials for a session cookie |
+| `POST` | `/rest/v1/login` | exchange credentials for a session cookie (not for OIDC users) |
 | `POST` | `/rest/v1/logout` | clear the session |
+| `GET` | `/rest/v1/oidc/login` | with `[mgmt.oidc]`: redirect to the provider (`503` while it is unavailable); `?probe` answers `204`. `404` without OIDC |
+| `GET` | `/rest/v1/oidc/callback` | provider redirect target: checks `state`, sets the session cookie, redirects to `/ui` (`401` bad state or token, `403` no role) |
 | `GET` | `/rest/v1/session` | 204 if the request is authenticated, 401 if not |
 | `GET` | `/rest/v1/userinfo` | hawkBit `MgmtUserInfo`: `tenant`, `username`, `permissions`, plus raptor's `role` |
 | `GET` | `/health` | liveness probe (returns `ok`) |

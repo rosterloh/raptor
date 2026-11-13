@@ -626,6 +626,61 @@ fn format_hhmmss(d: std::time::Duration) -> String {
 pub struct MgmtConfig {
     pub username: String,
     pub password_hash: String,
+    /// Sign-in through an OpenID Connect provider. Off unless present.
+    #[serde(default)]
+    pub oidc: Option<OidcConfig>,
+}
+
+/// `[mgmt.oidc]`: console SSO and bearer tokens from an OpenID Connect
+/// provider. The redirect URI is `<url>/rest/v1/oidc/callback`.
+#[derive(Clone, Deserialize)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    pub client_secret: String,
+    /// Required `aud` of bearer tokens; defaults to `client_id`.
+    #[serde(default)]
+    pub audience: Option<String>,
+    #[serde(default = "default_oidc_scopes")]
+    pub scopes: Vec<String>,
+    /// Claim holding group/role names, a string or an array of strings.
+    pub role_claim: String,
+    #[serde(default)]
+    pub admin_values: Vec<String>,
+    #[serde(default)]
+    pub read_only_values: Vec<String>,
+    #[serde(default = "default_username_claim")]
+    pub username_claim: String,
+}
+
+impl OidcConfig {
+    pub fn audience(&self) -> &str {
+        self.audience.as_deref().unwrap_or(&self.client_id)
+    }
+}
+
+// Hand-written so the client secret never lands in a log line via `{:?}`.
+impl std::fmt::Debug for OidcConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OidcConfig")
+            .field("issuer", &self.issuer)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<redacted>")
+            .field("audience", &self.audience)
+            .field("scopes", &self.scopes)
+            .field("role_claim", &self.role_claim)
+            .field("admin_values", &self.admin_values)
+            .field("read_only_values", &self.read_only_values)
+            .field("username_claim", &self.username_claim)
+            .finish()
+    }
+}
+
+fn default_oidc_scopes() -> Vec<String> {
+    vec!["openid".into(), "profile".into()]
+}
+fn default_username_claim() -> String {
+    "preferred_username".into()
 }
 
 /// 8088 rather than 8080: still unprivileged, but far less likely to collide

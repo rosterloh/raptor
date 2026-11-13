@@ -64,7 +64,9 @@ http://localhost:8088/ui
 Log in with the `[mgmt]` admin or any enabled
 [user](authentication.md#users-and-roles). The console authenticates via
 `POST /rest/v1/login` and holds a session cookie, so you don't re-enter
-credentials on every request. For a `read_only` user it hides every control
+credentials on every request. With
+[OIDC](authentication.md#single-sign-on-oidc) configured, the login page also
+offers **Sign in with SSO**. For a `read_only` user it hides every control
 that would change something; the server refuses such requests anyway.
 
 ## What it covers

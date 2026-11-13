@@ -11,6 +11,7 @@ pub mod events;
 pub mod login;
 pub mod mappers;
 pub mod metadata;
+pub mod oidc;
 pub mod rollouts;
 pub mod software_modules;
 pub mod system;

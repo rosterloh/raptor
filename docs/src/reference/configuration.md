@@ -259,6 +259,23 @@ To move an existing deployment from `fs` to `s3`, run
 | `username` | string | *(required)* | admin username |
 | `password_hash` | string | *(required)* | argon2id hash from `raptor hash-password` |
 
+### `[mgmt.oidc]` — single sign-on
+
+Optional. Its presence turns on OIDC; it requires `url`. See
+[Authentication](../guides/authentication.md#single-sign-on-oidc).
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `issuer` | URL | *(required)* | provider issuer; discovery is fetched from `<issuer>/.well-known/openid-configuration` |
+| `client_id` | string | *(required)* | OIDC client ID |
+| `client_secret` | string | *(required)* | client secret; prefer `RAPTOR_MGMT__OIDC__CLIENT_SECRET` |
+| `audience` | string | `client_id` | `aud` a bearer token must contain |
+| `scopes` | string list | `["openid", "profile"]` | scopes requested at console sign-in |
+| `role_claim` | string | *(required)* | claim holding group or role names (string or array) |
+| `admin_values` | string list | `[]` | claim values that grant `admin` |
+| `read_only_values` | string list | `[]` | claim values that grant `read_only`; at least one of the two lists must be non-empty |
+| `username_claim` | string | `"preferred_username"` | claim that names the user |
+
 ## `[otel]` — OpenTelemetry export
 
 Only read by a build with the `otel` feature; other builds parse and ignore it.

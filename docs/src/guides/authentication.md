@@ -124,8 +124,8 @@ chain to `device-ca.pem` before raptor sees the request.
 
 ## Management zone (operators)
 
-The Management API and web console authenticate with HTTP Basic or a session
-cookie. The `[mgmt]` account in the config file is always an admin:
+The Management API and web console authenticate with HTTP Basic, a session
+cookie, or (with [OIDC](#single-sign-on-oidc) configured) a bearer token. The `[mgmt]` account in the config file is always an admin:
 
 ```toml
 [mgmt]
@@ -182,8 +182,130 @@ $ raptorctl user delete alice -y
 With only two roles, an admin can approve their own rollout. A separate
 approver role would need per-route permissions.
 
-> **Note:** OIDC sign-in is not yet implemented
-> ([#13](https://github.com/rosterloh/raptor/issues/13)).
+### Single sign-on (OIDC)
+
+With a `[mgmt.oidc]` section, operators can sign in through an OpenID Connect
+provider (Keycloak, Authentik, Entra ID, Google, ...), and scripts can call the
+Management API with the provider's JWTs. Without the section nothing changes:
+the OIDC routes answer `404` and bearer tokens are refused.
+
+```toml
+url = "https://raptor.example.com"        # required: the redirect URI is built from it
+
+[mgmt.oidc]
+issuer = "https://id.example.com/realms/ops"
+client_id = "raptor"
+client_secret = "..."                     # or RAPTOR_MGMT__OIDC__CLIENT_SECRET
+scopes = ["openid", "profile"]            # the default
+role_claim = "groups"
+admin_values = ["raptor-admins"]
+read_only_values = ["raptor-viewers"]
+# audience = "raptor"                     # bearer `aud`; default client_id
+# username_claim = "preferred_username"   # the default
+```
+
+Register `<url>/rest/v1/oidc/callback` as the client's redirect URI.
+
+- **Console**: the login page shows **Sign in with SSO**. raptor runs the
+  authorization-code flow with PKCE, a `state` and a `nonce`, validates the ID
+  token, then starts a normal session and returns to `/ui`. A login must be
+  completed within 10 minutes; pending logins are lost on restart.
+- **Bearer tokens**: `Authorization: Bearer <JWT>` is accepted when the token
+  is signed by one of the provider's keys (asymmetric algorithms only), `iss`
+  is the configured issuer, `aud` contains `audience`, and `exp`/`nbf` hold
+  within 60 s of clock skew. Anything else is `401`. With `raptorctl`, set
+  `RAPTOR_TOKEN`. raptor does not fetch tokens itself; get them from the
+  provider by its own means.
+- **Roles**: `role_claim` may be a string or an array. A value in
+  `admin_values` gives `admin`, otherwise one in `read_only_values` gives
+  `read_only`. An identity with neither is refused with `403`. The role is
+  read from every token, so a group change at the provider takes effect on the
+  next request or sign-in.
+- **User records**: the first sign-in or bearer request creates a `users` row
+  with source `oidc`, named by `username_claim`. Admins see these on the Users
+  page and can disable or delete them; a disabled OIDC user is refused even
+  with a valid token. OIDC users have no password and can never use Basic auth
+  or `POST /rest/v1/login`. A name that belongs to a local user or the `[mgmt]`
+  account is refused, so the provider cannot take over those accounts.
+- **Provider outages**: raptor fetches the provider's discovery document and
+  keys in the background and never refuses to start over them. Until they
+  load, SSO answers `503` and bearer tokens `401`, devices and password users
+  are unaffected, and each failed attempt is logged at `error` (retrying from
+  1 s, backing off to every 5 minutes). When the provider rotates keys, a
+  token with an unknown key id triggers one key refresh, at most once a
+  minute.
+- Startup fails if `[mgmt.oidc]` is present but `url` is unset, the issuer is
+  not a URL, `client_id` is empty, or both value lists are empty.
+
+#### Authentik example
+
+1. Create an **OAuth2/OpenID Provider**:
+   - **Client type**: Confidential.
+   - **Redirect URIs**: `https://raptor.example.com/rest/v1/oidc/callback`
+     (strict).
+   - **Signing Key**: pick a certificate, for example *authentik Self-signed
+     Certificate*. This is required. Without one, Authentik signs tokens with
+     the client secret (HS256), which raptor refuses, and logs a warning that
+     the provider publishes no keys.
+   - Leave **Encryption Key** empty. raptor does not read encrypted (JWE)
+     tokens.
+   - Scopes `openid` and `profile`. Authentik's `profile` scope already carries
+     `groups` (group names) and `preferred_username`.
+2. Create an **Application** for the provider, slug `raptor`. If you bind a
+   policy to limit who may use it, allow both raptor groups.
+3. Create groups `raptor-admins` and `raptor-viewers` and add users.
+
+The issuer is the provider's *OpenID Configuration Issuer*, which ends with a
+slash. raptor accepts it with or without one:
+
+```toml
+[mgmt.oidc]
+issuer = "https://auth.example.com/application/o/raptor/"
+client_id = "..."                         # the provider's Client ID
+client_secret = "..."
+role_claim = "groups"
+admin_values = ["raptor-admins"]
+read_only_values = ["raptor-viewers"]
+```
+
+Authentik puts the client ID in the access token's `aud`, so the default
+`audience` works for bearer tokens. For a script, one way is the client
+credentials grant with a service account in one of the groups and an app
+password. This step has not been tried against a live Authentik:
+
+```console
+$ RAPTOR_TOKEN=$(curl -s https://auth.example.com/application/o/token/ \
+    -d grant_type=client_credentials -d client_id=<client id> \
+    -d username=raptor-ci -d password=<app password> -d scope='openid profile' \
+    | jq -r .access_token) raptorctl target list
+```
+
+#### Keycloak example
+
+This example has not been tried against a live Keycloak. Treat it as a
+starting point.
+
+1. In realm `ops`, create an OpenID Connect client `raptor` with **Client
+   authentication** on and the **Standard flow** enabled. Set **Valid redirect
+   URIs** to `https://raptor.example.com/rest/v1/oidc/callback`, and copy the
+   client secret from the **Credentials** tab.
+2. Under the client's dedicated scope, add a **Group Membership** mapper with
+   token claim name `groups`, **Full group path** off, and *Add to ID token*
+   and *Add to access token* on.
+3. For bearer access, add an **Audience** mapper that puts `raptor` in the
+   access token's `aud`. Keycloak's access tokens otherwise carry `account`,
+   which raptor refuses.
+4. Create groups `raptor-admins` and `raptor-viewers` and add users to them.
+
+```toml
+[mgmt.oidc]
+issuer = "https://keycloak.example.com/realms/ops"
+client_id = "raptor"
+client_secret = "..."
+role_claim = "groups"
+admin_values = ["raptor-admins"]
+read_only_values = ["raptor-viewers"]
+```
 
 ## Deployment guidance
 
