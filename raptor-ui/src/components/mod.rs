@@ -6,6 +6,7 @@
 
 pub mod badge;
 pub mod chip;
+pub mod colour_field;
 pub mod command_palette;
 pub mod confirm;
 pub mod error_pane;
@@ -22,6 +23,7 @@ pub mod ui;
 
 pub use badge::StatusBadge;
 pub use chip::Chip;
+pub use colour_field::ColourField;
 pub use command_palette::CommandPalette;
 pub use confirm::ConfirmDialog;
 pub use error_pane::ErrorPane;

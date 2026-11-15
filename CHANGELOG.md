@@ -26,6 +26,8 @@ decisions.
   ships `/usr/bin/raptorctl` (#199)
 - A device can revoke its confirmation by posting `denied` on a running action,
   which goes back to `wait_for_confirmation`, as in hawkBit 1.2 (#209)
+- The console's tag and target type dialogs have a colour picker beside the
+  hex colour field (#227)
 
 ### Changed
 

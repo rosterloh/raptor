@@ -145,6 +145,7 @@ app-specific pieces.
 | `StatusBadge` | A state as a dot plus a tinted word. Pass the raw API status. |
 | `Chip` | A toggle filter, `aria-pressed`, with an optional tone or tag dot |
 | `TagChip` | A read-only tag: its name plus a colour dot |
+| `ColourField` | An optional hex colour: a swatch that opens a picker popover (drag area and hue slider), beside the hex text field |
 | `ProgressBar`, `ProgressLegend` | Stacked rollout progress, always with its legend |
 | `SectionRule` | A labelled hairline between regions |
 | `Tabs`, `TabPanel` | Detail-page tabs, moved between with the arrow keys |

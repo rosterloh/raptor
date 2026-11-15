@@ -244,8 +244,8 @@ fn FieldError(message: Option<String>) -> Element {
 }
 
 /// Create/edit form. A duplicate name comes back as 409 and lands on the name
-/// field; the colour is free text with a live chip preview, since the API
-/// accepts any string and only hex values render as a dot.
+/// field; the colour is a picker plus free text with a live chip preview,
+/// since the API accepts any string and only hex values render as a dot.
 #[component]
 fn TagFormDialog(
     open: Signal<bool>,
@@ -266,7 +266,7 @@ fn TagFormDialog(
             .and_then(|t| t.description.clone())
             .unwrap_or_default()
     });
-    let mut colour = use_signal(|| {
+    let colour = use_signal(|| {
         existing
             .as_ref()
             .and_then(|t| t.colour.clone())
@@ -364,12 +364,7 @@ fn TagFormDialog(
                     oninput: move |e: FormEvent| description.set(e.value()),
                 }
                 div { class: "mb-3 flex items-center gap-3",
-                    Input {
-                        class: "mb-0 font-mono text-sm",
-                        placeholder: "Colour, e.g. #00ff00 (optional)",
-                        value: "{colour}",
-                        oninput: move |e: FormEvent| colour.set(e.value()),
-                    }
+                    ColourField { value: colour }
                     TagChip {
                         name: if name().trim().is_empty() { "preview".to_string() } else { name().trim().to_string() },
                         colour: Some(colour()),
