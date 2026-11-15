@@ -43,8 +43,10 @@ liability (the Debian package addresses this with a root-only `raptor.env`; see
 
 ## Generating the admin password hash
 
-The Management API and web console authenticate against a single admin
-credential stored as an argon2id hash:
+The `[mgmt]` account is the Management API and web console's built-in admin
+(more users can be added later, see
+[Users and roles](../guides/authentication.md#users-and-roles)). Its password
+is stored as an argon2id hash:
 
 ```console
 $ printf 'yourpassword\n' | raptor hash-password

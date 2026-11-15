@@ -17,6 +17,16 @@ decisions.
 
 ### Added
 
+- Certificate (mTLS) device authentication through a TLS-terminating proxy,
+  using hawkBit's `X-Controller-Id` / `X-Authority` headers; opt-in under
+  `[ddi.header_auth]`, with `trusted_proxies` and `auto_register` (#13)
+- Operator users with `admin` and `read_only` roles, managed through
+  `/rest/v1/users`, `raptorctl user` and the console's Users page; hawkBit's
+  `GET /rest/v1/userinfo`; read-only users get `403` on writes and never see
+  target security tokens; rollout approvals record the approving user (#13)
+- OIDC sign-in under `[mgmt.oidc]`: console single sign-on (code flow with
+  PKCE) and bearer JWTs for scripts (`RAPTOR_TOKEN` in `raptorctl`), roles
+  mapped from a token claim; an unreachable provider never stops startup (#13)
 - DDI artifact downloads serve multi-range (`multipart/byteranges`) and suffix
   `Range` requests, which SWUpdate's zchunk delta handler sends (#151)
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server

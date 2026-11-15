@@ -245,7 +245,7 @@ async fn poll_with_foreign_tenant_is_rejected() {
         .unwrap();
     // raptor answers to exactly one tenant (DEFAULT here) — matches hawkBit's
     // own 404-on-unknown-tenant rather than silently folding every segment
-    // into one fleet (see docs/superpowers/specs/2026-08-26-multi-tenancy-design.md).
+    // into one fleet (see openspec/changes/archive/2026-08-26-multi-tenancy/design.md).
     assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
 }
 

@@ -9,6 +9,7 @@ const LIMIT: u64 = 25;
 
 #[component]
 pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
+    let can_write = use_can_write();
     let nav = use_navigator();
     let goto = move |query: String, tag: String, offset: u64| {
         nav.replace(Route::Distributions { query, tag, offset });
@@ -48,7 +49,9 @@ pub fn Distributions(query: String, tag: String, offset: u64) -> Element {
                     }
                 }
             }
-            Button { onclick: move |_| show_create.set(true), "New distribution set" }
+            if can_write {
+                Button { onclick: move |_| show_create.set(true), "New distribution set" }
+            }
         }
         SectionRule { label: "Filter" }
         div { class: "mb-3 flex items-center gap-3",

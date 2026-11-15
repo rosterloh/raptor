@@ -12,6 +12,7 @@ struct UploadState {
 
 #[component]
 pub fn ModuleDetail(id: i64) -> Element {
+    let can_write = use_can_write();
     let module = use_resource(move || async move { api::get_module(id).await });
     let mut artifacts = use_resource(move || async move { api::module_artifacts(id).await });
     let mut uploads = use_signal(Vec::<UploadState>::new);
@@ -79,23 +80,27 @@ pub fn ModuleDetail(id: i64) -> Element {
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
         div { class: "mb-4 flex gap-2",
-            Button {
-                variant: ButtonVariant::Destructive,
-                onclick: move |_| confirm_delete.set(true),
-                "Delete module"
+            if can_write {
+                Button {
+                    variant: ButtonVariant::Destructive,
+                    onclick: move |_| confirm_delete.set(true),
+                    "Delete module"
+                }
             }
         }
         Card {
             h2 { class: "mb-2 font-semibold text-foreground", "Artifacts" }
             // A file input stretched over the dropzone: browsers natively accept
             // drag-and-drop onto <input type=file>, no JS drop handling needed.
-            label { class: "relative mb-4 block cursor-pointer rounded border-2 border-dashed border-border p-6 text-center text-sm text-muted-foreground hover:border-primary hover:text-foreground",
-                "Drop files here or click to browse"
-                input {
-                    r#type: "file",
-                    multiple: true,
-                    class: "absolute inset-0 h-full w-full cursor-pointer opacity-0",
-                    onchange: on_files,
+            if can_write {
+                label { class: "relative mb-4 block cursor-pointer rounded border-2 border-dashed border-border p-6 text-center text-sm text-muted-foreground hover:border-primary hover:text-foreground",
+                    "Drop files here or click to browse"
+                    input {
+                        r#type: "file",
+                        multiple: true,
+                        class: "absolute inset-0 h-full w-full cursor-pointer opacity-0",
+                        onchange: on_files,
+                    }
                 }
             }
             for u in uploads() {
@@ -137,20 +142,22 @@ pub fn ModuleDetail(id: i64) -> Element {
                                     td { class: TD, "{a.size} B" }
                                     td { class: "{TD} font-mono text-xs", "{a.hashes.sha1}" }
                                     td { class: TD,
-                                        button {
-                                            class: "text-xs text-err hover:underline",
-                                            onclick: move |_| {
-                                                spawn(async move {
-                                                    match api::delete_artifact(id, a.id).await {
-                                                        Ok(()) => {
-                                                            toast_ok("artifact deleted");
-                                                            artifacts.restart();
+                                        if can_write {
+                                            button {
+                                                class: "text-xs text-err hover:underline",
+                                                onclick: move |_| {
+                                                    spawn(async move {
+                                                        match api::delete_artifact(id, a.id).await {
+                                                            Ok(()) => {
+                                                                toast_ok("artifact deleted");
+                                                                artifacts.restart();
+                                                            }
+                                                            Err(e) => toast_error(e.to_string()),
                                                         }
-                                                        Err(e) => toast_error(e.to_string()),
-                                                    }
-                                                });
-                                            },
-                                            "Delete"
+                                                    });
+                                                },
+                                                "Delete"
+                                            }
                                         }
                                     }
                                 }

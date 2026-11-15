@@ -19,6 +19,7 @@ pub fn Login() -> Element {
     // from the operator's side, and that misconfiguration is a real one — the dev
     // proxy and the server's default port disagreed until recently.
     let reachable = use_resource(|| async { crate::api::api_reachable().await });
+    let sso = use_resource(|| async { crate::api::sso_available().await });
 
     let submit = move |e: FormEvent| {
         e.prevent_default();
@@ -91,7 +92,7 @@ pub fn Login() -> Element {
                         "Sign in"
                     }
                     p { class: "mt-1 font-mono text-xs text-muted-foreground",
-                        "Management credentials from [mgmt] in raptor.toml"
+                        "An operator account, or the [mgmt] account in raptor.toml"
                     }
                 }
 
@@ -160,6 +161,16 @@ pub fn Login() -> Element {
                         } else {
                             "Sign in"
                         }
+                    }
+                }
+
+                if sso().unwrap_or(false) {
+                    // A plain link, not fetch: the provider round trip is a
+                    // full-page navigation.
+                    a {
+                        class: "flex h-10 w-full items-center justify-center rounded border border-border-soft text-sm text-foreground hover:bg-accent",
+                        href: crate::api::sso_login_url(),
+                        "Sign in with SSO"
                     }
                 }
 

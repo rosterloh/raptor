@@ -61,9 +61,13 @@ Browse to `/ui`:
 http://localhost:8088/ui
 ```
 
-Log in with the same admin credentials as the Management API. The console
-authenticates via `POST /rest/v1/login` and holds a session cookie, so you don't
-re-enter credentials on every request.
+Log in with the `[mgmt]` admin or any enabled
+[user](authentication.md#users-and-roles). The console authenticates via
+`POST /rest/v1/login` and holds a session cookie, so you don't re-enter
+credentials on every request. With
+[OIDC](authentication.md#single-sign-on-oidc) configured, the login page also
+offers **Sign in with SSO**. For a `read_only` user it hides every control
+that would change something; the server refuses such requests anyway.
 
 ## What it covers
 
@@ -79,7 +83,8 @@ The console surfaces the core read/observe workflow and common actions:
 - distribution sets and detail,
 - software modules and detail,
 - rollouts and rollout detail,
-- the actions feed.
+- the actions feed,
+- users (admins only).
 
 ### Live updates
 

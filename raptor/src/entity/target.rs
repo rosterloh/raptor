@@ -38,7 +38,7 @@ pub struct Model {
     /// Tenant this row belongs to. raptor is single-tenant: every row is
     /// `DEFAULT` and no query filters on it yet — the column and the
     /// composite unique keys exist so isolation can land without a table
-    /// rebuild. See docs/superpowers/specs/2026-08-26-multi-tenancy-design.md.
+    /// rebuild. See openspec/changes/archive/2026-08-26-multi-tenancy/design.md.
     #[sea_orm(default_value = "DEFAULT")]
     pub tenant: String,
 }

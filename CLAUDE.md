@@ -28,12 +28,16 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
 - `DESIGN.md` — colour, type, component and copy rules for the console and
   `raptorctl tui`; follow it for any UI change
 - `migration/` — sea-orm-migration crate; files named `mYYYYMMDD_NNNNNN_slug`
-- `docs/` — mdbook (`mdbook build docs`). NOTE: `docs/superpowers/` holds
-  *historical* design docs and plans — the code is the source of truth.
+- `docs/` — mdbook (`mdbook build docs`)
+- `openspec/` — OpenSpec: `specs/` is the current behaviour contract per
+  capability; `changes/` holds in-flight proposals; `changes/archive/` is
+  design history (older entries were imported from the superpowers docs and
+  keep their original `plan.md`). The code is the source of truth if a spec
+  disagrees.
 
 ## Commands
 
-Dev tools (dx, cargo-deb, nextest, llvm-cov, mdbook) are pinned in `mise.toml`;
+Dev tools (dx, cargo-deb, nextest, llvm-cov, mdbook, openspec) are pinned in `mise.toml`;
 `mise install` once. CI installs them the same way (`jdx/mise-action`) and runs
 the same tasks, so bump a tool there, not in workflow YAML.
 
@@ -86,6 +90,9 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
 
 ## Conventions
 
+- **Non-trivial features start as an OpenSpec change** (`/openspec-propose`,
+  `openspec validate --strict`); archive it once merged so `openspec/specs/`
+  stays current.
 - **Adding a Management API endpoint**: DTO in `raptor-api-types` (with a
   round-trip JSON test in its `tests.rs`) → handler + route in the matching
   `raptor/src/api/mgmt/` module → entity→REST mapping in `mappers.rs` →
@@ -102,7 +109,7 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
   `tenant`, never `sea_orm_migration`'s inline `unique_key()` — SQLite has no
   `ALTER TABLE ... DROP CONSTRAINT`, so an inline unique constraint can only be
   widened later via a full table rebuild (see
-  `docs/superpowers/specs/2026-08-26-multi-tenancy-design.md`).
+  `openspec/changes/archive/2026-08-26-multi-tenancy/design.md`).
 - **Layering**: handlers validate and translate; rules live in `src/domain/`;
   artifact bytes stream through `storage/`, never through the DB.
 - **User-visible changes get a `CHANGELOG.md` bullet** under the unreleased

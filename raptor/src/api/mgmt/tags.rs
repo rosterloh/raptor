@@ -5,6 +5,7 @@
 use super::mappers::{DsRest, TargetRest};
 use super::targets::find_by_cid;
 use crate::api::paging::{ListParams, Paged, apply_sort, page};
+use crate::auth::principal::Principal;
 use crate::entity::{
     distribution_set, ds_tag, ds_tag_assignment, target, target_tag, target_tag_assignment,
 };
@@ -14,7 +15,7 @@ use crate::state::AppState;
 use crate::util::{base_url, now_ms};
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use raptor_api_types::{TagCreate, TagRest, TagUpdate};
@@ -441,6 +442,7 @@ pub async fn target_tag_delete(
 pub async fn target_tag_assigned(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Path(id): Path<i64>,
     Query(p): Query<ListParams>,
 ) -> Result<Json<Paged<TargetRest>>, AppError> {
@@ -455,7 +457,7 @@ pub async fn target_tag_assigned(
     let interval = st.cfg.ddi.polling_duration();
     Ok(Json(Paged::new(
         rows.iter()
-            .map(|t| super::mappers::target_rest(t, interval, &base))
+            .map(|t| super::mappers::target_rest(t, interval, &base, who.role))
             .collect(),
         total,
     )))
@@ -516,6 +518,7 @@ async fn assign_target(st: &AppState, tag_id: i64, cid: &str) -> Result<target::
 pub async fn target_tag_assign_many(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Path(id): Path<i64>,
     Json(cids): Json<Vec<String>>,
 ) -> Result<Json<Vec<TargetRest>>, AppError> {
@@ -529,7 +532,7 @@ pub async fn target_tag_assign_many(
     let mut out = Vec::with_capacity(cids.len());
     for cid in &cids {
         let t = assign_target(&st, tag.id, cid).await?;
-        out.push(super::mappers::target_rest(&t, interval, &base));
+        out.push(super::mappers::target_rest(&t, interval, &base, who.role));
     }
     Ok(Json(out))
 }
@@ -538,6 +541,7 @@ pub async fn target_tag_assign_many(
 pub async fn target_tag_assign_one(
     State(st): State<AppState>,
     headers: HeaderMap,
+    Extension(who): Extension<Principal>,
     Path((id, cid)): Path<(i64, String)>,
 ) -> Result<Json<TargetRest>, AppError> {
     let tag = load_target_tag(&st, id).await?;
@@ -546,6 +550,7 @@ pub async fn target_tag_assign_one(
         &t,
         st.cfg.ddi.polling_duration(),
         &base_url(&st.cfg, &headers),
+        who.role,
     )))
 }
 

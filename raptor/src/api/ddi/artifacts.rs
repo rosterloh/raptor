@@ -257,15 +257,16 @@ async fn find(st: &AppState, module_id: i64, filename: &str) -> Result<artifact:
         .ok_or(AppError::NotFound("artifact"))
 }
 
-/// A target authenticated with its own token sees only modules of DSs it has
-/// (or had) an action for; anything else is 404, as hawkBit does.
+/// A target authenticated as itself (own token or certificate) sees only
+/// modules of DSs it has (or had) an action for; anything else is 404, as
+/// hawkBit does.
 async fn check_entitled(
     st: &AppState,
     auth: AuthKind,
     cid: &str,
     module_id: i64,
 ) -> Result<(), AppError> {
-    if auth != AuthKind::Target {
+    if !matches!(auth, AuthKind::Target | AuthKind::Certificate) {
         return Ok(());
     }
     let ds_ids = Query::select()

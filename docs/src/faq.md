@@ -23,7 +23,7 @@ No. raptor implements only the HTTP-based DDI device path, not hawkBit's DMF
 No. raptor is single-tenant: it answers to exactly one tenant name (the
 `tenant` config key, default `DEFAULT`) and rejects any other DDI tenant
 segment with `404`. Run one raptor instance per fleet. See
-[the design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md)
+[the design doc](https://github.com/rosterloh/raptor/blob/main/openspec/changes/archive/2026-08-26-multi-tenancy/design.md)
 for why.
 
 ## How do devices authenticate?

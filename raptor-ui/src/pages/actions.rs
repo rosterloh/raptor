@@ -6,6 +6,7 @@ const LIMIT: u64 = 25;
 
 #[component]
 pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
+    let can_write = use_can_write();
     let nav = use_navigator();
     let mut cancel_open = use_signal(|| false);
     let mut cancel_target = use_signal(String::new);
@@ -142,14 +143,16 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                                 td { class: "{TD} space-x-3",
                                     if a.status == "pending" {
                                         if let Some(cid) = a.target.clone() {
-                                            button {
-                                                class: "text-xs text-err hover:underline",
-                                                onclick: move |_| {
-                                                    cancel_target.set(cid.clone());
-                                                    cancel_id.set(a.id);
-                                                    cancel_open.set(true);
-                                                },
-                                                "Cancel"
+                                            if can_write {
+                                                button {
+                                                    class: "text-xs text-err hover:underline",
+                                                    onclick: move |_| {
+                                                        cancel_target.set(cid.clone());
+                                                        cancel_id.set(a.id);
+                                                        cancel_open.set(true);
+                                                    },
+                                                    "Cancel"
+                                                }
                                             }
                                         }
                                     }
@@ -158,13 +161,15 @@ pub fn Actions(filter: String, sort: String, offset: u64) -> Element {
                                     // auto-confirm flag.
                                     if a.detail_status == "wait_for_confirmation" {
                                         if let Some(cid) = a.target.clone() {
-                                            button {
-                                                class: "text-xs text-primary hover:underline",
-                                                onclick: move |_| {
-                                                    auto_confirm_target.set(cid.clone());
-                                                    auto_confirm_open.set(true);
-                                                },
-                                                "Activate auto-confirm"
+                                            if can_write {
+                                                button {
+                                                    class: "text-xs text-primary hover:underline",
+                                                    onclick: move |_| {
+                                                        auto_confirm_target.set(cid.clone());
+                                                        auto_confirm_open.set(true);
+                                                    },
+                                                    "Activate auto-confirm"
+                                                }
                                             }
                                         }
                                     }

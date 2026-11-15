@@ -1,0 +1,47 @@
+schema: spec-driven
+
+context: |
+  hawkBit compatibility is the contract: DDI and Management API JSON field
+  names, paging envelope and error bodies match hawkBit; stock clients
+  (SWUpdate, rauc-hawkbit-updater, Zephyr) must keep working unchanged.
+  Every new feature is opt-in config; a raptor.toml from an earlier release
+  keeps working unchanged.
+  Schema changes must work on SQLite and Postgres; new uniquely-named tables
+  carry `tenant` and a named composite unique index.
+
+rules:
+  proposal:
+    - Name the GitHub issue the change tracks
+  tasks:
+    - Include docs (docs/src), CHANGELOG.md and integration-test tasks
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

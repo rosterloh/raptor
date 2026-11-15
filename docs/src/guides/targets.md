@@ -128,8 +128,10 @@ curl -u admin:pw localhost:8088/rest/v1/targets/device-42/attributes
 Attributes are set by the device, in three modes — `merge` (default), `replace`,
 and `remove` — described in the [DDI API reference](../reference/ddi-api.md).
 
-> **Note:** target *attributes* (device-reported) are distinct from hawkBit
-> *metadata* (operator-set key/value pairs), which raptor does not yet implement.
+> **Note:** target *attributes* (device-reported) are distinct from target
+> *metadata* (operator-set key/value pairs, under
+> `/rest/v1/targets/{cid}/metadata`; see the
+> [Management API reference](../reference/management-api.md#targets)).
 
 ## Poll status
 

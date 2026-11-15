@@ -26,3 +26,4 @@ pub mod target_tag;
 pub mod target_tag_assignment;
 pub mod target_type;
 pub mod target_type_ds_type;
+pub mod user;

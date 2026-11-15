@@ -21,6 +21,7 @@ enum TargetRes {
 
 #[component]
 pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
+    let can_write = use_can_write();
     let mut target = use_resource(move || async move { api::get_target(&cid()).await });
     let attributes = use_resource(move || async move { api::target_attributes(&cid()).await });
     let mut assigned = use_resource(move || async move { api::assigned_ds(&cid()).await });
@@ -126,42 +127,44 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
                     },
                 }
             }
-            div { class: "flex flex-wrap gap-2",
-                Button {
-                    variant: ButtonVariant::Outline,
-                    onclick: move |_| confirm_delete.set(true),
-                    "Delete target"
-                }
-                if let Some(Ok(state)) = &*auto_confirm.read_unchecked() {
-                    {
-                        let active = state.active;
-                        rsx! {
-                            Button {
-                                variant: ButtonVariant::Outline,
-                                onclick: move |_| {
-                                    let cid = cid();
-                                    spawn(async move {
-                                        let result = if active {
-                                            api::deactivate_auto_confirm(&cid).await
-                                        } else {
-                                            api::activate_auto_confirm(&cid).await
-                                        };
-                                        match result {
-                                            Ok(()) => toast_ok(
-                                                if active { "auto-confirm deactivated" } else { "auto-confirm activated" },
-                                            ),
-                                            Err(e) => toast_error(e.to_string()),
-                                        }
-                                        auto_confirm.restart();
-                                        actions.restart();
-                                    });
-                                },
-                                if active { "Deactivate auto-confirm" } else { "Activate auto-confirm" }
+            if can_write {
+                div { class: "flex flex-wrap gap-2",
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        onclick: move |_| confirm_delete.set(true),
+                        "Delete target"
+                    }
+                    if let Some(Ok(state)) = &*auto_confirm.read_unchecked() {
+                        {
+                            let active = state.active;
+                            rsx! {
+                                Button {
+                                    variant: ButtonVariant::Outline,
+                                    onclick: move |_| {
+                                        let cid = cid();
+                                        spawn(async move {
+                                            let result = if active {
+                                                api::deactivate_auto_confirm(&cid).await
+                                            } else {
+                                                api::activate_auto_confirm(&cid).await
+                                            };
+                                            match result {
+                                                Ok(()) => toast_ok(
+                                                    if active { "auto-confirm deactivated" } else { "auto-confirm activated" },
+                                                ),
+                                                Err(e) => toast_error(e.to_string()),
+                                            }
+                                            auto_confirm.restart();
+                                            actions.restart();
+                                        });
+                                    },
+                                    if active { "Deactivate auto-confirm" } else { "Activate auto-confirm" }
+                                }
                             }
                         }
                     }
+                    Button { onclick: move |_| show_assign.set(true), "Assign update" }
                 }
-                Button { onclick: move |_| show_assign.set(true), "Assign update" }
             }
         }
 
@@ -231,7 +234,9 @@ pub fn TargetDetail(cid: ReadSignal<String>) -> Element {
                                                 on_changed: move |_| target.restart(),
                                             }
                                         }
-                                        Row { k: "Security token", v: t.security_token.clone(), mono: true }
+                                        if let Some(tok) = t.security_token.clone() {
+                                            Row { k: "Security token", v: tok, mono: true }
+                                        }
                                         Row { k: "Registered", v: logic::format_ts(t.created_at) }
                                         // ---- target type (issue #34) ----
                                         dt { class: "text-muted-foreground", "Target type" }
@@ -410,6 +415,7 @@ fn ActionRow(
     steps: ReadSignal<HashMap<i64, ProgressEvent>>,
     on_changed: EventHandler<()>,
 ) -> Element {
+    let can_write = use_can_write();
     let mut open = use_signal(|| false);
     let aid = action.id;
     let cid_for_history = cid.clone();
@@ -475,39 +481,43 @@ fn ActionRow(
                     {logic::format_ts(action.last_modified_at)}
                 }
                 if cancellable {
-                    button {
-                        r#type: "button",
-                        class: "font-mono text-[11px] text-err hover:underline",
-                        onclick: move |_| {
-                            let cid = cid.clone();
-                            spawn(async move {
-                                match api::cancel_action(&cid, aid, false).await {
-                                    Ok(()) => toast_ok(format!("cancel requested for action #{aid}")),
-                                    Err(e) => toast_error(e.to_string()),
-                                }
-                                on_changed.call(());
-                            });
-                        },
-                        "Cancel"
+                    if can_write {
+                        button {
+                            r#type: "button",
+                            class: "font-mono text-[11px] text-err hover:underline",
+                            onclick: move |_| {
+                                let cid = cid.clone();
+                                spawn(async move {
+                                    match api::cancel_action(&cid, aid, false).await {
+                                        Ok(()) => toast_ok(format!("cancel requested for action #{aid}")),
+                                        Err(e) => toast_error(e.to_string()),
+                                    }
+                                    on_changed.call(());
+                                });
+                            },
+                            "Cancel"
+                        }
                     }
                 }
                 // The only operator path the API supports today for a waiting
                 // action: releasing it via the target's auto-confirm flag.
                 if waiting {
-                    button {
-                        r#type: "button",
-                        class: "font-mono text-[11px] text-primary hover:underline",
-                        onclick: move |_| {
-                            let cid = cid_for_release.clone();
-                            spawn(async move {
-                                match api::activate_auto_confirm(&cid).await {
-                                    Ok(()) => toast_ok("auto-confirm activated"),
-                                    Err(e) => toast_error(e.to_string()),
-                                }
-                                on_changed.call(());
-                            });
-                        },
-                        "Activate auto-confirm"
+                    if can_write {
+                        button {
+                            r#type: "button",
+                            class: "font-mono text-[11px] text-primary hover:underline",
+                            onclick: move |_| {
+                                let cid = cid_for_release.clone();
+                                spawn(async move {
+                                    match api::activate_auto_confirm(&cid).await {
+                                        Ok(()) => toast_ok("auto-confirm activated"),
+                                        Err(e) => toast_error(e.to_string()),
+                                    }
+                                    on_changed.call(());
+                                });
+                            },
+                            "Activate auto-confirm"
+                        }
                     }
                 }
             }
@@ -772,6 +782,7 @@ fn GroupField(
     group: Option<String>,
     on_changed: EventHandler<()>,
 ) -> Element {
+    let can_write = use_can_write();
     let mut editing = use_signal(|| false);
     let mut value = use_signal(String::new);
     let current = group.clone();
@@ -830,14 +841,16 @@ fn GroupField(
                 },
                 None => rsx! { span { "none" } },
             }
-            button {
-                class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
-                r#type: "button",
-                onclick: move |_| {
-                    value.set(current.clone().unwrap_or_default());
-                    editing.set(true);
-                },
-                if group.is_some() { "Change" } else { "Set" }
+            if can_write {
+                button {
+                    class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
+                    r#type: "button",
+                    onclick: move |_| {
+                        value.set(current.clone().unwrap_or_default());
+                        editing.set(true);
+                    },
+                    if group.is_some() { "Change" } else { "Set" }
+                }
             }
         }
     }
@@ -853,6 +866,7 @@ fn TargetTypeField(
     target_type_id: Option<i64>,
     on_changed: EventHandler<()>,
 ) -> Element {
+    let can_write = use_can_write();
     let target_types =
         use_resource(move || async move { api::list_target_types(0, 100, None).await });
     let mut show_dialog = use_signal(|| false);
@@ -864,28 +878,32 @@ fn TargetTypeField(
     };
     rsx! {
         span { {name.clone().unwrap_or_else(|| "none".into())} }
-        button {
-            class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
-            r#type: "button",
-            onclick: move |_| show_dialog.set(true),
-            if name.is_some() { "Change" } else { "Assign" }
+        if can_write {
+            button {
+                class: "ml-2 rounded px-2 py-0.5 text-xs text-fg-dim hover:bg-accent",
+                r#type: "button",
+                onclick: move |_| show_dialog.set(true),
+                if name.is_some() { "Change" } else { "Assign" }
+            }
         }
         if name.is_some() {
-            button {
-                class: "ml-1 rounded px-2 py-0.5 text-xs text-err hover:bg-accent",
-                r#type: "button",
-                onclick: move |_| {
-                    spawn(async move {
-                        match api::unassign_target_type(&cid()).await {
-                            Ok(()) => {
-                                toast_ok("target type unassigned");
-                                on_changed.call(());
+            if can_write {
+                button {
+                    class: "ml-1 rounded px-2 py-0.5 text-xs text-err hover:bg-accent",
+                    r#type: "button",
+                    onclick: move |_| {
+                        spawn(async move {
+                            match api::unassign_target_type(&cid()).await {
+                                Ok(()) => {
+                                    toast_ok("target type unassigned");
+                                    on_changed.call(());
+                                }
+                                Err(e) => toast_error(e.to_string()),
                             }
-                            Err(e) => toast_error(e.to_string()),
-                        }
-                    });
-                },
-                "Unassign"
+                        });
+                    },
+                    "Unassign"
+                }
             }
         }
         AssignTargetTypeDialog { open: show_dialog, cid, on_done: move |_| on_changed.call(()) }

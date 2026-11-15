@@ -1,4 +1,4 @@
-//! Thin HTTP client: Basic auth against raptor's Management API, decoding
+//! Thin HTTP client: Basic auth (or an OIDC bearer token) against raptor's Management API, decoding
 //! hawkBit's `ErrorBody` envelope on any non-2xx response. `raptor/src/auth/
 //! mgmt.rs::check_auth` accepts `Authorization: Basic` on every mgmt route,
 //! so this needs no session/cookie handling.
@@ -12,8 +12,7 @@ use serde::de::DeserializeOwned;
 pub struct Client {
     http: reqwest::Client,
     base: String,
-    user: String,
-    pass: String,
+    auth: String,
 }
 
 impl Client {
@@ -21,8 +20,7 @@ impl Client {
         Self {
             http: reqwest::Client::new(),
             base: cfg.url.clone(),
-            user: cfg.user.clone(),
-            pass: cfg.pass.clone(),
+            auth: cfg.authorization(),
         }
     }
 
@@ -34,7 +32,7 @@ impl Client {
         let resp = self
             .http
             .get(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .send()
             .await?;
         Self::body(resp).await
@@ -44,7 +42,7 @@ impl Client {
         let resp = self
             .http
             .post(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .json(body)
             .send()
             .await?;
@@ -55,7 +53,7 @@ impl Client {
         let resp = self
             .http
             .post(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .json(body)
             .send()
             .await?;
@@ -68,7 +66,7 @@ impl Client {
         let resp = self
             .http
             .post(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .send()
             .await?;
         Self::empty(resp).await
@@ -78,7 +76,7 @@ impl Client {
         let resp = self
             .http
             .put(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .json(body)
             .send()
             .await?;
@@ -89,7 +87,7 @@ impl Client {
         let resp = self
             .http
             .delete(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .send()
             .await?;
         Self::empty(resp).await
@@ -110,7 +108,7 @@ impl Client {
         let resp = self
             .http
             .post(self.url(path))
-            .basic_auth(&self.user, Some(&self.pass))
+            .header(reqwest::header::AUTHORIZATION, &self.auth)
             .multipart(form)
             .send()
             .await?;

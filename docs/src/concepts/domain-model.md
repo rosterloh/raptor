@@ -57,11 +57,15 @@ SoftwareModuleType        DistributionSetType
 
 ## Seeded types
 
-Software-module and distribution-set types are **read-only** in this version,
-created by the initial migration:
+The initial migration seeds these types. Operators can create, update and
+delete their own through the Management API; a type still in use cannot be
+deleted.
 
 - Software-module types: `os`, `firmware`, `runtime`, `application`
 - Distribution-set types: `os`, `os_app`, `app`
+
+Target types are not seeded. A target type lists the distribution-set types a
+target of that type may be assigned.
 
 ## Tenancy
 
@@ -70,5 +74,5 @@ raptor is single-tenant: every query-root table carries a `tenant` column
 isolation can land later without a schema migration, not to isolate data
 today. The DDI tenant URL segment must match the configured `tenant` (default
 `DEFAULT`) or the request is rejected. See
-[the design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md)
+[the design doc](https://github.com/rosterloh/raptor/blob/main/openspec/changes/archive/2026-08-26-multi-tenancy/design.md)
 for the full rationale.

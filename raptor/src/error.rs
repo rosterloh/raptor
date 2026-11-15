@@ -21,6 +21,8 @@ pub enum AppError {
     /// A configured `[quota]` limit would be exceeded. hawkBit answers these
     /// with 429, not 403 — see the `IntoResponse` arm.
     QuotaExceeded(String),
+    /// A dependency other than the database is down (the OIDC provider).
+    Unavailable(String),
     Db(sea_orm::DbErr),
     Io(std::io::Error),
 }
@@ -100,6 +102,12 @@ impl IntoResponse for AppError {
                 StatusCode::TOO_MANY_REQUESTS,
                 "org.eclipse.hawkbit.repository.exception.AssignmentQuotaExceededException",
                 "hawkbit.server.error.quota.tooManyEntries",
+                m,
+            ),
+            AppError::Unavailable(m) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "java.lang.RuntimeException",
+                "hawkbit.server.error.serviceUnavailable",
                 m,
             ),
             AppError::Gone => (

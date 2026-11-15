@@ -45,6 +45,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
     let mut selected = use_signal(|| 0usize);
     let nav = use_navigator();
     let filters = use_context::<FilterClear>();
+    let can_write = super::use_can_write();
 
     let targets = use_resource(move || async move {
         let q = text();
@@ -94,7 +95,7 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                 .clone()
                 .unwrap_or_default()
                 .into_iter()
-                .filter(|r| matches(&r.name))
+                .filter(|r| can_write && matches(&r.name))
                 .map(|r| Item::PauseRollout(Box::new(r))),
         );
         if filters.active() && matches("clear filter") {

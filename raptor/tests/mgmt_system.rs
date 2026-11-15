@@ -21,6 +21,8 @@ async fn tenant_configs_read() {
     assert_eq!(all["pollingTime"]["global"], true);
     // the test config sets a gateway token
     assert_eq!(all["authentication.gatewaytoken.enabled"]["value"], true);
+    assert_eq!(all["authentication.header.enabled"]["value"], false);
+    assert_eq!(all["authentication.header.authority"]["value"], "");
 
     // single key
     let one = common::body_json(
@@ -223,4 +225,22 @@ fn urlencoding(s: &str) -> String {
             c => c.to_string(),
         })
         .collect()
+}
+
+#[tokio::test]
+async fn header_auth_reported_as_hawkbit_keys() {
+    let (app, _) = common::setup_with_header_auth(raptor::config::HeaderAuthConfig {
+        enabled: true,
+        trusted_authorities: vec!["a1".into(), "b2".into()],
+        ..Default::default()
+    })
+    .await;
+    let all = common::body_json(
+        app.oneshot(common::req("GET", "/rest/v1/system/configs", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(all["authentication.header.enabled"]["value"], true);
+    assert_eq!(all["authentication.header.authority"]["value"], "a1,b2");
 }

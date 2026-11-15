@@ -7,6 +7,7 @@ use raptor_api_types::DsUpdate;
 
 #[component]
 pub fn DsDetail(id: i64) -> Element {
+    let can_write = use_can_write();
     let mut ds = use_resource(move || async move { api::get_ds(id).await });
     let tags = use_resource(move || async move { api::ds_tags(id).await });
     let mut show_modules = use_signal(|| false);
@@ -35,21 +36,23 @@ pub fn DsDetail(id: i64) -> Element {
                         }
                     }
                 }
-                div { class: "mb-4 flex gap-2",
-                    Button { disabled: !d.valid, onclick: move |_| show_deploy.set(true), "Deploy…" }
-                    Button { disabled: !d.valid, onclick: move |_| show_modules.set(true), "Assign modules" }
-                    Button { onclick: move |_| show_edit.set(true), "Edit" }
-                    if d.valid {
+                if can_write {
+                    div { class: "mb-4 flex gap-2",
+                        Button { disabled: !d.valid, onclick: move |_| show_deploy.set(true), "Deploy…" }
+                        Button { disabled: !d.valid, onclick: move |_| show_modules.set(true), "Assign modules" }
+                        Button { onclick: move |_| show_edit.set(true), "Edit" }
+                        if d.valid {
+                            Button {
+                                variant: ButtonVariant::Destructive,
+                                onclick: move |_| show_invalidate.set(true),
+                                "Invalidate"
+                            }
+                        }
                         Button {
                             variant: ButtonVariant::Destructive,
-                            onclick: move |_| show_invalidate.set(true),
-                            "Invalidate"
+                            onclick: move |_| confirm_delete.set(true),
+                            "Delete"
                         }
-                    }
-                    Button {
-                        variant: ButtonVariant::Destructive,
-                        onclick: move |_| confirm_delete.set(true),
-                        "Delete"
                     }
                 }
                 Card {

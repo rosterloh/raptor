@@ -137,3 +137,138 @@ async fn target_token_verified_against_db() {
         StatusCode::UNAUTHORIZED
     );
 }
+
+// --- [ddi.header_auth]: proxy-forwarded certificate identity ---
+
+fn header_auth(proxies: &[&str], auto_register: bool) -> raptor::config::HeaderAuthConfig {
+    raptor::config::HeaderAuthConfig {
+        enabled: true,
+        trusted_authorities: vec!["ca-a".into()],
+        trusted_proxies: proxies.iter().map(|p| p.parse().unwrap()).collect(),
+        auto_register,
+        ..Default::default()
+    }
+}
+
+/// A poll of `cid` carrying `headers`, arriving from socket peer `peer`.
+fn poll(cid: &str, headers: &[(&str, &str)], peer: Option<&str>) -> Request<Body> {
+    let mut b = Request::get(format!("/DEFAULT/controller/v1/{cid}"));
+    for (k, v) in headers {
+        b = b.header(*k, *v);
+    }
+    let mut req = b.body(Body::empty()).unwrap();
+    if let Some(p) = peer {
+        req.extensions_mut()
+            .insert(axum::extract::ConnectInfo::<std::net::SocketAddr>(
+                p.parse().unwrap(),
+            ));
+    }
+    req
+}
+
+async fn status(app: &axum::Router, req: Request<Body>) -> StatusCode {
+    app.clone().oneshot(req).await.unwrap().status()
+}
+
+async fn target_exists(app: &axum::Router, cid: &str) -> bool {
+    status(
+        app,
+        common::req("GET", &format!("/rest/v1/targets/{cid}"), None),
+    )
+    .await
+        == StatusCode::OK
+}
+
+#[tokio::test]
+async fn header_auth_registers_matching_controller() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&[], true)).await;
+    let h = [("X-Controller-Id", "dev-10"), ("X-Authority", "CA-A")];
+    assert_eq!(status(&app, poll("dev-10", &h, None)).await, StatusCode::OK);
+    assert!(target_exists(&app, "dev-10").await);
+}
+
+#[tokio::test]
+async fn header_auth_accepts_indexed_authority_headers() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&[], true)).await;
+    let h = [("X-Controller-Id", "dev-1"), ("X-Authority-1", "ca-a")];
+    assert_eq!(status(&app, poll("dev-1", &h, None)).await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn header_auth_rejects_mismatch_and_untrusted_authority() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&[], true)).await;
+    let wrong_id = [("X-Controller-Id", "dev-2"), ("X-Authority", "ca-a")];
+    assert_eq!(
+        status(&app, poll("dev-1", &wrong_id, None)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let wrong_ca = [("X-Controller-Id", "dev-1"), ("X-Authority", "ca-evil")];
+    assert_eq!(
+        status(&app, poll("dev-1", &wrong_ca, None)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert!(!target_exists(&app, "dev-1").await);
+}
+
+#[tokio::test]
+async fn header_auth_off_ignores_headers() {
+    let (app, _) = common::setup_with_header_auth(Default::default()).await;
+    let h = [("X-Controller-Id", "dev-1"), ("X-Authority", "ca-a")];
+    assert_eq!(
+        status(&app, poll("dev-1", &h, None)).await,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
+async fn header_auth_miss_falls_through_to_gateway_token() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&[], true)).await;
+    let h = [
+        ("X-Controller-Id", "gw-1"),
+        ("X-Authority", "ca-a"),
+        ("Authorization", "GatewayToken gw-token"),
+    ];
+    assert_eq!(status(&app, poll("dev-7", &h, None)).await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn header_auth_honours_only_trusted_proxies() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&["10.0.0.5"], true)).await;
+    let h = [("X-Controller-Id", "dev-1"), ("X-Authority", "ca-a")];
+    assert_eq!(
+        status(&app, poll("dev-1", &h, Some("10.0.0.9:4000"))).await,
+        StatusCode::UNAUTHORIZED,
+        "direct client forging headers"
+    );
+    assert_eq!(
+        status(&app, poll("dev-1", &h, None)).await,
+        StatusCode::UNAUTHORIZED,
+        "unknown peer fails closed"
+    );
+    assert_eq!(
+        status(&app, poll("dev-1", &h, Some("10.0.0.5:4000"))).await,
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn header_auth_without_auto_register_needs_existing_target() {
+    let (app, _) = common::setup_with_header_auth(header_auth(&[], false)).await;
+    let h = [("X-Controller-Id", "dev-11"), ("X-Authority", "ca-a")];
+    assert_eq!(
+        status(&app, poll("dev-11", &h, None)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert!(!target_exists(&app, "dev-11").await);
+    // A pre-created target authenticates as before.
+    status(
+        &app,
+        common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(serde_json::json!([{"controllerId": "dev-11"}])),
+        ),
+    )
+    .await;
+    assert_eq!(status(&app, poll("dev-11", &h, None)).await, StatusCode::OK);
+}

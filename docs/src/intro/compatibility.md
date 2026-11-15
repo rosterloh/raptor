@@ -87,10 +87,12 @@ the device is not acknowledging with `DELETE …/actions/{actionId}?force=true`.
 | DDI target security token | ✅ |
 | DDI shared gateway token | ✅ |
 | DDI anonymous mode (raptor extension¹) | ✅ |
-| Management API HTTP Basic (single admin) | ✅ |
+| Management API HTTP Basic | ✅ (the `[mgmt]` admin plus database users) |
+| `GET /rest/v1/userinfo` (hawkBit `MgmtUserInfo`) | ✅ (adds `role`) |
+| Operator roles | ✅ `admin` and `read_only` (method-based; hawkBit permission names reported, not per-permission roles) |
 | Session cookie for the web console | ✅ |
-| mTLS / certificate DDI auth | ❌ ([#13](https://github.com/rosterloh/raptor/issues/13)) |
-| Multiple users / roles, OIDC | ❌ ([#13](https://github.com/rosterloh/raptor/issues/13)) |
+| mTLS / certificate DDI auth (hawkBit header authentication: `X-Controller-Id` + `X-Authority`, behind a TLS-terminating proxy) | ✅ (`[ddi.header_auth]`; adds `trusted_proxies` per hawkBit's `rp.trustedIPs`, scoped to header auth) |
+| OIDC (console SSO, bearer JWTs) | ✅ (`[mgmt.oidc]`; roles mapped from a token claim) |
 
 ## Tenancy
 
@@ -101,7 +103,7 @@ segment with `404`, matching hawkBit's own behavior. There is no per-tenant
 data isolation — run one raptor instance per fleet. The schema does carry a
 `tenant` column on every query-root table so isolation can land later without
 a migration; see the
-[design doc](https://github.com/rosterloh/raptor/blob/main/docs/superpowers/specs/2026-08-26-multi-tenancy-design.md).
+[design doc](https://github.com/rosterloh/raptor/blob/main/openspec/changes/archive/2026-08-26-multi-tenancy/design.md).
 
 > **Note:** Items marked ❌ link to their tracking issue on the [GitHub
 > repository](https://github.com/rosterloh/raptor/issues). The schema is

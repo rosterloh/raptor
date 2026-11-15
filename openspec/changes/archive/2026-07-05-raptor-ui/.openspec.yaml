@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-07-05
+# Imported history: requirements live in openspec/specs/, written from the
+# code at import time rather than replayed from this change.
+skip_specs: true

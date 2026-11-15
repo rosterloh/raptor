@@ -8,6 +8,7 @@ const LIMIT: u64 = 25;
 
 #[component]
 pub fn Modules(query: String, offset: u64) -> Element {
+    let can_write = use_can_write();
     let nav = use_navigator();
     let goto = move |query: String, offset: u64| {
         nav.replace(Route::Modules { query, offset });
@@ -38,7 +39,9 @@ pub fn Modules(query: String, offset: u64) -> Element {
                     }
                 }
             }
-            Button { onclick: move |_| show_create.set(true), "New module" }
+            if can_write {
+                Button { onclick: move |_| show_create.set(true), "New module" }
+            }
         }
         SectionRule { label: "Filter" }
         div { class: "mb-3",

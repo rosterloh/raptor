@@ -156,6 +156,23 @@ intervals.
 | `artifact_http_url` | string | *(unset)* | plain-HTTP base advertised in the DDI `download-http` links; unset means they reuse `url` |
 | `trusted_proxy_header` | string | *(unset)* | header to read the device address from behind a reverse proxy, e.g. `x-forwarded-for`; unset uses the socket peer |
 
+### `[ddi.header_auth]` — certificate authentication
+
+Device authentication from headers a TLS-terminating proxy sets after
+verifying the client certificate (hawkBit's header authentication). See
+[Certificate authentication](../guides/authentication.md#certificate-authentication-mtls-via-a-reverse-proxy).
+Reported to clients as `authentication.header.enabled` and
+`authentication.header.authority` on `/rest/v1/system/configs`.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | accept the headers as device credentials |
+| `controller_id_header` | string | `X-Controller-Id` | header carrying the verified controller id; must equal the path's `controllerId` |
+| `authority_header` | string | `X-Authority` | header naming the verifying authority: a `,`/`;` list, or `<name>-0`, `<name>-1`, … |
+| `trusted_authorities` | list | `[]` | authorities to trust, compared case-insensitively; **required** when `enabled` (startup fails otherwise) |
+| `trusted_proxies` | list of IPs | `[]` | socket peers allowed to send the headers; empty accepts any peer. A non-IP entry fails startup |
+| `auto_register` | bool | `true` | register an unknown controller that authenticates this way |
+
 ### Polling time overrides
 
 `polling_interval` accepts hawkBit's `pollingTime` grammar (hawkBit 0.10,
@@ -241,6 +258,23 @@ To move an existing deployment from `fs` to `s3`, run
 |---|---|---|---|
 | `username` | string | *(required)* | admin username |
 | `password_hash` | string | *(required)* | argon2id hash from `raptor hash-password` |
+
+### `[mgmt.oidc]` — single sign-on
+
+Optional. Its presence turns on OIDC; it requires `url`. See
+[Authentication](../guides/authentication.md#single-sign-on-oidc).
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `issuer` | URL | *(required)* | provider issuer; discovery is fetched from `<issuer>/.well-known/openid-configuration` |
+| `client_id` | string | *(required)* | OIDC client ID |
+| `client_secret` | string | *(required)* | client secret; prefer `RAPTOR_MGMT__OIDC__CLIENT_SECRET` |
+| `audience` | string | `client_id` | `aud` a bearer token must contain |
+| `scopes` | string list | `["openid", "profile"]` | scopes requested at console sign-in |
+| `role_claim` | string | *(required)* | claim holding group or role names (string or array) |
+| `admin_values` | string list | `[]` | claim values that grant `admin` |
+| `read_only_values` | string list | `[]` | claim values that grant `read_only`; at least one of the two lists must be non-empty |
+| `username_claim` | string | `"preferred_username"` | claim that names the user |
 
 ## `[otel]` — OpenTelemetry export
 

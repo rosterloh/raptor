@@ -226,5 +226,5 @@ auto_confirm_default` for clients that don't (the mainline Zephyr one, for
 example). raptor is **single-tenant**: DDI clients should be configured with
 tenant `DEFAULT`. Target and distribution-set tags
 (`/rest/v1/targettags`, `/rest/v1/distributionsettags`) are supported, including
-the `tag==` FIQL term. Not yet: AMQP/DMF. Design docs in
-`docs/superpowers/specs/`.
+the `tag==` FIQL term. Not yet: AMQP/DMF. Specs and design history in
+[`openspec/`](openspec/).

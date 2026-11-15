@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use raptor_api_types::{
     DsAssignment, DsCreate, DsInvalidate, DynamicRolloutGroupTemplate, ModuleRef, RolloutCondition,
-    RolloutCreate, SmCreate, TagCreate, TargetCreate, TargetUpdate,
+    RolloutCreate, SmCreate, TagCreate, TargetCreate, TargetUpdate, UserCreate, UserUpdate,
 };
 
 fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
@@ -448,6 +448,149 @@ pub async fn tag(c: &Client, cmd: TagCmd, json: bool) -> Result<()> {
             let id = api::tags::find_id(c, kind, &name).await?;
             api::tags::delete(c, kind, id).await?;
             println!("deleted {} tag {name}", kind.label());
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------
+// user
+// ---------------------------------------------------------------------
+
+/// Operator accounts (admin only). Passwords are read from a TTY prompt, or
+/// one line of stdin when piped, never from the command line.
+#[derive(Subcommand)]
+pub enum UserCmd {
+    List,
+    /// Create a local user; prompts for the password
+    Create {
+        username: String,
+        #[arg(long, value_enum)]
+        role: RoleArg,
+    },
+    /// Change a user's role, enabled state or password
+    Set {
+        username: String,
+        #[arg(long, value_enum)]
+        role: Option<RoleArg>,
+        #[arg(long, conflicts_with = "disable")]
+        enable: bool,
+        #[arg(long)]
+        disable: bool,
+        /// Prompt for a new password
+        #[arg(long)]
+        password: bool,
+    },
+    /// Delete a user and end their sessions
+    Delete {
+        username: String,
+        /// Skip the confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum RoleArg {
+    Admin,
+    #[value(alias = "read_only")]
+    ReadOnly,
+}
+
+impl RoleArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Admin => "admin",
+            Self::ReadOnly => "read_only",
+        }
+    }
+}
+
+fn read_password(username: &str) -> Result<String> {
+    use std::io::IsTerminal;
+    let pw = if std::io::stdin().is_terminal() {
+        rpassword::prompt_password(format!("new password for {username}: "))?
+    } else {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        line.trim_end_matches(['\r', '\n']).to_string()
+    };
+    anyhow::ensure!(!pw.is_empty(), "password must not be empty");
+    Ok(pw)
+}
+
+pub async fn user(c: &Client, cmd: UserCmd, json: bool) -> Result<()> {
+    match cmd {
+        UserCmd::List => {
+            let users = api::users::list(c).await?;
+            if json {
+                return print_json(&users);
+            }
+            let rows = users
+                .iter()
+                .map(|u| {
+                    vec![
+                        u.id.to_string(),
+                        u.username.clone(),
+                        u.role.clone(),
+                        u.source.clone(),
+                        if u.enabled { "yes" } else { "no" }.into(),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            table(&["ID", "USERNAME", "ROLE", "SOURCE", "ENABLED"], &rows);
+        }
+        UserCmd::Create { username, role } => {
+            let password = read_password(&username)?;
+            let u = api::users::create(
+                c,
+                &UserCreate {
+                    username,
+                    password,
+                    role: role.as_str().into(),
+                    enabled: None,
+                },
+            )
+            .await?;
+            if json {
+                return print_json(&u);
+            }
+            println!("created user {} ({})", u.username, u.role);
+        }
+        UserCmd::Set {
+            username,
+            role,
+            enable,
+            disable,
+            password,
+        } => {
+            let body = UserUpdate {
+                role: role.map(|r| r.as_str().into()),
+                enabled: (enable || disable).then_some(enable),
+                password: if password {
+                    Some(read_password(&username)?)
+                } else {
+                    None
+                },
+            };
+            anyhow::ensure!(
+                body != UserUpdate::default(),
+                "nothing to change: pass --role, --enable, --disable or --password"
+            );
+            let id = api::users::find_id(c, &username).await?;
+            let u = api::users::update(c, id, &body).await?;
+            if json {
+                return print_json(&u);
+            }
+            println!("updated user {}", u.username);
+        }
+        UserCmd::Delete { username, yes } => {
+            let id = api::users::find_id(c, &username).await?;
+            if !yes && !confirm(&format!("delete user {username}?"))? {
+                return Ok(());
+            }
+            api::users::delete(c, id).await?;
+            println!("deleted user {username}");
         }
     }
     Ok(())
@@ -1626,5 +1769,31 @@ mod tests {
             resolve_publish_types(&seeded(), "application", Some("os_app")).unwrap(),
             "os_app"
         );
+    }
+
+    #[derive(clap::Parser)]
+    struct UserOnly {
+        #[command(subcommand)]
+        cmd: UserCmd,
+    }
+
+    #[test]
+    fn user_set_flags() {
+        let parse = |a: &[&str]| UserOnly::try_parse_from([&["raptorctl"], a].concat());
+        let Ok(UserOnly {
+            cmd:
+                UserCmd::Set {
+                    role,
+                    enable,
+                    disable,
+                    ..
+                },
+        }) = parse(&["set", "bob", "--role", "read_only", "--disable"])
+        else {
+            panic!("set should parse");
+        };
+        assert_eq!(role, Some(RoleArg::ReadOnly));
+        assert!(!enable && disable);
+        assert!(parse(&["set", "bob", "--enable", "--disable"]).is_err());
     }
 }

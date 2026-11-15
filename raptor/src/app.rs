@@ -15,6 +15,7 @@ pub fn build_app(state: AppState) -> Router {
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
         .merge(crate::api::mgmt::login::routes())
+        .merge(crate::api::mgmt::oidc::routes())
         .merge(crate::api::mgmt::router(state.clone()))
         .merge(crate::api::ddi::router(state.clone()));
     #[cfg(feature = "embed-ui")]

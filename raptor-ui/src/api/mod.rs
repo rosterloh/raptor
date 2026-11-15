@@ -15,6 +15,7 @@ mod tags;
 mod target_filters;
 mod targets;
 mod types;
+mod users;
 
 pub use actions::*;
 pub use distribution_sets::*;
@@ -26,6 +27,7 @@ pub use tags::*;
 pub use target_filters::*;
 pub use targets::*;
 pub use types::*;
+pub use users::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ApiError {
@@ -232,6 +234,21 @@ pub async fn logout() -> ApiResult<()> {
 /// Probes a `/rest` path rather than `/health` because `dx serve` only proxies
 /// `/rest` to the API in development; `/health` would hit the dev server and
 /// answer even with the API down, which is precisely the case worth catching.
+/// Whether the server has `[mgmt.oidc]` configured (204 from the probe).
+pub async fn sso_available() -> bool {
+    reqwest::Client::new()
+        .get(format!("{}/rest/v1/oidc/login?probe", base()))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().as_u16() == 204)
+}
+
+/// Where the SSO button sends the browser; the server redirects on to the
+/// provider and back to `/ui` with a session.
+pub fn sso_login_url() -> String {
+    format!("{}/rest/v1/oidc/login", base())
+}
+
 pub async fn api_reachable() -> bool {
     reqwest::Client::new()
         .get(format!("{}/rest/v1/session", base()))
@@ -239,13 +256,4 @@ pub async fn api_reachable() -> bool {
         .send()
         .await
         .is_ok()
-}
-
-/// Confirms the session cookie is still good. The route sits behind the server's
-/// auth layer, so a stale or absent session answers 401 — which [`check`] turns
-/// into a redirect to the login page. Used by `Shell` before it paints.
-pub async fn session() -> ApiResult<()> {
-    send(reqwest::Method::GET, "/rest/v1/session", NO_BODY)
-        .await
-        .map(|_| ())
 }

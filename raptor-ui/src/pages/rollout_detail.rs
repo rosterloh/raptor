@@ -5,6 +5,7 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn RolloutDetail(id: i64) -> Element {
+    let can_write = use_can_write();
     let mut rollout = use_resource(move || async move { api::get_rollout(id).await });
     let mut groups = use_resource(move || async move { api::rollout_groups(id, 0, 100).await });
     use_polling(rollout);
@@ -92,46 +93,48 @@ pub fn RolloutDetail(id: i64) -> Element {
         match &*rollout.read_unchecked() {
             Some(Ok(r)) => rsx! {
                 h1 { class: PAGE_TITLE, "{r.name}" }
-                div { class: "mb-4 flex items-center gap-2",
-                    if r.status == "waiting_for_approval" {
-                        Button {
-                            onclick: move |_| {
-                                denying.set(false);
-                                decide_open.set(true);
-                            },
-                            "Approve"
+                if can_write {
+                    div { class: "mb-4 flex items-center gap-2",
+                        if r.status == "waiting_for_approval" {
+                            Button {
+                                onclick: move |_| {
+                                    denying.set(false);
+                                    decide_open.set(true);
+                                },
+                                "Approve"
+                            }
+                            Button {
+                                variant: ButtonVariant::Destructive,
+                                onclick: move |_| {
+                                    denying.set(true);
+                                    decide_open.set(true);
+                                },
+                                "Deny"
+                            }
+                        }
+                        if r.status == "ready" {
+                            Button { onclick: move |_| run("start"), "Start" }
+                        }
+                        if r.status == "running" {
+                            Button { onclick: move |_| run("pause"), "Pause" }
+                        }
+                        if r.status == "paused" {
+                            Button { onclick: move |_| run("resume"), "Resume" }
+                        }
+                        // Stop is the escalation from either live state: pause
+                        // leaves already-issued updates running on devices.
+                        if r.status == "running" || r.status == "paused" {
+                            Button {
+                                variant: ButtonVariant::Destructive,
+                                onclick: move |_| confirm_stop.set(true),
+                                "Stop"
+                            }
                         }
                         Button {
                             variant: ButtonVariant::Destructive,
-                            onclick: move |_| {
-                                denying.set(true);
-                                decide_open.set(true);
-                            },
-                            "Deny"
+                            onclick: move |_| confirm_delete.set(true),
+                            "Delete"
                         }
-                    }
-                    if r.status == "ready" {
-                        Button { onclick: move |_| run("start"), "Start" }
-                    }
-                    if r.status == "running" {
-                        Button { onclick: move |_| run("pause"), "Pause" }
-                    }
-                    if r.status == "paused" {
-                        Button { onclick: move |_| run("resume"), "Resume" }
-                    }
-                    // Stop is the escalation from either live state: pause
-                    // leaves already-issued updates running on devices.
-                    if r.status == "running" || r.status == "paused" {
-                        Button {
-                            variant: ButtonVariant::Destructive,
-                            onclick: move |_| confirm_stop.set(true),
-                            "Stop"
-                        }
-                    }
-                    Button {
-                        variant: ButtonVariant::Destructive,
-                        onclick: move |_| confirm_delete.set(true),
-                        "Delete"
                     }
                 }
                 Card {
