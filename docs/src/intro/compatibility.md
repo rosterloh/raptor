@@ -22,7 +22,7 @@ fixtures and an end-to-end test against a real hawkBit DDI client.
 | Chunk `part` from module type (`application` → `bApp`, `os`/`firmware` → `os`, `runtime` → `jvm`, custom keys as-is) | ✅ |
 | Deployment feedback state machine | ✅ |
 | `cancelAction` + cancel feedback | ✅ |
-| `configData` (attributes: merge / replace / remove) | ✅ |
+| `configData` (attributes: merge / replace / remove; 128-char key/value limit) | ✅ |
 | `installedBase` | ✅ |
 | Artifact download with **HTTP Range** (resume, multi-range `multipart/byteranges`) | ✅ |
 | `.MD5SUM` companion endpoint | ✅ |
@@ -48,7 +48,8 @@ setups), not a hawkBit 1.x compatibility item — see the [Auth](#auth) table.
 | Rollouts (create/start/pause/resume/stop/delete, deploy groups) | ✅ |
 | Target filters + auto-assignment | ✅ |
 | Auto-assignments as a separate resource with approve/deny and lifecycle (hawkBit 1.2) | ❌ ([#211](https://github.com/rosterloh/raptor/issues/211)); auto-assignment on target filters still works |
-| `externalRef` on distribution-set assignment (hawkBit 1.2) | ❌ ([#212](https://github.com/rosterloh/raptor/issues/212)) |
+| `externalRef` on target DS assignment (hawkBit 1.2); raptor has no `distributionsets/{id}/assignedTargets` | ✅ |
+| Action `lastStatusCode` from device `status.code`, `q=lastStatusCode==` | ✅ |
 | Per-target auto-confirm | ✅ |
 | FIQL filter targets by auto-confirm status (`autoConfirm==`, hawkBit 1.1) | ✅ |
 | FIQL sub-entity id fields (`tag.id==`, `assignedDS.id==`, …, hawkBit 1.2) | ❌ ([#213](https://github.com/rosterloh/raptor/issues/213)) |

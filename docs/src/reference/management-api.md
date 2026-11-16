@@ -54,7 +54,7 @@ username, is `409`. Deleting, disabling or demoting your own account is `400`.
 | `POST` / `GET` | `/rest/v1/targets/{cid}/metadata` | create (JSON array) / list metadata |
 
 | `GET` / `PUT` / `DELETE` | `/rest/v1/targets/{cid}/metadata/{key}` | get / update / delete one entry |
-| `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action); optional `maintenanceWindow` |
+| `POST` | `/rest/v1/targets/{cid}/assignedDS` | assign a DS (creates an action); optional `maintenanceWindow` and `externalRef` |
 | `GET` | `/rest/v1/targets/{cid}/assignedDS` | currently assigned DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/installedDS` | last installed DS (or 204) |
 | `GET` | `/rest/v1/targets/{cid}/actions` | actions for this target |
@@ -140,6 +140,13 @@ stuck re-fetching without ever reporting progress back looks identical to a
 slow install otherwise — the web console flags an active action once this
 passes a small threshold with a "fetched N×, no feedback" badge, distinguishing
 a client-side reinstall loop from a healthy in-progress update at a glance.
+
+As in hawkBit, an action also carries `lastStatusCode`, the `status.code` of
+the device's last feedback report (cleared by a report without one), and
+`externalRef`, whatever the assignment request passed. Each entry of an
+action's status history carries the `code` it was reported with. All three are
+omitted when unset. Action FIQL accepts `lastStatusCode==` and `externalRef==`
+alongside `id`, `active`, `detailStatus`, `createdAt` and `lastModifiedAt`.
 
 ### Scoping statistics to a filter
 

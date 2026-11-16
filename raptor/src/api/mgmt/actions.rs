@@ -47,6 +47,8 @@ fn fiql_map(f: &str) -> Option<action::Column> {
         "detailstatus" | "detailStatus" => Some(action::Column::Status),
         "createdAt" => Some(action::Column::CreatedAt),
         "lastModifiedAt" => Some(action::Column::UpdatedAt),
+        "lastStatusCode" | "laststatuscode" => Some(action::Column::LastStatusCode),
+        "externalRef" | "externalref" => Some(action::Column::ExternalRef),
         _ => None,
     }
 }
@@ -84,6 +86,7 @@ pub async fn assign(
             item.assign_type.as_deref(),
             item.forcetime,
             item.maintenance_window.as_ref(),
+            item.external_ref.as_deref(),
         )
         .await?;
         match r.action_id {
@@ -244,6 +247,7 @@ pub async fn action_status_history(
         .map(|r| raptor_api_types::ActionStatusRest {
             id: r.id,
             status_type: r.status,
+            code: r.code,
             messages: by_status.remove(&r.id).unwrap_or_default(),
             reported_at: r.created_at,
         })

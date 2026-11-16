@@ -13,6 +13,21 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
+## [1.4.0] - unreleased
+
+### Added
+
+- DDI feedback `status.code` is stored: `code` on each action status entry and
+  `lastStatusCode` on the action, filterable with `q=lastStatusCode==`; shown in
+  the console, `raptorctl action status` and the TUI (#216)
+- `externalRef` on `POST /rest/v1/targets/{cid}/assignedDS`, stored on the
+  action and filterable with `q=externalRef==` (#212)
+
+### Fixed
+
+- DDI `configData` rejects attribute keys or values over 128 characters with
+  `400`, matching hawkBit (#210)
+
 ## [1.3.2] - 2026-11-16
 
 ### Added

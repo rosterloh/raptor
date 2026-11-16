@@ -42,6 +42,7 @@ pub async fn put_config_data(
         peer.map(|Extension(axum::extract::ConnectInfo(p))| p),
     );
     let t = super::root::get_or_register(&st, &cid, auth, addr.as_deref()).await?;
+    check_attribute_lengths(&body.data)?;
 
     // `replace` starts from an empty set, so only what the request carries
     // counts; `merge` adds to what is already there. `remove` only deletes.
@@ -117,6 +118,25 @@ pub async fn put_config_data(
     // re-evaluate auto-assign filters against it (no-op when none apply).
     crate::domain::target_filter::auto_assign_for_target(&st, &t).await?;
     Ok(StatusCode::OK)
+}
+
+/// hawkBit's per-key and per-value limit on controller attributes.
+const MAX_ATTRIBUTE_LEN: usize = 128;
+
+fn check_attribute_lengths(data: &BTreeMap<String, String>) -> Result<(), AppError> {
+    for (k, v) in data {
+        let (what, len) = if k.chars().count() > MAX_ATTRIBUTE_LEN {
+            ("key", k.chars().count())
+        } else if v.chars().count() > MAX_ATTRIBUTE_LEN {
+            ("value", v.chars().count())
+        } else {
+            continue;
+        };
+        return Err(AppError::BadRequest(format!(
+            "attribute {what} for {k:.32?} is {len} characters; the limit is {MAX_ATTRIBUTE_LEN}"
+        )));
+    }
+    Ok(())
 }
 
 async fn insert_all(

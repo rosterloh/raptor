@@ -405,3 +405,61 @@ async fn actions_sort_by_hawkbit_timestamp_fields() {
         assert_eq!(common::body_json(resp).await["total"], 1, "{sort}");
     }
 }
+
+/// `externalRef` on the assignment body is stored on the action (#212).
+#[tokio::test]
+async fn assignment_external_ref_is_stored_and_filterable() {
+    let (app, _) = common::setup().await;
+    let (cid, ds) = fixture(&app).await;
+
+    let too_long = "r".repeat(513);
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/targets/{cid}/assignedDS"),
+            Some(json!({"id": ds, "externalRef": too_long})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let body = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                &format!("/rest/v1/targets/{cid}/assignedDS"),
+                Some(json!([{"id": ds, "externalRef": "job-42"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let aid = body["assignedActions"][0]["id"].as_i64().unwrap();
+    let a = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                &format!("/rest/v1/targets/{cid}/actions/{aid}"),
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(a["externalRef"], "job-42");
+
+    let found = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                "/rest/v1/actions?q=externalRef==job-42",
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(found["total"], 1);
+    assert_eq!(found["content"][0]["id"], aid);
+}

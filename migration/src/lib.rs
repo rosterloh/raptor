@@ -23,6 +23,7 @@ mod m20260831_000001_rollout_approval;
 mod m20260907_000001_rollout_group_purged_counts;
 mod m20260917_000001_dynamic_rollouts;
 mod m20261112_000001_users;
+mod m20261116_000001_action_status_code_external_ref;
 
 pub struct Migrator;
 
@@ -49,6 +50,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260907_000001_rollout_group_purged_counts::Migration),
             Box::new(m20260917_000001_dynamic_rollouts::Migration),
             Box::new(m20261112_000001_users::Migration),
+            Box::new(m20261116_000001_action_status_code_external_ref::Migration),
         ]
     }
 }

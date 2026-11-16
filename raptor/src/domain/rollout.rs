@@ -278,6 +278,7 @@ async fn schedule_target(
         Some(&r.action_type),
         r.forced_time,
         None,
+        None,
     )
     .await?;
     if let Some(action_id) = res.action_id {

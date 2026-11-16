@@ -238,6 +238,7 @@ fn spawn_assign(app: &App, cid: String, ds_id: i64) {
         assign_type: None,
         forcetime: None,
         maintenance_window: None,
+        external_ref: None,
     };
     app.spawn(
         async move {

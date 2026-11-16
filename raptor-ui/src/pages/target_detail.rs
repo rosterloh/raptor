@@ -564,6 +564,11 @@ fn ActionRow(
                                             span { class: "font-mono text-[11px] text-muted-foreground",
                                                 {logic::format_ts(s.reported_at)}
                                             }
+                                            if let Some(code) = s.code {
+                                                span { class: "font-mono text-[11px] text-muted-foreground",
+                                                    "code {code}"
+                                                }
+                                            }
                                         }
                                         // Whatever the device attached. Usually the
                                         // only place a failure says why it failed.

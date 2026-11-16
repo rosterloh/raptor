@@ -332,6 +332,7 @@ pub async fn target(c: &Client, cmd: TargetCmd, json: bool) -> Result<()> {
                 assign_type: force,
                 forcetime: None,
                 maintenance_window: None,
+                external_ref: None,
             };
             let r = api::actions::assign(c, &controller_id, &body).await?;
             if json {
@@ -1260,9 +1261,10 @@ pub async fn action(c: &Client, cmd: ActionCmd, json: bool) -> Result<()> {
             }
             for s in history {
                 println!(
-                    "{}  {:<10}  {}",
+                    "{}  {:<10}  {}{}",
                     s.reported_at,
                     s.status_type,
+                    s.code.map(|c| format!("[{c}] ")).unwrap_or_default(),
                     s.messages.join("; ")
                 );
             }

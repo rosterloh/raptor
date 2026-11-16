@@ -121,6 +121,13 @@ pub struct DsAssignment {
         default
     )]
     pub maintenance_window: Option<crate::MaintenanceWindowRequest>,
+    /// Caller's own reference, stored on the resulting action (at most 512 chars).
+    #[serde(
+        rename = "externalRef",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub external_ref: Option<String>,
 }
 
 /// Body of `POST /rest/v1/distributionsettypes` (hawkBit

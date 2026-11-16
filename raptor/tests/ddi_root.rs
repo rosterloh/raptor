@@ -347,3 +347,53 @@ async fn config_data_modes() {
     .await;
     assert_eq!(attrs, json!({}));
 }
+
+/// hawkBit caps each attribute key and value at 128 characters (#210).
+#[tokio::test]
+async fn config_data_rejects_keys_or_values_over_128_chars() {
+    let (app, _) = common::setup().await;
+    let put = |data: serde_json::Value| {
+        let app = app.clone();
+        async move {
+            app.oneshot(
+                Request::put("/DEFAULT/controller/v1/attr-len/configData")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(json!({ "data": data }).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let at_limit = "x".repeat(128);
+    let over = "x".repeat(129);
+    assert_eq!(
+        put(json!({ at_limit.clone(): at_limit.clone() }))
+            .await
+            .status(),
+        StatusCode::OK
+    );
+    for data in [json!({ over.clone(): "v" }), json!({ "k": over.clone() })] {
+        let resp = put(data).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            common::body_json(resp).await["message"]
+                .as_str()
+                .unwrap()
+                .contains("128")
+        );
+    }
+    // Nothing from a rejected request was stored.
+    let attrs = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "GET",
+                "/rest/v1/targets/attr-len/attributes",
+                None,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(attrs, json!({ at_limit.clone(): at_limit }));
+}
