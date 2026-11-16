@@ -54,11 +54,34 @@ polling_interval = "00:05:00"
 # only set it when a proxy you control rewrites it.
 # trusted_proxy_header = "x-forwarded-for"
 
+# Certificate (mTLS) device auth: trust the headers a TLS-terminating proxy sets
+# after verifying the client certificate (hawkBit's header authentication).
+# [ddi.header_auth]
+# enabled = true
+# controller_id_header = "X-Controller-Id"
+# authority_header = "X-Authority"
+# trusted_authorities = ["<issuer hash>"]  # required when enabled
+# trusted_proxies = ["127.0.0.1"]           # peers allowed to send the headers; empty accepts any
+# auto_register = true                      # register unknown controllers on first contact
+
 [mgmt]
 # Management API / web console admin credentials.
 username = "admin"
 # Replace with the output of `raptor hash-password`:
 password_hash = "REPLACE_WITH_ARGON2_HASH"
+
+# Single sign-on through an OpenID Connect provider; its presence turns it on and
+# it requires `url` above. Redirect URI: <url>/rest/v1/oidc/callback. Put the
+# secret in raptor.env as RAPTOR_MGMT__OIDC__CLIENT_SECRET rather than here.
+# [mgmt.oidc]
+# issuer = "https://idp.example.com/realms/raptor"
+# client_id = "raptor"
+# audience = "raptor"                       # required `aud` of bearer tokens; default: client_id
+# scopes = ["openid", "profile"]
+# role_claim = "groups"                     # claim holding group/role names
+# admin_values = ["raptor-admins"]          # at least one of these two lists must be non-empty
+# read_only_values = ["raptor-viewers"]
+# username_claim = "preferred_username"
 
 # Artifact blob storage. Omit to keep blobs on local disk under artifact_dir.
 # For an S3-compatible bucket (AWS, RustFS, MinIO, Garage, ...), put the secret
