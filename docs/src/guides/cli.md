@@ -74,7 +74,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `target actions <cid>` | a target's action history |
 | `module list/create/delete` | software module CRUD (delete is refused while a set references it) |
 | `artifact upload/list/delete <moduleId>` | artifact management |
-| `ds list/get/create` | distribution set CRUD |
+| `ds list/get/create/delete` | distribution set CRUD (delete is refused while any action references it) |
 | `ds invalidate <id>` | withdraw a set so it can no longer be deployed |
 | `ds tag add\|rm <id> <tag>` | tag/untag a distribution set |
 | `publish <file> --version <v>` | module + artifact + distribution set in one call |
@@ -83,6 +83,7 @@ $ raptorctl target list --json | jq '.content[].controllerId'
 | `rollout create <name> --ds <id> --filter <fiql> --groups <n> --success <pct>` | create a rollout (flags for every `RolloutCreate` field) |
 | `rollout start/pause/resume/stop <id>` | drive a rollout's lifecycle; `stop` confirms unless `-y` |
 | `rollout approve/deny <id>` | decide rollouts awaiting approval |
+| `rollout delete <id>` | delete a rollout in any state, cancelling its in-flight actions at once; confirms unless `-y` |
 | `user list/create/set/delete` | operator users (admin only); passwords from a TTY prompt or stdin, `delete` confirms unless `-y` |
 | `status` | fleet-wide statistics |
 
@@ -262,9 +263,12 @@ $ raptorctl tui [--refresh <seconds>]   # default 5, 0 disables auto-refresh
 
 | Key | Does |
 |---|---|
-| `↑↓` / `j`/`k`, `g`/`G` | move selection |
+| `↑↓` / `j`/`k`, `g`/`G` | move the selection in the focused panel |
+| `Tab` | switch focus between targets and rollouts; the focused panel has the accent border, and target keys (`/ a t y c f`) act only while targets are focused |
 | `/` | filter targets (sent server-side as a FIQL `q=`) |
 | `a` | assign a distribution set to the selected target |
+| `Del` (in the `a` list) | delete the highlighted distribution set (`y` to confirm); refused while any action references it |
+| `Del` (rollouts focused) | delete the selected rollout, cancelling its in-flight actions at once (`y` to confirm) |
 | `t` | tag the selected target |
 | `c` / `f` | cancel / force the target's active action (`y` to confirm, `n`/`Esc` to back out) |
 | `r` | refresh now |

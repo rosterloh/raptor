@@ -2,7 +2,7 @@
 //! mutates and never blocks (tui-design skill: layout stays fixed, only
 //! content changes).
 
-use super::app::{App, Mode};
+use super::app::{App, Focus, Mode};
 use super::theme::{Theme, status_color, status_glyph};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -87,6 +87,18 @@ pub fn draw(f: &mut Frame, app: &mut App, theme: &Theme) {
             theme,
             area,
             &format!("force action {aid} on {cid}? (y/n)"),
+        ),
+        Mode::ConfirmDeleteRollout { id, name } => draw_confirm(
+            f,
+            theme,
+            area,
+            &format!("delete rollout {id} ({name}) and cancel its in-flight updates? (y/n)"),
+        ),
+        Mode::ConfirmDeleteDs { id, label } => draw_confirm(
+            f,
+            theme,
+            area,
+            &format!("delete distribution set {id} ({label})? cannot be undone (y/n)"),
         ),
         Mode::Normal => {}
     }
@@ -198,12 +210,25 @@ fn draw_targets(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
         )
-        .block(panel(theme, title, theme.accent))
+        .block(panel(
+            theme,
+            title,
+            focus_border(app, theme, Focus::Targets),
+        ))
         .row_highlight_style(theme.selection.add_modifier(Modifier::BOLD));
     f.render_stateful_widget(table, area, &mut app.table);
 }
 
-fn draw_rollouts(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
+/// DESIGN.md: the panel holding the selection gets the accent border.
+fn focus_border(app: &App, theme: &Theme, panel: Focus) -> Color {
+    if app.focus == panel {
+        theme.accent
+    } else {
+        theme.fg_muted
+    }
+}
+
+fn draw_rollouts(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
     let items: Vec<ListItem> = app
         .rollouts
         .iter()
@@ -227,8 +252,18 @@ fn draw_rollouts(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
             .into()
         })
         .collect();
-    let list = List::new(items).block(panel(theme, "Rollouts", theme.fg_muted));
-    f.render_widget(list, area);
+    let list = List::new(items).block(panel(
+        theme,
+        "Rollouts",
+        focus_border(app, theme, Focus::Rollouts),
+    ));
+    // Unfocused, the selection is not drawn: it is not what the keys act on.
+    if app.focus == Focus::Rollouts {
+        let list = list.highlight_style(theme.selection.add_modifier(Modifier::BOLD));
+        f.render_stateful_widget(list, area, &mut app.rollout_list);
+    } else {
+        f.render_widget(list, area);
+    }
 }
 
 fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
@@ -326,12 +361,22 @@ fn ago(ms: i64, now_ms: i64) -> String {
 }
 
 /// The keys that work in the current mode, not just in Normal.
-fn hints(mode: &Mode) -> &'static str {
+fn hints(mode: &Mode, focus: Focus) -> &'static str {
     match mode {
-        Mode::Normal => "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [y]ank [r]efresh [?]help",
+        Mode::Normal if focus == Focus::Rollouts => {
+            "[Tab] targets  [↑↓] move  [Del] delete  [r]efresh  [?]help  [q]uit"
+        }
+        Mode::Normal => {
+            "[q]uit [/]search [a]ssign [c]ancel [f]orce [t]ag [y]ank [r]efresh [Tab] [?]help"
+        }
         Mode::Search { .. } | Mode::TagInput { .. } => "[Enter] apply  [Esc] cancel",
-        Mode::Assign { .. } => "[↑↓] move  type to filter  [Enter] assign  [Esc] cancel",
-        Mode::ConfirmCancel { .. } | Mode::ConfirmForce { .. } => "[y] confirm  [n/Esc] back out",
+        Mode::Assign { .. } => {
+            "[↑↓] move  type to filter  [Enter] assign  [Del] delete set  [Esc] cancel"
+        }
+        Mode::ConfirmCancel { .. }
+        | Mode::ConfirmForce { .. }
+        | Mode::ConfirmDeleteDs { .. }
+        | Mode::ConfirmDeleteRollout { .. } => "[y] confirm  [n/Esc] back out",
         Mode::Help => "any key closes",
     }
 }
@@ -346,7 +391,7 @@ fn draw_footer(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
         ));
     }
     spans.push(Span::styled(
-        hints(&app.mode),
+        hints(&app.mode, app.focus),
         Style::default().fg(theme.fg_muted),
     ));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
@@ -406,6 +451,8 @@ fn draw_help_modal(f: &mut Frame, theme: &Theme, area: Rect) {
         "y          copy controller ID to the clipboard",
         "c          cancel the active action",
         "f          force the active action",
+        "Tab        switch between targets and rollouts",
+        "Del        delete the highlighted set / rollout",
         "r          refresh now",
         "q          quit",
         "",
@@ -510,6 +557,87 @@ mod tests {
         assert!(status.ends_with("to b…"), "{status}");
     }
 
+    fn rollout(id: i64, name: &str) -> raptor_api_types::RolloutRest {
+        serde_json::from_value(serde_json::json!({
+            "id": id, "name": name, "description": null, "distributionSetId": 5,
+            "targetFilterQuery": "name==*", "status": "running", "type": "forced",
+            "totalTargets": 1, "createdAt": 0, "lastModifiedAt": 0,
+        }))
+        .unwrap()
+    }
+
+    fn app_with_rollouts(rollouts: Vec<raptor_api_types::RolloutRest>) -> App {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        app.handle_msg(Msg::Rollouts(Ok(rollouts)));
+        app
+    }
+
+    #[tokio::test]
+    async fn tab_moves_focus_and_target_keys_wait_for_it() {
+        use crate::tui::app::Focus;
+        use crossterm::event::KeyCode;
+        let mut app = app_with_rollouts(vec![rollout(1, "r1")]);
+        handle_key(&mut app, key(KeyCode::Tab));
+        assert_eq!(app.focus, Focus::Rollouts);
+        handle_key(&mut app, key(KeyCode::Char('a')));
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(app.status.is_none(), "`a` must not load sets for a target");
+        handle_key(&mut app, key(KeyCode::Tab));
+        assert_eq!(app.focus, Focus::Targets);
+    }
+
+    #[tokio::test]
+    async fn delete_on_rollouts_confirms_the_selected_one() {
+        use crossterm::event::KeyCode;
+        let mut app = app_with_rollouts(vec![rollout(1, "r1"), rollout(2, "r2")]);
+        handle_key(&mut app, key(KeyCode::Tab));
+        handle_key(&mut app, key(KeyCode::Char('j')));
+        handle_key(&mut app, key(KeyCode::Delete));
+        assert!(
+            matches!(&app.mode, Mode::ConfirmDeleteRollout { id: 2, name } if name == "r2"),
+            "Del must confirm the selected rollout"
+        );
+        handle_key(&mut app, key(KeyCode::Esc));
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(app.status.is_none(), "backing out sends nothing");
+    }
+
+    /// A new rollout listed first must not shift the selection onto it, or
+    /// Del would delete a rollout the operator never chose.
+    #[tokio::test]
+    async fn rollout_selection_follows_its_id_across_a_refresh() {
+        use crossterm::event::KeyCode;
+        let mut app = app_with_rollouts(vec![rollout(1, "r1"), rollout(2, "r2")]);
+        handle_key(&mut app, key(KeyCode::Tab));
+        handle_key(&mut app, key(KeyCode::Char('G')));
+        app.handle_msg(Msg::Rollouts(Ok(vec![
+            rollout(3, "r3"),
+            rollout(1, "r1"),
+            rollout(2, "r2"),
+        ])));
+        assert_eq!(app.selected_rollout().map(|r| r.id), Some(2));
+    }
+
+    /// Del in the picker asks first, about the set highlighted after the filter,
+    /// and `n` backs out without a request.
+    #[tokio::test]
+    async fn delete_in_the_picker_confirms_the_highlighted_set() {
+        use crossterm::event::KeyCode;
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "in_sync")])));
+        app.handle_msg(Msg::DsList("a".into(), Ok(vec![ds(7, "fw"), ds(9, "app")])));
+        handle_key(&mut app, key(KeyCode::Char('p')));
+        handle_key(&mut app, key(KeyCode::Delete));
+        assert!(
+            matches!(&app.mode, Mode::ConfirmDeleteDs { id: 9, label } if label == "app:1.0"),
+            "Del must confirm the highlighted set"
+        );
+        handle_key(&mut app, key(KeyCode::Char('n')));
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(app.status.is_none(), "backing out sends nothing");
+    }
+
     #[tokio::test]
     async fn superseded_targets_reply_is_dropped() {
         let mut app = test_app();
@@ -542,6 +670,22 @@ mod tests {
         terminal.draw(|f| draw(f, app, &theme)).unwrap();
         let buf = terminal.backend().buffer();
         (0..h).map(|y| row_text(buf, y) + "\n").collect()
+    }
+
+    /// The rollouts panel shows three rows at 80x24; selecting past them must
+    /// scroll, so the rollout `Del` would delete is on screen.
+    #[tokio::test]
+    async fn rollouts_panel_scrolls_to_the_selection_at_the_minimum_size() {
+        use crossterm::event::KeyCode;
+        let rollouts = (1..=5).map(|i| rollout(i, &format!("roll{i}"))).collect();
+        let mut app = app_with_rollouts(rollouts);
+        handle_key(&mut app, key(KeyCode::Tab));
+        handle_key(&mut app, key(KeyCode::Char('G')));
+        let s = screen(&mut app, 80, 24);
+        assert!(s.contains("roll5"), "{s}");
+        assert!(s.contains("[Del] delete"), "{s}");
+        handle_key(&mut app, key(KeyCode::Delete));
+        assert!(screen(&mut app, 80, 24).contains("delete rollout 5 (roll5)"));
     }
 
     /// The picker shows ~14 rows; moving past them used to select a row

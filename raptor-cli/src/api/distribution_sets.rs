@@ -23,3 +23,9 @@ pub async fn invalidate(c: &Client, id: i64, body: &DsInvalidate) -> Result<()> 
     c.post_empty(&format!("/rest/v1/distributionsets/{id}/invalidate"), body)
         .await
 }
+
+/// The server refuses (409) while any action, even a finished one, references
+/// the set; its modules are left for `module delete`.
+pub async fn delete(c: &Client, id: i64) -> Result<()> {
+    c.delete(&format!("/rest/v1/distributionsets/{id}")).await
+}

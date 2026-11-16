@@ -1,8 +1,8 @@
 //! Keybindings and the mutations they trigger (assign / cancel / force /
-//! tag), including the inline confirmation state machine for the two
-//! moderate-severity actions (tui-design skill §3, "Dialogs & Confirmation").
+//! tag / delete a set), including the inline confirmation state machine for
+//! the actions that need one (tui-design skill §3, "Dialogs & Confirmation").
 
-use super::app::{App, Mode, Msg};
+use super::app::{App, Focus, Mode, Msg};
 use super::osc52;
 use crate::api;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -14,7 +14,10 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         Mode::Search { .. } => handle_search(app, key),
         Mode::Assign { .. } => handle_assign(app, key),
         Mode::TagInput { .. } => handle_tag_input(app, key),
-        Mode::ConfirmCancel { .. } | Mode::ConfirmForce { .. } => handle_confirm(app, key),
+        Mode::ConfirmCancel { .. }
+        | Mode::ConfirmForce { .. }
+        | Mode::ConfirmDeleteDs { .. }
+        | Mode::ConfirmDeleteRollout { .. } => handle_confirm(app, key),
         Mode::Help => app.mode = Mode::Normal,
     }
 }
@@ -22,12 +25,42 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 fn handle_normal(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Char('q') => app.should_quit = true,
+        KeyCode::Char('r') => app.refresh_all(),
+        KeyCode::Char('?') => app.mode = Mode::Help,
+        KeyCode::Tab => app.toggle_focus(),
+        _ => match app.focus {
+            Focus::Targets => handle_targets(app, key),
+            Focus::Rollouts => handle_rollouts(app, key),
+        },
+    }
+}
+
+fn handle_rollouts(app: &mut App, key: KeyEvent) {
+    let row = app.rollout_list.selected();
+    match key.code {
+        KeyCode::Down | KeyCode::Char('j') => app.select_rollout(row.map_or(0, |i| i + 1)),
+        KeyCode::Up | KeyCode::Char('k') => app.select_rollout(row.unwrap_or(0).saturating_sub(1)),
+        KeyCode::Char('g') => app.select_rollout(0),
+        KeyCode::Char('G') => app.select_rollout(usize::MAX),
+        KeyCode::Delete => match app.selected_rollout() {
+            Some(r) => {
+                app.mode = Mode::ConfirmDeleteRollout {
+                    id: r.id,
+                    name: r.name.clone(),
+                }
+            }
+            None => app.set_status("no rollout selected"),
+        },
+        _ => {}
+    }
+}
+
+fn handle_targets(app: &mut App, key: KeyEvent) {
+    match key.code {
         KeyCode::Down | KeyCode::Char('j') => app.select_next(),
         KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
         KeyCode::Char('g') => app.select_first(),
         KeyCode::Char('G') => app.select_last(),
-        KeyCode::Char('r') => app.refresh_all(),
-        KeyCode::Char('?') => app.mode = Mode::Help,
         KeyCode::Char('y') => yank_selected(app),
         KeyCode::Char('/') => {
             app.mode = Mode::Search {
@@ -76,6 +109,8 @@ fn handle_confirm(app: &mut App, key: KeyEvent) {
         KeyCode::Char('y') => match std::mem::replace(&mut app.mode, Mode::Normal) {
             Mode::ConfirmCancel { cid, aid } => spawn_cancel(app, cid, aid),
             Mode::ConfirmForce { cid, aid } => spawn_force(app, cid, aid),
+            Mode::ConfirmDeleteDs { id, label } => spawn_delete_ds(app, id, label),
+            Mode::ConfirmDeleteRollout { id, name } => spawn_delete_rollout(app, id, name),
             _ => {}
         },
         KeyCode::Char('n') | KeyCode::Esc => app.mode = Mode::Normal,
@@ -172,6 +207,16 @@ fn handle_assign(app: &mut App, key: KeyEvent) {
             filter.push(c);
             list.select_first();
         }
+        // Letters filter, so delete gets a key that can't be typed into it.
+        KeyCode::Delete => {
+            if let Some(&idx) = list.selected().and_then(|i| filtered.get(i)) {
+                let ds = &items[idx];
+                app.mode = Mode::ConfirmDeleteDs {
+                    id: ds.id,
+                    label: format!("{}:{}", ds.name, ds.version),
+                };
+            }
+        }
         KeyCode::Enter => {
             if let Some(&idx) = list.selected().and_then(|i| filtered.get(i)) {
                 let ds = &items[idx];
@@ -223,6 +268,28 @@ fn spawn_force(app: &App, cid: String, action_id: i64) {
         async move {
             api::actions::force(&client, &cid, action_id).await?;
             Ok(format!("forced action {action_id} on {cid}"))
+        },
+        Msg::Done,
+    );
+}
+
+fn spawn_delete_ds(app: &App, id: i64, label: String) {
+    let client = app.client.clone();
+    app.spawn(
+        async move {
+            api::distribution_sets::delete(&client, id).await?;
+            Ok(format!("deleted distribution set {id} ({label})"))
+        },
+        Msg::Done,
+    );
+}
+
+fn spawn_delete_rollout(app: &App, id: i64, name: String) {
+    let client = app.client.clone();
+    app.spawn(
+        async move {
+            api::rollouts::delete(&client, id).await?;
+            Ok(format!("deleted rollout {id} ({name})"))
         },
         Msg::Done,
     );

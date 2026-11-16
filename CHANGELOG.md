@@ -31,6 +31,14 @@ decisions.
   `Range` requests, which SWUpdate's zchunk delta handler sends (#151)
 - `raptorctl module delete <id>` deletes a module and its artifacts; the server
   still refuses one a distribution set references (#187)
+- `raptorctl ds delete <id>` deletes a distribution set; the server still refuses
+  one any action references, and its modules stay for `module delete`; in
+  `raptorctl tui`, `Del` in the assign list does the same after a confirm
+- `raptorctl rollout delete <id>` deletes a rollout (the only way to clear a
+  denied one), cancelling its in-flight actions at once; confirms unless `-y`
+- `raptorctl tui`: `Tab` moves focus between the targets and rollouts panels;
+  with rollouts focused, `↑↓`/`j k`/`g G` select one and `Del` deletes it after
+  a confirm
 - Releases attach prebuilt `raptorctl` archives for macOS arm64 and Linux
   x86_64/arm64 (installable with mise's `github:` backend), and the `.deb`
   ships `/usr/bin/raptorctl` (#199)
