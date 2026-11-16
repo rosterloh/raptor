@@ -31,6 +31,13 @@ pub enum Msg {
     Done(Result<String>),
 }
 
+/// Which left-column panel the movement and `Del` keys act on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Focus {
+    Targets,
+    Rollouts,
+}
+
 /// Modes that act on a target carry its controller ID, captured when the
 /// mode opened: a refresh while the prompt is up can drop or reorder rows, and
 /// the action must still land on the target the operator chose.
@@ -58,6 +65,16 @@ pub enum Mode {
         cid: String,
         aid: i64,
     },
+    /// `label` is `name:version`, captured with the id so the prompt names
+    /// the set the operator highlighted.
+    ConfirmDeleteDs {
+        id: i64,
+        label: String,
+    },
+    ConfirmDeleteRollout {
+        id: i64,
+        name: String,
+    },
     Help,
 }
 
@@ -74,8 +91,11 @@ pub struct App {
     pub detail_actions: Vec<ActionRest>,
     pub detail_history: Vec<ActionStatusRest>,
     pub rollouts: Vec<RolloutRest>,
+    /// Kept across frames for the scroll offset, like `table`.
+    pub rollout_list: ListState,
     pub stats: Option<SystemStatistics>,
 
+    pub focus: Focus,
     pub mode: Mode,
     pub status: Option<(String, Instant)>,
     /// Latest failure per fetch, until that fetch next succeeds — a transient
@@ -101,7 +121,9 @@ impl App {
             detail_actions: Vec::new(),
             detail_history: Vec::new(),
             rollouts: Vec::new(),
+            rollout_list: ListState::default(),
             stats: None,
+            focus: Focus::Targets,
             mode: Mode::Normal,
             status: None,
             errors: BTreeMap::new(),
@@ -266,7 +288,7 @@ impl App {
             }
             Msg::Rollouts(r) => {
                 if let Some(r) = self.record("rollouts", r) {
-                    self.rollouts = r;
+                    self.set_rollouts(r);
                 }
             }
             Msg::Stats(r) => {
@@ -308,6 +330,36 @@ impl App {
         if self.selected_cid() != before {
             self.on_selection_changed();
         }
+    }
+
+    pub fn selected_rollout(&self) -> Option<&RolloutRest> {
+        self.rollout_list
+            .selected()
+            .and_then(|i| self.rollouts.get(i))
+    }
+
+    /// Keeps the selection on the same rollout by id, as `set_targets` does,
+    /// so `Del` never lands on a rollout that moved under the cursor.
+    fn set_rollouts(&mut self, rows: Vec<RolloutRest>) {
+        let before = self.selected_rollout().map(|r| r.id);
+        let row = self.rollout_list.selected().unwrap_or(0);
+        self.rollouts = rows;
+        let row = before
+            .and_then(|id| self.rollouts.iter().position(|r| r.id == id))
+            .unwrap_or(row);
+        self.select_rollout(row);
+    }
+
+    pub fn select_rollout(&mut self, row: usize) {
+        let row = (!self.rollouts.is_empty()).then(|| row.min(self.rollouts.len() - 1));
+        self.rollout_list.select(row);
+    }
+
+    pub fn toggle_focus(&mut self) {
+        self.focus = match self.focus {
+            Focus::Targets => Focus::Rollouts,
+            Focus::Rollouts => Focus::Targets,
+        };
     }
 
     fn select(&mut self, row: usize) {

@@ -772,6 +772,11 @@ pub enum DsCmd {
         #[arg(long, short = 'y')]
         yes: bool,
     },
+    /// Delete a set. Refused while any action references it; its modules stay
+    /// for `module delete`
+    Delete {
+        id: i64,
+    },
     #[command(subcommand)]
     Tag(DsTagCmd),
 }
@@ -849,6 +854,10 @@ pub async fn ds(c: &Client, cmd: DsCmd, json: bool) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
             table(&["ID", "NAME", "VERSION", "TYPE", "COMPLETE"], &rows);
+        }
+        DsCmd::Delete { id } => {
+            api::distribution_sets::delete(c, id).await?;
+            println!("deleted distribution set {id}");
         }
         DsCmd::Get { id } => {
             let d = api::distribution_sets::get(c, id).await?;
@@ -1321,6 +1330,14 @@ pub enum RolloutCmd {
         #[arg(long)]
         remark: Option<String>,
     },
+    /// Delete a rollout in any state. Its in-flight actions are cancelled at
+    /// once, without waiting for devices to confirm.
+    Delete {
+        id: i64,
+        /// Skip the confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
 }
 
 /// `RolloutCreate` with its nested conditions and dynamic-group template
@@ -1473,6 +1490,19 @@ pub async fn rollout(c: &Client, cmd: RolloutCmd, json: bool) -> Result<()> {
                 return Ok(());
             }
             lifecycle_rollout(c, id, "stop", json).await?;
+        }
+        RolloutCmd::Delete { id, yes } => {
+            let r = api::rollouts::get(c, id).await?;
+            let question = format!(
+                "delete rollout {} ({}) and cancel its in-flight updates now? this cannot be undone.",
+                r.id, r.name
+            );
+            if !yes && !confirm(&question)? {
+                println!("aborted");
+                return Ok(());
+            }
+            api::rollouts::delete(c, id).await?;
+            println!("deleted rollout {} ({})", r.id, r.name);
         }
         RolloutCmd::Approve { id, remark } => {
             decide_rollout(c, id, true, remark.as_deref(), json).await?;
@@ -1760,6 +1790,14 @@ mod tests {
         assert!(matches!(
             parse_rollout(&["stop", "3"]).unwrap(),
             RolloutCmd::Stop { id: 3, yes: false }
+        ));
+    }
+
+    #[test]
+    fn bare_delete_asks_first() {
+        assert!(matches!(
+            parse_rollout(&["delete", "3"]).unwrap(),
+            RolloutCmd::Delete { id: 3, yes: false }
         ));
     }
 

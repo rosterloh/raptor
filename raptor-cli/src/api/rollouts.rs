@@ -24,6 +24,11 @@ pub async fn lifecycle(c: &Client, id: i64, verb: &str) -> Result<()> {
         .await
 }
 
+/// Cancels the rollout's in-flight actions server-side, then removes it.
+pub async fn delete(c: &Client, id: i64) -> Result<()> {
+    c.delete(&format!("/rest/v1/rollouts/{id}")).await
+}
+
 /// Approve or deny a rollout awaiting approval. Both answer 204 with no body,
 /// so callers re-read the rollout to show the outcome.
 pub async fn decide(c: &Client, id: i64, approve: bool, remark: Option<&str>) -> Result<()> {
