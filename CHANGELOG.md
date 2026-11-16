@@ -13,7 +13,7 @@ This file is the scannable index. Each version's
 prose notes, including upgrade guidance and the reasoning behind individual
 decisions.
 
-## [1.3.2] - unreleased
+## [1.3.2] - 2026-11-16
 
 ### Added
 
@@ -356,6 +356,7 @@ Releases before 1.0.0 predate this file. See the
 [git history](https://github.com/rosterloh/raptor/commits/main) and the
 [0.9.0 tag](https://github.com/rosterloh/raptor/releases/tag/v0.9.0).
 
+[1.3.2]: https://github.com/rosterloh/raptor/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/rosterloh/raptor/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/rosterloh/raptor/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rosterloh/raptor/compare/v1.1.0...v1.2.0
