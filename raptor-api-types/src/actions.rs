@@ -66,6 +66,12 @@ pub struct ActionRest {
     /// Present only when the assignment carried one.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub maintenance_window: Option<MaintenanceWindowRest>,
+    /// `status.code` of the device's last status report, if it carried one.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_status_code: Option<i32>,
+    /// Reference supplied on the assignment request, if any.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub external_ref: Option<String>,
     #[serde(rename = "_links", default)]
     pub links: Value,
 }
@@ -98,6 +104,9 @@ pub struct ActionStatusRest {
     pub status_type: String,
     pub messages: Vec<String>,
     pub reported_at: i64,
+    /// Device-reported `status.code`, if any.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub code: Option<i32>,
 }
 
 /// Response of a distribution-set-to-target(s) assignment call (hawkBit

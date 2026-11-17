@@ -35,6 +35,11 @@ pub struct Model {
     pub maintenance_schedule: Option<String>,
     pub maintenance_duration: Option<String>,
     pub maintenance_timezone: Option<String>,
+    /// `status.code` of the last status the device reported, `None` if that
+    /// report carried none (hawkBit `lastStatusCode`).
+    pub last_status_code: Option<i32>,
+    /// Caller-supplied reference from the assignment request (hawkBit `externalRef`).
+    pub external_ref: Option<String>,
     /// Tenant this row belongs to — see `target::Model::tenant` for the rationale.
     #[sea_orm(default_value = "DEFAULT")]
     pub tenant: String,

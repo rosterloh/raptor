@@ -197,3 +197,21 @@ A normal cancel moves the action to `canceling` and offers the device a
   installed.
 
 Both return `204 No Content` when there is nothing to report.
+
+## Status codes and external references
+
+A device may send a numeric `status.code` with its feedback. It shows on that
+status-history entry and as the action's `lastStatusCode`, so failures with a
+given code can be found fleet-wide:
+
+```bash
+curl -u admin:pw 'localhost:8088/rest/v1/actions?q=lastStatusCode==42'
+```
+
+An assignment may carry your own `externalRef` (up to 512 characters), e.g. a
+CI job id, which is stored on the action and filterable with `q=externalRef==`:
+
+```bash
+curl -u admin:pw -X POST localhost:8088/rest/v1/targets/device-42/assignedDS \
+  -H 'Content-Type: application/json' -d '{"id": 3, "externalRef": "ci-1234"}'
+```

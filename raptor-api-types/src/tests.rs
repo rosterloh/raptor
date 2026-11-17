@@ -127,12 +127,30 @@ fn action_target_field_omitted_when_none() {
         target: None,
         deployment_fetch_count: 0,
         maintenance_window: None,
+        last_status_code: None,
+        external_ref: None,
         links: serde_json::Value::Null,
     };
     let v = serde_json::to_value(&a).unwrap();
     assert!(v.get("target").is_none());
     // An assignment without a window must not grow the field at all.
     assert!(v.get("maintenanceWindow").is_none());
+    assert!(v.get("lastStatusCode").is_none());
+    assert!(v.get("externalRef").is_none());
+}
+
+#[test]
+fn action_status_code_and_external_ref_shape() {
+    round_trip::<ActionRest>(json!({
+        "id": 1, "type": "update", "status": "finished", "detailStatus": "error",
+        "forceType": "forced", "createdAt": 1, "lastModifiedAt": 2,
+        "deploymentFetchCount": 0, "lastStatusCode": 1234, "externalRef": "job-42",
+        "_links": {"self": {"href": "http://x/rest/v1/actions/1"}}
+    }));
+    round_trip::<ActionStatusRest>(json!({
+        "id": 7, "type": "closed", "messages": [], "reportedAt": 1, "code": 1234
+    }));
+    round_trip::<DsAssignment>(json!({"id": 4, "externalRef": "job-42"}));
 }
 
 #[test]
@@ -569,6 +587,7 @@ fn assignment_request_shape() {
         assign_type: Some("forced".into()),
         forcetime: None,
         maintenance_window: None,
+        external_ref: None,
     };
     assert_eq!(
         serde_json::to_value(&a).unwrap(),

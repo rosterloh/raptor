@@ -77,6 +77,7 @@ pub async fn assign_ds(cid: &str, ds_id: i64, forced: bool) -> ApiResult<AssignR
             // maintenance windows are Management-API only for now
             forcetime: None,
             maintenance_window: None,
+            external_ref: None,
         },
     )
     .await

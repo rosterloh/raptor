@@ -306,6 +306,8 @@ mod tests {
             maintenance_schedule: schedule.map(str::to_string),
             maintenance_duration: schedule.map(|_| "01:00:00".to_string()),
             maintenance_timezone: schedule.map(|_| "+00:00".to_string()),
+            last_status_code: None,
+            external_ref: None,
             tenant: "DEFAULT".into(),
         }
     }

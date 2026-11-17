@@ -23,6 +23,9 @@ pub struct FeedbackStatus {
     pub result: FeedbackResult,
     #[serde(default)]
     pub details: Vec<String>,
+    /// Optional device-specific status code (hawkBit `DdiStatus.code`).
+    #[serde(default)]
+    pub code: Option<i32>,
 }
 
 #[derive(Deserialize, Default)]
@@ -59,6 +62,7 @@ pub async fn deployment_feedback(
         &a,
         &fb.status.execution,
         &fb.status.result.finished,
+        fb.status.code,
         &fb.status.details,
     )
     .await?;
@@ -107,6 +111,7 @@ pub async fn cancel_feedback(
         &t,
         &a,
         &fb.status.execution,
+        fb.status.code,
         &fb.status.details,
     )
     .await?;

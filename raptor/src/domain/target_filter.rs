@@ -49,7 +49,7 @@ async fn maybe_assign(
     // Management API has no such field on target-filter auto-assignment to
     // be at parity with (verified against MgmtTargetFilterQuery and its
     // request body — see #116).
-    match assign_ds(st, target, ds_id, action_type, None, None).await {
+    match assign_ds(st, target, ds_id, action_type, None, None, None).await {
         Err(e) if !e.is_infrastructure() => {
             tracing::warn!(
                 error = ?e,

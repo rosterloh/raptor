@@ -89,7 +89,7 @@ pub async fn add_action_status(
     status: &str,
     messages: &[String],
 ) -> Result<(), AppError> {
-    insert_action_status(st, a, status, messages).await?;
+    insert_action_status(st, a, status, None, messages).await?;
     publish_action(st, a).await;
     Ok(())
 }
@@ -98,12 +98,14 @@ async fn insert_action_status(
     st: &AppState,
     a: &action::Model,
     status: &str,
+    code: Option<i32>,
     messages: &[String],
 ) -> Result<(), AppError> {
     let db = &st.db;
     let row = action_status::ActiveModel {
         action_id: Set(a.id),
         status: Set(status.to_string()),
+        code: Set(code),
         created_at: Set(now_ms()),
         ..Default::default()
     }
@@ -191,6 +193,9 @@ async fn incompatible_type_message(
     ))
 }
 
+/// hawkBit's `Action.EXTERNAL_REF_MAX_LENGTH`.
+pub const EXTERNAL_REF_MAX_LEN: usize = 512;
+
 /// `action_type` is validated here rather than at each call site, so no caller
 /// (mgmt assignment, rollout, filter auto-assign) can write an unknown type.
 #[tracing::instrument(skip_all, fields(target_id = target.id, ds_id, action_type))]
@@ -201,8 +206,14 @@ pub async fn assign_ds(
     action_type: Option<&str>,
     forced_time: Option<i64>,
     maintenance: Option<&raptor_api_types::MaintenanceWindowRequest>,
+    external_ref: Option<&str>,
 ) -> Result<AssignResult, AppError> {
     let action_type = parse_action_type(action_type)?;
+    if external_ref.is_some_and(|r| r.chars().count() > EXTERNAL_REF_MAX_LEN) {
+        return Err(AppError::BadRequest(format!(
+            "externalRef is longer than {EXTERNAL_REF_MAX_LEN} characters"
+        )));
+    }
     // Validated before anything is written, so a malformed window is a 400 on
     // the assignment rather than a device that never installs.
     if let Some(w) = maintenance {
@@ -279,6 +290,7 @@ pub async fn assign_ds(
         maintenance_schedule: Set(maintenance.map(|w| w.schedule.clone())),
         maintenance_duration: Set(maintenance.map(|w| w.duration.clone())),
         maintenance_timezone: Set(maintenance.map(|w| w.timezone.clone())),
+        external_ref: Set(external_ref.map(str::to_string)),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -368,18 +380,22 @@ pub async fn apply_feedback(
     a: &action::Model,
     execution: &str,
     finished: &str,
+    code: Option<i32>,
     details: &[String],
 ) -> Result<(), AppError> {
     // The same set the match below closes the action on.
     let closes_action = closes_action(execution, &a.action_type);
     assert_feedback_quota(st, a.id, details, closes_action).await?;
-    insert_action_status(st, a, execution, details).await?;
+    insert_action_status(st, a, execution, code, details).await?;
     // Any feedback — even the "history only" kinds below — proves the device
     // is still communicating, so it clears the repeated-fetch-with-no-feedback
-    // diagnostic counter incremented by DDI's deploymentBase handler.
-    if a.deployment_fetch_count != 0 {
+    // diagnostic counter incremented by DDI's deploymentBase handler. Every
+    // report also replaces the last status code, with `None` if it had none,
+    // as hawkBit does.
+    if a.deployment_fetch_count != 0 || a.last_status_code != code {
         let mut am: action::ActiveModel = a.clone().into();
         am.deployment_fetch_count = Set(0);
+        am.last_status_code = Set(code);
         am.update(&st.db).await?;
     }
     match (execution, finished) {
@@ -430,13 +446,19 @@ pub async fn apply_cancel_feedback(
     t: &target::Model,
     a: &action::Model,
     execution: &str,
+    code: Option<i32>,
     details: &[String],
 ) -> Result<(), AppError> {
     // `closed` settles the cancellation, `rejected` puts the action back to
     // running: both resolve it, so neither is an intermediate report.
     let resolves = matches!(execution, "closed" | "rejected");
     assert_feedback_quota(st, a.id, details, resolves).await?;
-    insert_action_status(st, a, &format!("cancel_{execution}"), details).await?;
+    insert_action_status(st, a, &format!("cancel_{execution}"), code, details).await?;
+    if a.last_status_code != code {
+        let mut am: action::ActiveModel = a.clone().into();
+        am.last_status_code = Set(code);
+        am.update(&st.db).await?;
+    }
     match execution {
         "closed" => {
             set_action(st, a, "canceled", false).await?;
@@ -472,7 +494,7 @@ pub async fn confirm_action(
             "action is not waiting for confirmation".into(),
         ));
     }
-    insert_action_status(st, a, "confirmed", details).await?;
+    insert_action_status(st, a, "confirmed", None, details).await?;
     set_action(st, a, "running", true).await?;
     tracing::info!(action_id = a.id, "action confirmed");
     publish_action(st, a).await;
@@ -499,7 +521,7 @@ pub async fn deny_action(
         "running" => {
             let mut msgs = vec!["confirmation revoked by device".to_string()];
             msgs.extend_from_slice(details);
-            insert_action_status(st, a, "denied", &msgs).await?;
+            insert_action_status(st, a, "denied", None, &msgs).await?;
             set_action(st, a, "wait_for_confirmation", true).await?;
             tracing::info!(
                 action_id = a.id,
@@ -609,6 +631,8 @@ pub fn action_rest(
         target: target_cid.map(str::to_string),
         deployment_fetch_count: a.deployment_fetch_count,
         maintenance_window,
+        last_status_code: a.last_status_code,
+        external_ref: a.external_ref.clone(),
         links: serde_json::json!({
             "self": {"href": format!("{base}/rest/v1/actions/{}", a.id)},
             "distributionset": {"href": format!("{base}/rest/v1/distributionsets/{}", a.ds_id)}

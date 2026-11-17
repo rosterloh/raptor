@@ -145,6 +145,9 @@ module has no visible metadata.
   shows it live in the console and on the
   [events stream](management-api.md#live-events-raptor-extension), and does not
   persist it. A malformed value is ignored; it never fails the feedback.
+- `code` is an optional integer status code. It is stored on the status entry,
+  and the action's `lastStatusCode` becomes the latest report's code (cleared
+  when a report has none). Cancel feedback takes it too.
 
 `closed` is terminal for every action type. For a `downloadonly` action
 `downloaded` is *also* terminal — that is the whole job, so the action closes
@@ -171,7 +174,9 @@ recording `confirmation revoked by device` in its status history (hawkBit
 ```
 
 `mode` ∈ `merge` (default; upsert keys), `replace` (drop all, then set), `remove`
-(delete the listed keys). Extra legacy fields in the body are ignored.
+(delete the listed keys). Extra legacy fields in the body are ignored. A key or
+value longer than 128 characters (hawkBit's limit) fails the whole request with
+`400`.
 
 ## Artifact download & Range
 

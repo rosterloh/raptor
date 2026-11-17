@@ -9,6 +9,8 @@ pub struct Model {
     pub id: i64,
     pub action_id: i64,
     pub status: String,
+    /// Device-reported `status.code`, if any.
+    pub code: Option<i32>,
     pub created_at: i64,
 }
 

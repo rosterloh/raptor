@@ -334,6 +334,10 @@ fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
                 format!("{:<12}", s.status_type),
                 Style::default().fg(theme.info),
             ),
+            Span::styled(
+                s.code.map(|c| format!("[{c}] ")).unwrap_or_default(),
+                Style::default().fg(theme.fg_muted),
+            ),
             Span::raw(s.messages.join("; ")),
         ]));
     }
@@ -670,6 +674,22 @@ mod tests {
         terminal.draw(|f| draw(f, app, &theme)).unwrap();
         let buf = terminal.backend().buffer();
         (0..h).map(|y| row_text(buf, y) + "\n").collect()
+    }
+
+    /// A device-reported status code shows beside its history entry (#216).
+    #[tokio::test]
+    async fn history_shows_the_status_code() {
+        let mut app = test_app();
+        app.handle_msg(Msg::Targets(0, Ok(vec![target("a", "error")])));
+        app.detail_history = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": 1, "type": "closed", "messages": ["flash failed"],
+                "reportedAt": 0, "code": 1234,
+            }))
+            .unwrap(),
+        ];
+        let text = screen(&mut app, 200, 60);
+        assert!(text.contains("[1234] flash failed"), "{text}");
     }
 
     /// The rollouts panel shows three rows at 80x24; selecting past them must
