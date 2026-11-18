@@ -56,14 +56,25 @@ impl Config {
 
     /// Merge in flag/env overrides and validate everything needed to make a
     /// request is present.
-    pub fn resolve(mut self, url: Option<String>, user: Option<String>) -> Result<Resolved> {
-        if let Ok(v) = std::env::var("RAPTOR_URL") {
+    pub fn resolve(self, url: Option<String>, user: Option<String>) -> Result<Resolved> {
+        self.resolve_with(url, user, |k| std::env::var(k).ok())
+    }
+
+    /// [`Self::resolve`] with the environment passed in, so tests don't touch
+    /// the process's.
+    fn resolve_with(
+        mut self,
+        url: Option<String>,
+        user: Option<String>,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Resolved> {
+        if let Some(v) = env("RAPTOR_URL") {
             self.url = Some(v);
         }
-        if let Ok(v) = std::env::var("RAPTOR_USER") {
+        if let Some(v) = env("RAPTOR_USER") {
             self.user = Some(v);
         }
-        if let Ok(v) = std::env::var("RAPTOR_PASS") {
+        if let Some(v) = env("RAPTOR_PASS") {
             self.pass = Some(v);
         }
         if let Some(u) = url {
@@ -79,7 +90,7 @@ impl Config {
             bail!("server URL must start with http:// or https://");
         }
         let url = url.trim_end_matches('/').to_string();
-        if let Ok(token) = std::env::var("RAPTOR_TOKEN")
+        if let Some(token) = env("RAPTOR_TOKEN")
             && !token.is_empty()
         {
             return Ok(Resolved {
@@ -138,15 +149,8 @@ mod tests {
             user: Some("file-user".into()),
             pass: Some("secret".into()),
         };
-        // SAFETY: single-threaded test process, no concurrent env reads.
-        unsafe {
-            std::env::remove_var("RAPTOR_URL");
-            std::env::remove_var("RAPTOR_USER");
-            std::env::remove_var("RAPTOR_PASS");
-            std::env::remove_var("RAPTOR_TOKEN");
-        }
         let r = cfg
-            .resolve(Some("http://flag".into()), None)
+            .resolve_with(Some("http://flag".into()), None, |_| None)
             .expect("resolve");
         assert_eq!(r.url, "http://flag");
         assert_eq!(r.user, "file-user");
@@ -155,13 +159,7 @@ mod tests {
     #[test]
     fn missing_url_errors() {
         let cfg = Config::default();
-        unsafe {
-            std::env::remove_var("RAPTOR_URL");
-            std::env::remove_var("RAPTOR_USER");
-            std::env::remove_var("RAPTOR_PASS");
-            std::env::remove_var("RAPTOR_TOKEN");
-        }
-        assert!(cfg.resolve(None, None).is_err());
+        assert!(cfg.resolve_with(None, None, |_| None).is_err());
     }
 
     #[test]
@@ -170,15 +168,9 @@ mod tests {
             url: Some("http://file".into()),
             ..Default::default()
         };
-        // SAFETY: single-threaded test process, no concurrent env reads.
-        unsafe {
-            std::env::remove_var("RAPTOR_URL");
-            std::env::remove_var("RAPTOR_USER");
-            std::env::remove_var("RAPTOR_PASS");
-            std::env::set_var("RAPTOR_TOKEN", "eyJ.x.y");
-        }
-        let r = cfg.resolve(None, None);
-        unsafe { std::env::remove_var("RAPTOR_TOKEN") };
+        let r = cfg.resolve_with(None, None, |k| {
+            (k == "RAPTOR_TOKEN").then(|| "eyJ.x.y".into())
+        });
         assert_eq!(r.expect("resolve").authorization(), "Bearer eyJ.x.y");
         let basic = Resolved {
             url: String::new(),
