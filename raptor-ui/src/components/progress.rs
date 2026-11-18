@@ -31,9 +31,11 @@ pub fn ProgressBar(counts: RolloutTargetsPerStatus, total: i64) -> Element {
 /// Colour-keyed counts under a [`ProgressBar`]: "3 finished · 1 running".
 #[component]
 pub fn ProgressLegend(counts: RolloutTargetsPerStatus) -> Element {
+    let segments = logic::progress_segments(&counts);
     rsx! {
         div { class: "flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-dim",
-            for (label , tone , n) in logic::progress_segments(&counts) {
+            if segments.is_empty() { "No status reported." }
+            for (label , tone , n) in segments {
                 span { key: "{label}", class: "flex items-center gap-1",
                     span { class: "inline-block h-2 w-2 rounded-sm {crate::components::tone_fill(tone)}" }
                     "{n} {label}"

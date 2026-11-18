@@ -41,26 +41,44 @@ pub fn RolloutDetail(id: i64) -> Element {
     let mut decide_open = use_signal(|| false);
     let mut denying = use_signal(|| false);
     let mut remark = use_signal(String::new);
+    let mut deciding = use_signal(|| false);
+    let mut decision_error = use_signal(|| None::<String>);
     let nav = use_navigator();
 
+    let mut open_decision = move |deny| {
+        remark.set(String::new());
+        decision_error.set(None);
+        denying.set(deny);
+        decide_open.set(true);
+    };
+
     let mut decide = move || {
+        if deciding() {
+            return;
+        }
+        // Keep focus in the dialog when the input and submit button become disabled.
+        #[cfg(target_arch = "wasm32")]
+        document::eval("document.getElementById('rollout-decision-close').focus()");
+        deciding.set(true);
+        decision_error.set(None);
         let (deny, note) = (denying(), remark());
-        decide_open.set(false);
         spawn(async move {
             let res = if deny {
                 api::deny_rollout(id, &note).await
             } else {
                 api::approve_rollout(id, &note).await
             };
-            match res {
-                Ok(()) => toast_ok(if deny {
-                    "rollout denied"
-                } else {
-                    "rollout approved"
-                }),
-                Err(e) => toast_error(e.to_string()),
+            deciding.set(false);
+            if let Err(error) = res {
+                decision_error.set(Some(error.to_string()));
+                return;
             }
-            remark.set(String::new());
+            decide_open.set(false);
+            toast_ok(if deny {
+                "rollout denied"
+            } else {
+                "rollout approved"
+            });
             rollout.restart();
             groups.restart();
         });
@@ -97,18 +115,14 @@ pub fn RolloutDetail(id: i64) -> Element {
                     div { class: "mb-4 flex items-center gap-2",
                         if r.status == "waiting_for_approval" {
                             Button {
-                                onclick: move |_| {
-                                    denying.set(false);
-                                    decide_open.set(true);
-                                },
+                                disabled: deciding(),
+                                onclick: move |_| open_decision(false),
                                 "Approve"
                             }
                             Button {
                                 variant: ButtonVariant::Destructive,
-                                onclick: move |_| {
-                                    denying.set(true);
-                                    decide_open.set(true);
-                                },
+                                disabled: deciding(),
+                                onclick: move |_| open_decision(true),
                                 "Deny"
                             }
                         }
@@ -135,6 +149,11 @@ pub fn RolloutDetail(id: i64) -> Element {
                             onclick: move |_| confirm_delete.set(true),
                             "Delete"
                         }
+                    }
+                }
+                if !decide_open() {
+                    if let Some(message) = decision_error() {
+                        p { class: "mb-4 text-sm text-err-fg", role: "alert", "{message}" }
                     }
                 }
                 Card {
@@ -177,7 +196,7 @@ pub fn RolloutDetail(id: i64) -> Element {
             Some(Err(e)) => rsx! { ErrorPane { message: e.to_string(), on_retry: move |_| rollout.restart() } },
             None => rsx! { p { class: "text-muted-foreground", "Loading…" } },
         }
-        Dialog { open: decide_open,
+        Dialog { open: decide_open, aria_label: if denying() { "Deny rollout" } else { "Approve rollout" },
             form {
                 onsubmit: move |e: FormEvent| {
                     e.prevent_default();
@@ -197,21 +216,27 @@ pub fn RolloutDetail(id: i64) -> Element {
                 label { class: "mb-4 block text-sm text-fg-dim",
                     span { class: "mb-1 block", "Remark (optional)" }
                     Input {
+                        disabled: deciding(),
                         value: "{remark}",
                         oninput: move |e: FormEvent| remark.set(e.value()),
                     }
                 }
+                if let Some(message) = decision_error() {
+                    p { class: "mb-4 text-sm text-err-fg", role: "alert", "{message}" }
+                }
                 div { class: "flex justify-end gap-2",
                     button {
+                        id: "rollout-decision-close",
                         r#type: "button",
                         class: "rounded px-3 py-1.5 text-sm text-fg-dim hover:bg-accent",
                         onclick: move |_| decide_open.set(false),
-                        "Cancel"
+                        if deciding() { "Close" } else { "Cancel" }
                     }
                     Button {
                         r#type: "submit",
+                        disabled: deciding(),
                         variant: if denying() { ButtonVariant::Destructive } else { ButtonVariant::Default },
-                        if denying() { "Deny" } else { "Approve" }
+                        if deciding() { "Submitting…" } else if denying() { "Deny" } else { "Approve" }
                     }
                 }
             }

@@ -1,0 +1,133 @@
+{
+  "name": "Raptor",
+  "tagline": "Fleet updates and rollout status",
+  "description": "Operator interfaces for managing targets, distribution sets and software rollouts.",
+  "sourceUrl": "designmd://raptor",
+  "logo": {
+    "primary": null,
+    "alternates": [],
+    "notes": "Use the vendored sidebar and login medallions from raptor-ui/assets/logo/ without recolouring."
+  },
+  "colors": [
+    {
+      "role": "background",
+      "hex": "#06090f",
+      "oklch": "",
+      "name": "Background",
+      "usage": "page canvas"
+    },
+    {
+      "role": "foreground",
+      "hex": "#eef3f8",
+      "oklch": "",
+      "name": "Foreground",
+      "usage": "body text and headings"
+    },
+    {
+      "role": "accent",
+      "hex": "#3ddbd9",
+      "oklch": "",
+      "name": "Accent",
+      "usage": "Primary action and active navigation. Status uses separate semantic colours."
+    },
+    {
+      "role": "surface",
+      "hex": "#0e141c",
+      "oklch": "",
+      "name": "Surface",
+      "usage": "cards and panels"
+    },
+    {
+      "role": "muted",
+      "hex": "#7d8b9c",
+      "oklch": "",
+      "name": "Muted",
+      "usage": "secondary text and metadata"
+    },
+    {
+      "role": "border",
+      "hex": "#1a2430",
+      "oklch": "",
+      "name": "Border",
+      "usage": "rules and dividers"
+    }
+  ],
+  "typography": {
+    "display": {
+      "family": "Barlow Condensed",
+      "fallbacks": [
+        "Arial Narrow",
+        "system-ui",
+        "sans-serif"
+      ],
+      "weights": [
+        600,
+        700
+      ]
+    },
+    "body": {
+      "family": "Barlow",
+      "fallbacks": [
+        "Helvetica Neue",
+        "system-ui",
+        "sans-serif"
+      ],
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ]
+    }
+  },
+  "voice": {
+    "adjectives": [],
+    "tone": "Terse and factual, like an instrument readout.",
+    "messagingPillars": [
+      "Pair each device or rollout state with a glyph or dot and a word.",
+      "Use hawkBit API nouns and human-readable status labels."
+    ],
+    "vocabulary": {
+      "use": [
+        "target",
+        "distribution set",
+        "software module",
+        "rollout",
+        "action",
+        "target filter"
+      ],
+      "avoid": []
+    }
+  },
+  "imagery": {
+    "style": [],
+    "subjects": [],
+    "treatment": [],
+    "avoid": []
+  },
+  "layout": {
+    "radius": "4px",
+    "borderWeight": "1px",
+    "spacing": "4px grid",
+    "postureRules": [
+      "Keep panels and tile grids square.",
+      "Use 4px corners on controls, dialogs, chips and badges.",
+      "Set machine identifiers and timestamps in IBM Plex Mono."
+    ]
+  },
+  "seed": {
+    "colorPrimary": "#3ddbd9",
+    "colorSuccess": "#21c08b",
+    "colorWarning": "#f0b429",
+    "colorError": "#ef5350",
+    "colorInfo": "#4f9cf9",
+    "colorLink": "#3ddbd9",
+    "colorTextBase": "#eef3f8",
+    "colorBgBase": "#06090f",
+    "fontFamily": "\"Barlow\", \"Helvetica Neue\", system-ui, sans-serif",
+    "fontFamilyCode": "\"IBM Plex Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": 14,
+    "borderRadius": 4,
+    "controlHeight": 36
+  }
+}

@@ -106,7 +106,27 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
 
     // Selection can go stale as results load in (fewer items than before) —
     // clamp rather than index out of bounds.
-    let sel = selected().min(items.len().saturating_sub(1));
+    let count = items.len();
+    let sel = selected().min(count.saturating_sub(1));
+    let active_item = items.get(sel).cloned();
+
+    // The browser traps focus, makes the page inert and restores the opener on close.
+    #[cfg(target_arch = "wasm32")]
+    use_effect(move || {
+        document::eval(if open() {
+            "document.getElementById('command-palette').showModal()"
+        } else {
+            "document.getElementById('command-palette').close()"
+        });
+    });
+
+    let mut select = move |index| {
+        selected.set(index);
+        #[cfg(target_arch = "wasm32")]
+        document::eval(&format!(
+            "document.getElementById('command-option-{index}')?.scrollIntoView({{block:'nearest'}})"
+        ));
+    };
 
     let mut close = move || {
         open.set(false);
@@ -140,28 +160,33 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
     };
 
     rsx! {
-        if open() {
+        dialog {
+            id: "command-palette",
+            class: "fixed inset-0 h-full w-full max-h-none max-w-none bg-transparent text-inherit backdrop:bg-black/60",
+            aria_label: "Command palette",
+            oncancel: move |e| {
+                e.prevent_default();
+                close();
+            },
             div {
-                class: "fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-32",
-                tabindex: "-1",
+                class: "flex min-h-full items-start justify-center px-4 pt-16 sm:pt-32",
                 onclick: move |_| close(),
                 onkeydown: move |e: KeyboardEvent| {
                     match e.key() {
-                        Key::Escape => close(),
                         Key::ArrowDown => {
                             e.prevent_default();
-                            if !items.is_empty() {
-                                selected.set((sel + 1) % items.len());
+                            if count > 0 {
+                                select((sel + 1) % count);
                             }
                         }
                         Key::ArrowUp => {
                             e.prevent_default();
-                            if !items.is_empty() {
-                                selected.set((sel + items.len() - 1) % items.len());
+                            if count > 0 {
+                                select((sel + count - 1) % count);
                             }
                         }
                         Key::Enter => {
-                            if let Some(item) = items.get(sel) {
+                            if let Some(item) = &active_item {
                                 activate(item);
                             }
                         }
@@ -170,22 +195,17 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                 },
                 div {
                     class: "w-full max-w-lg rounded border border-border-soft bg-card shadow-lg",
-                    role: "dialog",
-                    aria_modal: "true",
-                    aria_label: "Command palette",
                     onclick: move |e| e.stop_propagation(),
                     input {
-                        class: "w-full border-b border-border-soft bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground",
+                        class: "w-full border-b border-border-soft bg-transparent px-4 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground",
                         placeholder: "Jump to a target, page, or action…",
-                        // The `autofocus` attribute only applies to elements present at
-                        // initial page load, not ones inserted later by a conditional
-                        // render — this dialog only ever appears the second way, so
-                        // focus has to be grabbed explicitly once it's mounted.
-                        onmounted: move |e| {
-                            spawn(async move {
-                                let _ = e.set_focus(true).await;
-                            });
-                        },
+                        autofocus: true,
+                        role: "combobox",
+                        aria_label: "Search commands",
+                        aria_autocomplete: "list",
+                        aria_controls: "command-options",
+                        aria_expanded: !items.is_empty(),
+                        aria_activedescendant: (!items.is_empty()).then(|| format!("command-option-{sel}")),
                         value: "{text}",
                         oninput: move |e: FormEvent| {
                             text.set(e.value());
@@ -194,21 +214,24 @@ pub fn CommandPalette(open: Signal<bool>) -> Element {
                     }
                     if items.is_empty() {
                         p { class: "px-4 py-6 text-center text-sm text-muted-foreground", "No matches" }
-                    } else {
-                        ul { class: "max-h-80 overflow-y-auto py-1", role: "listbox",
-                            for (i , item) in items.iter().enumerate() {
-                                li {
-                                    key: "{i}",
-                                    role: "option",
-                                    aria_selected: if i == sel { "true" } else { "false" },
-                                    class: if i == sel { "cursor-pointer bg-accent px-4 py-2 text-sm text-foreground" } else { "cursor-pointer px-4 py-2 text-sm text-foreground" },
-                                    onmouseenter: move |_| selected.set(i),
-                                    onclick: {
-                                        let item = item.clone();
-                                        move |_| activate(&item)
-                                    },
-                                    {item_label(item)}
-                                }
+                    }
+                    ul { class: "max-h-80 overflow-y-auto py-1", role: "listbox",
+                        id: "command-options",
+                        aria_label: "Matching commands",
+                        hidden: items.is_empty(),
+                        for (i , item) in items.iter().enumerate() {
+                            li {
+                                key: "{i}",
+                                role: "option",
+                                id: "command-option-{i}",
+                                aria_selected: if i == sel { "true" } else { "false" },
+                                class: if i == sel { "cursor-pointer bg-accent px-4 py-2 text-sm text-foreground" } else { "cursor-pointer px-4 py-2 text-sm text-foreground" },
+                                onmouseenter: move |_| selected.set(i),
+                                onclick: {
+                                    let item = item.clone();
+                                    move |_| activate(&item)
+                                },
+                                {item_label(item)}
                             }
                         }
                     }

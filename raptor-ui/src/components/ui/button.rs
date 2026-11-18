@@ -33,7 +33,7 @@ impl ButtonVariant {
     fn as_str(&self) -> &'static str {
         match self {
             ButtonVariant::Default => {
-                "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+                "bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover"
             }
             ButtonVariant::Destructive => {
                 "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90"

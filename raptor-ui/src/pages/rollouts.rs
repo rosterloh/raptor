@@ -111,14 +111,12 @@ pub fn Rollouts(query: String, sort: String, offset: u64) -> Element {
                                 td { class: TD, StatusBadge { status: r.status.clone() } }
                                 td { class: TD, "{r.total_targets}" }
                                 td { class: TD,
-                                    div { class: "w-44",
+                                    div { class: "w-44 space-y-1",
                                         ProgressBar {
                                             counts: r.total_targets_per_status,
                                             total: r.total_targets,
                                         }
-                                        p { class: "mt-1 text-xs text-muted-foreground",
-                                            "{r.total_targets_per_status.finished} of {r.total_targets} finished"
-                                        }
+                                        ProgressLegend { counts: r.total_targets_per_status }
                                     }
                                 }
                                 td { class: TD, {logic::format_ts(r.created_at)} }
