@@ -27,14 +27,14 @@ pub async fn serve(uri: Uri) -> Response {
             .into_response();
     }
     let last = path.rsplit('/').next().unwrap_or("");
-    if !last.contains('.') {
-        if let Some(f) = UiAssets::get("index.html") {
-            return (
-                [(header::CONTENT_TYPE, "text/html".to_string())],
-                f.data.into_owned(),
-            )
-                .into_response();
-        }
+    if !last.contains('.')
+        && let Some(f) = UiAssets::get("index.html")
+    {
+        return (
+            [(header::CONTENT_TYPE, "text/html".to_string())],
+            f.data.into_owned(),
+        )
+            .into_response();
     }
     StatusCode::NOT_FOUND.into_response()
 }

@@ -1,7 +1,12 @@
 #![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! What reaches the log at the default `info` level: management API writes
 //! and domain events, but not reads or device polls, which would drown them.
+//!
+//! Its own binary: sharing a process with other tests' threads makes the
+//! thread-local capture below miss events under `cargo test`.
 
+#[allow(dead_code)]
+#[path = "it/common/mod.rs"]
 mod common;
 
 use std::sync::{Arc, Mutex};
