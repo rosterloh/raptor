@@ -113,9 +113,7 @@ async fn multipart_upload_roundtrip_and_cross_part_range() {
 #[tokio::test]
 #[ignore = "needs TEST_S3_ENDPOINT"]
 async fn spool_is_cleaned_up_after_upload() {
-    let Some(cfg) = common::test_s3_config() else {
-        return;
-    };
+    let cfg = common::test_s3_config().expect("TEST_S3_ENDPOINT not set");
     let dir = tempfile::tempdir().unwrap();
     let store = ArtifactStore::with_s3(dir.path(), S3Store::new(&cfg).unwrap()).unwrap();
     let meta = put(&store, b"spool me").await;
@@ -129,9 +127,7 @@ async fn spool_is_cleaned_up_after_upload() {
 #[tokio::test]
 #[ignore = "needs TEST_S3_ENDPOINT"]
 async fn backfill_copies_an_fs_store_and_is_idempotent() {
-    let Some(cfg) = common::test_s3_config() else {
-        return;
-    };
+    let cfg = common::test_s3_config().expect("TEST_S3_ENDPOINT not set");
     let s3 = S3Store::new(&cfg).unwrap();
     let dir = tempfile::tempdir().unwrap();
     let fs = ArtifactStore::new(dir.path().to_path_buf()).unwrap();

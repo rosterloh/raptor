@@ -47,7 +47,7 @@ pub fn test_config(artifact_dir: &std::path::Path) -> Config {
     let toml = format!(
         r#"
 database_url = "unused"
-artifact_dir = "{}"
+artifact_dir = "unused"
 url = "http://localhost:8080"
 [ddi]
 anonymous = true
@@ -56,14 +56,16 @@ gateway_token = "gw-token"
 username = "admin"
 password_hash = "{}"
 "#,
-        artifact_dir.display(),
         *TEST_HASH
     );
     use figment::providers::{Format, Toml};
-    figment::Figment::new()
+    let mut cfg: Config = figment::Figment::new()
         .merge(Toml::string(&toml))
         .extract()
-        .unwrap()
+        .unwrap();
+    // Set after parsing: a path can hold characters a TOML string would need escaped.
+    cfg.artifact_dir = artifact_dir.into();
+    cfg
 }
 
 /// The S3 settings for `TEST_S3_ENDPOINT`, when set, with a fresh key prefix

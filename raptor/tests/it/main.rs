@@ -1,7 +1,8 @@
 #![allow(clippy::unwrap_used)] // helpers outside #[test] fns aren't covered by allow-unwrap-in-tests
 //! Integration tests, one module per feature. One binary on purpose: every
-//! extra test binary links all of raptor again. `tests/telemetry.rs` stays
-//! separate because it installs process-global state.
+//! extra test binary links all of raptor again. `tests/telemetry.rs` and
+//! `tests/logging.rs` stay separate: one installs process-global state, the
+//! other captures logs per thread.
 mod common;
 
 mod ddi_auth;
@@ -13,7 +14,6 @@ mod ddi_polling;
 mod ddi_root;
 mod e2e;
 mod health;
-mod logging;
 mod mgmt_action_cleanup;
 mod mgmt_action_types;
 mod mgmt_artifacts;
