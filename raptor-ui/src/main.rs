@@ -19,43 +19,51 @@ use pages::{
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 
-#[rustfmt::skip]
-#[derive(Clone, Debug, PartialEq, Routable)]
-pub enum Route {
-    #[route("/login")]
-    Login {},
-    #[layout(Shell)]
-        #[route("/")]
-        Dashboard {},
-        #[route("/targets?:query&:state&:tag&:group&:sort&:offset")]
-        Targets { query: String, state: String, tag: String, group: String, sort: String, offset: u64 },
-        #[route("/targets/:cid")]
-        TargetDetail { cid: String },
-        #[route("/targetfilters?:query&:offset")]
-        TargetFilters { query: String, offset: u64 },
-        #[route("/tags?:kind&:query&:offset")]
-        Tags { kind: String, query: String, offset: u64 },
-        #[route("/types")]
-        Types {},
-        #[route("/distributions?:query&:tag&:offset")]
-        Distributions { query: String, tag: String, offset: u64 },
-        #[route("/distributions/:id")]
-        DsDetail { id: i64 },
-        #[route("/modules?:query&:offset")]
-        Modules { query: String, offset: u64 },
-        #[route("/modules/:id")]
-        ModuleDetail { id: i64 },
-        #[route("/rollouts?:query&:sort&:offset")]
-        Rollouts { query: String, sort: String, offset: u64 },
-        #[route("/rollouts/:id")]
-        RolloutDetail { id: i64 },
-        #[route("/actions?:filter&:sort&:offset")]
-        Actions { filter: String, sort: String, offset: u64 },
-        #[route("/users")]
-        Users {},
-        #[route("/:..route")]
-        NotFound { route: Vec<String> },
+// rustc 1.100 flags code the Routable derive (dioxus 0.7.10) expands to. The
+// allow sits on a module because one on the enum doesn't reach the derive's output.
+#[allow(unreachable_code)]
+mod route {
+    use super::*;
+
+    #[rustfmt::skip]
+    #[derive(Clone, Debug, PartialEq, Routable)]
+    pub enum Route {
+        #[route("/login")]
+        Login {},
+        #[layout(Shell)]
+            #[route("/")]
+            Dashboard {},
+            #[route("/targets?:query&:state&:tag&:group&:sort&:offset")]
+            Targets { query: String, state: String, tag: String, group: String, sort: String, offset: u64 },
+            #[route("/targets/:cid")]
+            TargetDetail { cid: String },
+            #[route("/targetfilters?:query&:offset")]
+            TargetFilters { query: String, offset: u64 },
+            #[route("/tags?:kind&:query&:offset")]
+            Tags { kind: String, query: String, offset: u64 },
+            #[route("/types")]
+            Types {},
+            #[route("/distributions?:query&:tag&:offset")]
+            Distributions { query: String, tag: String, offset: u64 },
+            #[route("/distributions/:id")]
+            DsDetail { id: i64 },
+            #[route("/modules?:query&:offset")]
+            Modules { query: String, offset: u64 },
+            #[route("/modules/:id")]
+            ModuleDetail { id: i64 },
+            #[route("/rollouts?:query&:sort&:offset")]
+            Rollouts { query: String, sort: String, offset: u64 },
+            #[route("/rollouts/:id")]
+            RolloutDetail { id: i64 },
+            #[route("/actions?:filter&:sort&:offset")]
+            Actions { filter: String, sort: String, offset: u64 },
+            #[route("/users")]
+            Users {},
+            #[route("/:..route")]
+            NotFound { route: Vec<String> },
+    }
 }
+pub use route::Route;
 
 impl Route {
     // Every field falls back to `Default` via `FromQueryArgument`, so these
