@@ -1,4 +1,17 @@
-# raptor design system
+---
+name: Raptor
+category: Brands
+surface: web
+colors:
+  background: "#06090f"
+  foreground: "#eef3f8"
+  accent: "#3ddbd9"
+  surface: "#0e141c"
+  muted: "#7d8b9c"
+  border: "#1a2430"
+---
+
+# Raptor operator design system
 
 Rules for the two operator surfaces: the web console (`raptor-ui`) and the
 terminal UI (`raptorctl tui`). The code is the source of truth. Colours and
@@ -196,3 +209,5 @@ operator's terminal theme. Only `theme.rs` names a colour.
   any mode.
 - The UI works down to 80 × 24. Below that it shows "terminal too small" and
   doesn't try to lay anything out.
+
+Source: [Raptor repository design guide](https://github.com/rosterloh/raptor/blob/4b68fa6/DESIGN.md).

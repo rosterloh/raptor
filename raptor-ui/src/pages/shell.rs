@@ -1,7 +1,7 @@
 use crate::Route;
 use crate::components::ui::{Button, ButtonSize, ButtonVariant, Dialog};
 use crate::components::{
-    CommandPalette, FilterClear, LiveContext, Me, ToastStack, use_is_admin, use_theme,
+    CommandPalette, ErrorPane, FilterClear, LiveContext, Me, ToastStack, use_is_admin, use_theme,
 };
 use dioxus::prelude::*;
 
@@ -22,16 +22,35 @@ pub fn Shell() -> Element {
     // router keeps the layout mounted across child routes.
     // `/rest/v1/userinfo` doubles as the session probe and tells the pages
     // which controls this operator's role may use.
-    let session = use_resource(move || async move {
+    let mut session = use_resource(move || async move {
         let info = crate::api::userinfo().await?;
         let mut m = me.0;
         m.set(Some(info));
         Ok::<(), crate::api::ApiError>(())
     });
-    if !matches!(&*session.read_unchecked(), Some(Ok(()))) {
-        // In flight, or refused — and a refusal has already navigated to the
-        // login page from the api layer's 401 handling. Nothing to draw either way.
-        return rsx! {};
+    match &*session.read_unchecked() {
+        Some(Ok(())) => {}
+        Some(Err(crate::api::ApiError::Unauthorized)) => return rsx! {},
+        Some(Err(error)) => {
+            return rsx! {
+                main { class: "p-4 sm:p-6",
+                    ErrorPane {
+                        message: error.to_string(),
+                        on_retry: move |_| {
+                            if !session.pending() {
+                                session.clear();
+                                session.restart();
+                            }
+                        },
+                    }
+                }
+            };
+        }
+        None => {
+            return rsx! {
+                main { class: "p-4 text-muted-foreground sm:p-6", role: "status", "Loading…" }
+            };
+        }
     }
     rsx! {
         div {

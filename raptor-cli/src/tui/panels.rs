@@ -181,7 +181,7 @@ fn draw_targets(f: &mut Frame, app: &mut App, theme: &Theme, area: Rect) {
             Row::new(vec![
                 Cell::from(status_glyph(&t.update_status)).style(Style::default().fg(color)),
                 Cell::from(t.controller_id.clone()).style(Style::default().fg(theme.fg)),
-                Cell::from(t.update_status.clone()).style(Style::default().fg(color)),
+                Cell::from(t.update_status.replace('_', " ")).style(Style::default().fg(color)),
                 Cell::from(ds).style(Style::default().fg(theme.fg_muted)),
             ])
         })
@@ -297,7 +297,7 @@ fn draw_detail(f: &mut Frame, app: &App, theme: &Theme, area: Rect) {
         Line::from(vec![
             Span::styled("status    ", Style::default().fg(theme.fg_muted)),
             Span::styled(
-                &t.update_status,
+                t.update_status.replace('_', " "),
                 Style::default().fg(status_color(theme, &t.update_status)),
             ),
         ]),
@@ -774,8 +774,8 @@ mod tests {
         let short_row = row_text(buf, 2);
         let long_row = row_text(buf, 3);
         assert_eq!(
-            short_row.find("in_sync"),
-            long_row.find("error"),
+            short_row.find("in sync").expect("formatted status"),
+            long_row.find("error").expect("error status"),
             "status column moved:\n{short_row}\n{long_row}"
         );
         assert!(
