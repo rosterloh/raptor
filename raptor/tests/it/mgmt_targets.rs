@@ -1,0 +1,591 @@
+use crate::common;
+
+use axum::http::StatusCode;
+use serde_json::json;
+use tower::ServiceExt;
+
+#[tokio::test]
+async fn create_list_update_delete_target() {
+    let (app, _) = common::setup().await;
+
+    let resp = app.clone().oneshot(common::req("POST", "/rest/v1/targets",
+        Some(json!([{"controllerId": "dev-1"}, {"controllerId": "dev-2", "name": "Device 2", "securityToken": "tok2"}])))).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let body = common::body_json(resp).await;
+    assert_eq!(body[0]["controllerId"], "dev-1");
+    assert_eq!(body[0]["name"], "dev-1"); // defaults to controllerId
+    assert_eq!(body[0]["updateStatus"], "unknown");
+    assert_eq!(body[0]["securityToken"].as_str().unwrap().len(), 32);
+    assert_eq!(body[1]["securityToken"], "tok2");
+    assert!(body[0]["pollStatus"].is_null());
+
+    // FIQL filter
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            "/rest/v1/targets?q=controllerId==dev-2",
+            None,
+        ))
+        .await
+        .unwrap();
+    let body = common::body_json(resp).await;
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["content"][0]["name"], "Device 2");
+
+    // update
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "PUT",
+            "/rest/v1/targets/dev-1",
+            Some(json!({"description": "first device"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(common::body_json(resp).await["description"], "first device");
+
+    // attributes empty map
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "GET",
+            "/rest/v1/targets/dev-1/attributes",
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(common::body_json(resp).await, json!({}));
+
+    // delete
+    assert_eq!(
+        app.clone()
+            .oneshot(common::req("DELETE", "/rest/v1/targets/dev-1", None))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets/dev-1", None))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn duplicate_controller_id_conflicts() {
+    let (app, _) = common::setup().await;
+    let t = json!([{"controllerId": "dup"}]);
+    assert_eq!(
+        app.clone()
+            .oneshot(common::req("POST", "/rest/v1/targets", Some(t.clone())))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(common::req("POST", "/rest/v1/targets", Some(t)))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT
+    );
+}
+
+#[tokio::test]
+async fn partial_write_prevented_on_bulk_conflict() {
+    let (app, _) = common::setup().await;
+
+    // Create "already-there" beforehand
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "already-there"}])),
+        ))
+        .await
+        .unwrap();
+
+    // POST array with brand-new and already-there (conflict)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "brand-new"}, {"controllerId": "already-there"}])),
+        ))
+        .await
+        .unwrap();
+
+    // Should return 409 because second item conflicts
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Verify brand-new was NOT created (no partial write)
+    let check = app
+        .clone()
+        .oneshot(common::req("GET", "/rest/v1/targets/brand-new", None))
+        .await
+        .unwrap();
+    assert_eq!(check.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn duplicate_within_request_rejected() {
+    let (app, _) = common::setup().await;
+
+    // POST array with two identical brand-new controllerIds (duplicate within same request)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "dup-in-req"}, {"controllerId": "dup-in-req"}])),
+        ))
+        .await
+        .unwrap();
+
+    // Should return 409 Conflict, not 500
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    // Verify nothing was persisted (404 on GET)
+    let check = app
+        .clone()
+        .oneshot(common::req("GET", "/rest/v1/targets/dup-in-req", None))
+        .await
+        .unwrap();
+    assert_eq!(check.status(), StatusCode::NOT_FOUND);
+}
+
+/// The target list carries the installed/assigned set and the target's tags
+/// inline, so a console can render them without a request per row (#70).
+#[tokio::test]
+async fn target_list_embeds_set_and_tag_refs() {
+    let (app, _) = common::setup().await;
+
+    let sm = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/softwaremodules",
+                Some(json!([{"name": "rootfs", "version": "3.4.0", "type": "os"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let ds = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/distributionsets",
+                Some(
+                    json!([{"name": "gw-linux", "version": "2026.07", "type": "os", "modules": [{"id": sm}]}]),
+                ),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let tag = common::body_json(
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targettags",
+                Some(json!([{"name": "linux-gw", "colour": "#4f9cf9"}])),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+
+    for cid in ["gw-a", "gw-b"] {
+        app.clone()
+            .oneshot(common::req(
+                "POST",
+                "/rest/v1/targets",
+                Some(json!([{"controllerId": cid}])),
+            ))
+            .await
+            .unwrap();
+    }
+    // Assign the set to one of them, and tag it.
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets/gw-a/assignedDS",
+            Some(json!({"id": ds, "type": "forced"})),
+        ))
+        .await
+        .unwrap();
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            &format!("/rest/v1/targettags/{tag}/assigned/gw-a"),
+            None,
+        ))
+        .await
+        .unwrap();
+
+    let list = common::body_json(
+        app.clone()
+            .oneshot(common::req("GET", "/rest/v1/targets", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let row = |cid: &str| {
+        list["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["controllerId"] == cid)
+            .cloned()
+            .unwrap()
+    };
+
+    let a = row("gw-a");
+    assert_eq!(a["assignedDs"]["id"], ds);
+    assert_eq!(a["assignedDs"]["name"], "gw-linux");
+    assert_eq!(a["assignedDs"]["version"], "2026.07");
+    // The type key, not the numeric id — it is what says whether a device class
+    // can install this set at all.
+    assert_eq!(a["assignedDs"]["type"], "os");
+    assert_eq!(a["tags"][0]["name"], "linux-gw");
+    assert_eq!(a["tags"][0]["colour"], "#4f9cf9");
+    // Nothing installed until the device reports it, and that is distinct from
+    // "no assignment" — the field is absent rather than null-ish.
+    assert!(a.get("installedDs").is_none());
+
+    // The untouched target keeps the pre-#70 shape: absent, not empty objects.
+    let b = row("gw-b");
+    assert!(b.get("assignedDs").is_none());
+    assert!(b.get("installedDs").is_none());
+    assert!(b.get("tags").is_none());
+
+    // The single-target read returns the same shape, so a consumer does not have
+    // to special-case it.
+    let one = common::body_json(
+        app.oneshot(common::req("GET", "/rest/v1/targets/gw-a", None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(one["assignedDs"], a["assignedDs"]);
+    assert_eq!(one["tags"], a["tags"]);
+}
+
+#[tokio::test]
+async fn delete_target_with_history() {
+    let (app, _) = common::setup().await;
+    let post = |uri: &str, body: serde_json::Value| {
+        let app = app.clone();
+        let uri = uri.to_string();
+        async move {
+            let resp = app
+                .oneshot(common::req("POST", &uri, Some(body)))
+                .await
+                .unwrap();
+            assert!(resp.status().is_success(), "{uri}: {}", resp.status());
+            common::body_json(resp).await
+        }
+    };
+    let sm = post(
+        "/rest/v1/softwaremodules",
+        json!([{"name": "rootfs", "version": "1", "type": "os"}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let ds = post(
+        "/rest/v1/distributionsets",
+        json!([{"name": "fw", "version": "1", "type": "os", "modules": [{"id": sm}]}]),
+    )
+    .await[0]["id"]
+        .as_i64()
+        .unwrap();
+    let tag = post("/rest/v1/targettags", json!([{"name": "t"}])).await[0]["id"]
+        .as_i64()
+        .unwrap();
+    post("/rest/v1/targets", json!([{"controllerId": "gw-a"}])).await;
+    post(
+        "/rest/v1/targets/gw-a/metadata",
+        json!([{"key": "k", "value": "v"}]),
+    )
+    .await;
+    post(
+        &format!("/rest/v1/targettags/{tag}/assigned"),
+        json!(["gw-a"]),
+    )
+    .await;
+    post(
+        "/rest/v1/rollouts",
+        json!({
+            "name": "r", "distributionSetId": ds, "targetFilterQuery": "controllerId==gw-a",
+            "amountGroups": 1, "successCondition": {"condition": "THRESHOLD", "expression": "100"},
+        }),
+    )
+    .await;
+    post("/rest/v1/targets/gw-a/assignedDS", json!({"id": ds})).await;
+
+    let resp = app
+        .clone()
+        .oneshot(common::req("DELETE", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(common::req("GET", "/rest/v1/targets/gw-a", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let resp = app
+        .oneshot(common::req("GET", "/rest/v1/rollouts", None))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+// --------------------------------------------------------------------------
+// `attribute.<key>==<value>` FIQL on targets
+// --------------------------------------------------------------------------
+
+#[tokio::test]
+async fn target_list_filters_by_attribute() {
+    let (app, _) = common::setup().await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([
+                {"controllerId": "dev-1"}, {"controllerId": "dev-2"}, {"controllerId": "dev-3"}
+            ])),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let set_attrs = |cid: &'static str, data: serde_json::Value| {
+        let app = app.clone();
+        async move {
+            let resp = app
+                .oneshot(common::req(
+                    "PUT",
+                    &format!("/DEFAULT/controller/v1/{cid}/configData"),
+                    Some(json!({"mode": "merge", "data": data})),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+    };
+    set_attrs("dev-1", json!({"hw_revision": "rev-C", "kernel": "6.6"})).await;
+    set_attrs("dev-2", json!({"hw_revision": "rev-B"})).await;
+    set_attrs("dev-3", json!({})).await;
+
+    let cids = |v: &serde_json::Value| -> Vec<String> {
+        let mut out: Vec<String> = v["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["controllerId"].as_str().unwrap().to_string())
+            .collect();
+        out.sort();
+        out
+    };
+
+    let get = |q: &'static str| {
+        let app = app.clone();
+        async move { common::body_json(app.oneshot(common::req("GET", q, None)).await.unwrap()).await }
+    };
+
+    let r = get("/rest/v1/targets?q=attribute.hw_revision==rev-C").await;
+    assert_eq!(cids(&r), ["dev-1"]);
+
+    // wildcards behave as they do for other fields
+    let r = get("/rest/v1/targets?q=attribute.hw_revision==rev-*").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-2"]);
+
+    // combines with a plain column
+    let r = get("/rest/v1/targets?q=attribute.kernel==6.6;controllerId==dev-1").await;
+    assert_eq!(cids(&r), ["dev-1"]);
+
+    // an unknown key matches nothing rather than erroring
+    let r = get("/rest/v1/targets?q=attribute.nope==anything").await;
+    assert_eq!(r["total"], 0);
+
+    // works the same way in a saved target filter (shares `targets::condition`)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targetfilters",
+            Some(json!({"name": "rev-c", "query": "attribute.hw_revision==rev-C"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+// --------------------------------------------------------------------------
+// `autoConfirm` FIQL on targets (hawkBit 1.1, eclipse-hawkbit/hawkbit#3145)
+// --------------------------------------------------------------------------
+
+#[tokio::test]
+async fn target_list_filters_by_auto_confirm() {
+    let (app, _) = common::setup().await;
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([
+                {"controllerId": "dev-1"}, {"controllerId": "dev-2"}, {"controllerId": "dev-3"}
+            ])),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets/dev-2/autoConfirm/activate",
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let cids = |v: &serde_json::Value| -> Vec<String> {
+        let mut out: Vec<String> = v["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["controllerId"].as_str().unwrap().to_string())
+            .collect();
+        out.sort();
+        out
+    };
+    let get = |q: &'static str| {
+        let app = app.clone();
+        async move { common::body_json(app.oneshot(common::req("GET", q, None)).await.unwrap()).await }
+    };
+
+    let r = get("/rest/v1/targets?q=autoConfirm==true").await;
+    assert_eq!(cids(&r), ["dev-2"]);
+
+    let r = get("/rest/v1/targets?q=autoConfirm==false").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-3"]);
+
+    let r = get("/rest/v1/targets?q=autoConfirm!=true").await;
+    assert_eq!(cids(&r), ["dev-1", "dev-3"]);
+
+    // combines with a plain column, same as any other field
+    let r = get("/rest/v1/targets?q=autoConfirm==true;controllerId==dev-2").await;
+    assert_eq!(cids(&r), ["dev-2"]);
+
+    // works the same way in a saved target filter (shares `targets::condition`)
+    let resp = app
+        .clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targetfilters",
+            Some(json!({"name": "unconfirmed", "query": "autoConfirm==true"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn fiql_matches_alike_on_every_backend() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "Dev_1"}, {"controllerId": "devx1"}])),
+        ))
+        .await
+        .unwrap();
+    let q = |q: &str| {
+        let app = app.clone();
+        let uri = format!("/rest/v1/targets?q={}", q.replace('%', "%25"));
+        async move {
+            let resp = app.oneshot(common::req("GET", &uri, None)).await.unwrap();
+            let status = resp.status();
+            let body = common::body_json(resp).await;
+            let mut ids: Vec<String> = body["content"]
+                .as_array()
+                .map(|c| {
+                    c.iter()
+                        .map(|t| t["controllerId"].as_str().unwrap().to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
+            ids.sort();
+            (status, ids)
+        }
+    };
+    let ok = |ids: &[&str]| (StatusCode::OK, ids.iter().map(|s| s.to_string()).collect());
+    // Case-insensitive, with `_`/`%` matched literally.
+    assert_eq!(q("controllerId==DEV*").await, ok(&["Dev_1", "devx1"]));
+    assert_eq!(q("controllerId==dev_*").await, ok(&["Dev_1"]));
+    assert_eq!(q("controllerId==dev%*").await, ok(&[]));
+    assert_eq!(q("controllerId==DEV_1").await, ok(&["Dev_1"]));
+    assert_eq!(
+        q("controllerId=in=(dev_1,DEVX1)").await,
+        ok(&["Dev_1", "devx1"])
+    );
+    // Numeric fields bind as numbers.
+    assert_eq!(q("lastControllerRequestAt=lt=500").await, ok(&[]));
+    assert_eq!(
+        q("lastControllerRequestAt=lt=soon").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+// #215: hawkBit spells updateStatus values upper-case (`IN_SYNC`); raptor
+// stores them lower-case, so the filter must ignore case.
+#[tokio::test]
+async fn update_status_filter_accepts_hawkbit_upper_case() {
+    let (app, _) = common::setup().await;
+    app.clone()
+        .oneshot(common::req(
+            "POST",
+            "/rest/v1/targets",
+            Some(json!([{"controllerId": "dev-1"}])),
+        ))
+        .await
+        .unwrap();
+    for (q, want) in [
+        ("updateStatus==UNKNOWN", 1),
+        ("updateStatus=in=(UNKNOWN,PENDING)", 1),
+        ("updateStatus==IN_SYNC", 0),
+    ] {
+        let body = common::body_json(
+            app.clone()
+                .oneshot(common::req("GET", &format!("/rest/v1/targets?q={q}"), None))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(body["total"], want, "{q}");
+    }
+}

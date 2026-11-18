@@ -25,7 +25,8 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v5
-      # workspace tests plus the `otel`-gated telemetry test (see mise.toml)
+      # workspace tests with the `otel` feature on (see mise.toml); the Postgres
+      # and S3 jobs cover the default-feature build
       - run: mise run test
 
   # Informational only: never gates a merge (continue-on-error at the job
@@ -71,9 +72,8 @@ jobs:
       - uses: jdx/mise-action@v5
       # embed-ui test first: it writes placeholder assets into
       # target/dx/raptor-ui/release/web/public, which dx build then replaces
-      - run: cargo test -p raptor --features embed-ui --test ui_serving
+      - run: cargo test -p raptor --features embed-ui --test it ui_serving
       - run: cargo clippy -p raptor-ui --target wasm32-unknown-unknown -- -D warnings
-      - run: cargo test -p raptor-ui
       # last: smoke-build the bundle (debug: skips release wasm-opt; the tagged
       # release pipeline still builds --release). dx must run from workspace root.
       - run: dx build --package raptor-ui
@@ -120,14 +120,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v5
       # Only raptor's tests touch the DB; each gets its own schema (see
-      # tests/common/mod.rs) so they run in parallel without clobbering.
+      # tests/it/common/mod.rs) so they run in parallel without clobbering.
       - run: cargo nextest run -p raptor
         env:
           TEST_DATABASE_URL: postgres://raptor:raptor@localhost:5432/raptor
 
   # The S3 artifact backend against a real self-hosted store. TEST_S3_ENDPOINT
   # switches every test's ArtifactStore to the bucket (see tests/common), and
-  # tests/storage_s3.rs adds multipart, cross-part ranges and backfill.
+  # tests/it/storage_s3.rs adds multipart, cross-part ranges and backfill.
   # RustFS runs from a step, not a `services:` entry, because the image needs
   # its data directory passed as an argument.
   test-s3:
@@ -158,7 +158,8 @@ jobs:
         run: |
           aws configure set default.s3.addressing_style path
           aws --endpoint-url http://localhost:9000 s3 mb s3://raptor-test
-      - run: cargo nextest run -p raptor
+      # --run-ignored all: tests/it/storage_s3.rs is #[ignore]d without a bucket
+      - run: cargo nextest run -p raptor --run-ignored all
         env:
           TEST_S3_ENDPOINT: http://localhost:9000
           TEST_S3_ACCESS_KEY: raptor-ci

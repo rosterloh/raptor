@@ -26,11 +26,8 @@ run = [
 ]
 
 [tasks.test]
-description = "Workspace tests on SQLite, plus the otel-gated telemetry test"
-run = [
-  "cargo nextest run --workspace",
-  "cargo nextest run -p raptor --features otel --test telemetry",
-]
+description = "Workspace tests on SQLite, otel on so the telemetry test shares the build"
+run = "cargo nextest run --workspace --features raptor/otel"
 
 [tasks.check]
 description = "Everything CI gates on except the Postgres/S3 suites; run before pushing"

@@ -19,8 +19,9 @@ optional embedded web console. Full docs live in `docs/` (mdbook) — start with
   - `src/storage/` — content-addressed artifact store: `fs.rs` (local disk)
     and `s3.rs` (S3-compatible, rusty-s3 presigning + reqwest) behind one
     `ArtifactStore`; callers address blobs by sha256 only
-  - `tests/` — integration tests, one file per feature (`mgmt_*`, `ddi_*`),
-    shared harness in `tests/common/`
+  - `tests/it/` — integration tests, one module per feature (`mgmt_*`,
+    `ddi_*`) in a single binary; `main.rs` lists them, and a file missing
+    there never runs. Shared harness in `tests/it/common/`
 - `raptor-api-types/` — shared Management API DTOs, one module per resource.
   Must stay wasm32-compatible: serde/serde_json only, no new dependencies.
 - `raptor-ui/` — Dioxus/WASM web console; HTTP client in `src/api/` (one
@@ -44,7 +45,7 @@ the same tasks, so bump a tool there, not in workflow YAML.
 ```sh
 mise run check      # lint + wasm clippy + tests: what CI gates on, minus Postgres/S3
 mise run lint       # fmt + clippy (server, otel)
-mise run test       # nextest workspace + otel-gated telemetry test
+mise run test       # nextest workspace, raptor's otel feature on
 mise run deb        # clean console build, then target/debian/*.deb
 ```
 
@@ -53,7 +54,7 @@ Individual commands, for when you need one:
 ```sh
 cargo nextest run --workspace          # tests (or: cargo test --workspace)
 cargo test -p raptor --features otel --test telemetry   # otel-gated test
-TEST_S3_ENDPOINT=http://localhost:9000 cargo nextest run -p raptor  # suite on S3 (see CI test-s3)
+TEST_S3_ENDPOINT=http://localhost:9000 cargo nextest run -p raptor --run-ignored all  # suite on S3 (see CI test-s3)
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy -p raptor --features otel --all-targets -- -D warnings
@@ -96,7 +97,8 @@ Feature flags on `raptor`: `embed-ui` (serve the console at `/ui`), `otel`
 - **Adding a Management API endpoint**: DTO in `raptor-api-types` (with a
   round-trip JSON test in its `tests.rs`) → handler + route in the matching
   `raptor/src/api/mgmt/` module → entity→REST mapping in `mappers.rs` →
-  integration test in `raptor/tests/mgmt_<feature>.rs` → document it in
+  integration test in `raptor/tests/it/mgmt_<feature>.rs` (a new file needs
+  its `mod` line in `main.rs`) → document it in
   `docs/src/reference/management-api.md` and the relevant guide.
 - **hawkBit compatibility is the contract**: JSON field names, paging
   envelope, and error bodies must match hawkBit; don't "improve" the wire
