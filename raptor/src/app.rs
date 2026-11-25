@@ -21,6 +21,7 @@ pub fn build_app(state: AppState) -> Router {
     #[cfg(feature = "embed-ui")]
     let app = app
         .route("/ui", get(crate::ui::serve))
+        .route("/ui/", get(crate::ui::serve))
         .route("/ui/{*path}", get(crate::ui::serve));
     let app = app
         .layer(middleware::from_fn(log_mgmt_writes))
