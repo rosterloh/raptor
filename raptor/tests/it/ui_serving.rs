@@ -86,3 +86,18 @@ async fn ui_does_not_require_auth() {
     let (app, _) = common::setup().await;
     assert_eq!(get(&app, "/ui").await.status(), StatusCode::OK);
 }
+
+// The console's router turns /ui into /ui/; a reload must not 404 (#241)
+#[tokio::test]
+async fn ui_root_with_trailing_slash_serves_index() {
+    write_placeholder_assets();
+    let (app, _) = common::setup().await;
+    let resp = get(&app, "/ui/").await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(
+        resp.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("text/html")
+    );
+}

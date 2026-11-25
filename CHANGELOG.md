@@ -27,6 +27,8 @@ decisions.
 
 - DDI `configData` rejects attribute keys or values over 128 characters with
   `400`, matching hawkBit (#210)
+- Reloading the console at `/ui/` returned `404`; it now serves the console
+  (#241)
 
 ## [1.3.2] - 2026-11-16
 
